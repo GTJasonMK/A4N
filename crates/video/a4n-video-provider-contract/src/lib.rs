@@ -94,6 +94,11 @@ pub struct VideoProviderCapabilities {
     pub asynchronous: bool,
     pub status_query: bool,
     pub delete: bool,
+    pub last_frame: bool,
+    pub max_reference_images: Option<usize>,
+    pub reference_video_audio: bool,
+    pub first_frame_with_references: bool,
+    pub fps_parameter: bool,
 }
 
 const fn async_video_provider(
@@ -110,16 +115,37 @@ const fn async_video_provider(
         asynchronous: true,
         status_query: true,
         delete: false,
+        last_frame: true,
+        max_reference_images: None,
+        reference_video_audio: false,
+        first_frame_with_references: true,
+        fps_parameter: false,
     }
 }
 
 pub const VIDEO_PROVIDER_CAPABILITIES: &[VideoProviderCapabilities] = &[
-    async_video_provider(OPENAI_COMPATIBLE_VIDEO_BACKEND, "OpenAI 兼容视频", 1, 60),
-    async_video_provider(NEWAPI_VIDEO_BACKEND, "New API 视频", 1, 60),
-    async_video_provider(GEMINI_VEO_VIDEO_BACKEND, "Gemini Veo 视频", 1, 60),
-    async_video_provider(SEEDANCE2_VIDEO_BACKEND, "Seedance 2.0 视频", 4, 15),
+    VideoProviderCapabilities {
+        fps_parameter: true,
+        ..async_video_provider(OPENAI_COMPATIBLE_VIDEO_BACKEND, "OpenAI 兼容视频", 1, 60)
+    },
+    VideoProviderCapabilities {
+        last_frame: false,
+        max_reference_images: Some(0),
+        ..async_video_provider(NEWAPI_VIDEO_BACKEND, "New API 视频", 1, 60)
+    },
+    VideoProviderCapabilities {
+        max_reference_images: Some(3),
+        ..async_video_provider(GEMINI_VEO_VIDEO_BACKEND, "Gemini Veo 视频", 1, 60)
+    },
+    VideoProviderCapabilities {
+        reference_video_audio: true,
+        ..async_video_provider(SEEDANCE2_VIDEO_BACKEND, "Seedance 2.0 视频", 4, 15)
+    },
     VideoProviderCapabilities {
         delete: true,
+        last_frame: false,
+        max_reference_images: Some(7),
+        first_frame_with_references: false,
         ..async_video_provider(CLIPROXY_OPENAI_VIDEO_BACKEND, "CLIProxy / Grok 视频", 1, 15)
     },
     VideoProviderCapabilities {
@@ -130,6 +156,11 @@ pub const VIDEO_PROVIDER_CAPABILITIES: &[VideoProviderCapabilities] = &[
         asynchronous: false,
         status_query: false,
         delete: false,
+        last_frame: true,
+        max_reference_images: None,
+        reference_video_audio: false,
+        first_frame_with_references: true,
+        fps_parameter: true,
     },
 ];
 
@@ -155,6 +186,58 @@ pub fn validate_video_provider_duration(backend: &str, duration_secs: i32) -> Re
             capabilities.max_duration_secs,
             duration_secs
         ));
+    }
+    Ok(())
+}
+
+pub fn validate_video_provider_request(
+    backend: &str,
+    request: &VideoGenerationRequest,
+) -> Result<(), String> {
+    use a4n_domain::json_contract::{OutputSchemaValidator, typed_output_schema};
+    static VALIDATOR: std::sync::LazyLock<OutputSchemaValidator> = std::sync::LazyLock::new(|| {
+        OutputSchemaValidator::new(&typed_output_schema::<VideoGenerationRequest>())
+            .expect("static video request schema")
+    });
+    VALIDATOR.validate(&serde_json::to_value(request).map_err(|error| error.to_string())?)?;
+    validate_video_provider_duration(backend, request.duration_secs)?;
+    let capability =
+        video_provider_capabilities(backend).ok_or_else(|| format!("未知视频后端：{backend}"))?;
+    if request.media.last_frame().is_some() && !capability.last_frame {
+        return Err(format!("{backend} 不支持尾帧输入"));
+    }
+    let references = request.media.reference_images();
+    if capability
+        .max_reference_images
+        .is_some_and(|maximum| references.len() > maximum)
+    {
+        return Err(format!(
+            "{backend} 不支持当前参考图数量 {}",
+            references.len()
+        ));
+    }
+    if request.media.first_frame().is_some()
+        && !references.is_empty()
+        && !capability.first_frame_with_references
+    {
+        return Err(format!("{backend} 不支持同时发送首帧和参考图"));
+    }
+    if let a4n_video_sidecar_contract::VideoMediaInput::References { videos, audio, .. } =
+        &request.media
+        && !capability.reference_video_audio
+        && (!videos.is_empty() || !audio.is_empty())
+    {
+        return Err(format!("{backend} 不支持参考视频或参考音频输入"));
+    }
+    if request
+        .media
+        .first_frame()
+        .into_iter()
+        .chain(request.media.last_frame())
+        .chain(references)
+        .any(|source| source.trim().is_empty())
+    {
+        return Err("视频图片输入不能为空".into());
     }
     Ok(())
 }

@@ -11,25 +11,31 @@ pub const IMAGE_SERVICE_ADDR_ENV: &str = "A4N_IMAGE_SERVICE_ADDR";
 pub const IMAGE_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47645";
 
 /// 单次生成请求。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImageGenerationRequest {
     /// 完整 prompt（已合成）。
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub prompt: String,
     /// 输出宽度。
+    #[schemars(range(min = 1))]
     pub width: i32,
     /// 输出高度。
+    #[schemars(range(min = 1))]
     pub height: i32,
     /// 模型名（如 "dall-e-3"）。
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub model: String,
     /// 参考图；不支持的 provider 应显式报错。
     pub reference_images: Vec<ImageReference>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImageReference {
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub label: String,
+    #[schemars(length(min = 1))]
     pub data_uri: String,
 }
 

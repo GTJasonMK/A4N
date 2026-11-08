@@ -700,11 +700,13 @@ class MockOpenAIProviderTest(unittest.TestCase):
             ),
         ]
         for prompt_name, expected_keys in cases:
+            output_contract = {"name": prompt_name, "schema": {"type": "object", "required": sorted(expected_keys)}}
             _, payload = self.request_json(
                 "/v1/chat/completions",
                 {
                     "model": "a4n-virtual-text",
                     "messages": [
+                        {"role": "system", "content": "[A4N_OUTPUT_CONTRACT]\n" + json.dumps(output_contract) + "\n[/A4N_OUTPUT_CONTRACT]"},
                         {
                             "role": "user",
                             "content": json.dumps(

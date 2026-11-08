@@ -10,6 +10,28 @@ use serde_json::Value;
 
 use crate::media_authoring::PreparedAdaptation;
 
+const MODEL_TEXT_PLACEMENT_ALIASES: [(&str, &str); 6] = [
+    ("upper_left", "top_left"),
+    ("upper_right", "top_right"),
+    ("top_center", "upper_center"),
+    ("lower_left", "bottom_left"),
+    ("lower_right", "bottom_right"),
+    ("bottom_center", "lower_center"),
+];
+
+pub(super) fn storyboard_output_schema() -> Value {
+    let mut schema = a4n_domain::json_contract::typed_output_schema::<MangaPageV4>();
+    let placements = schema["$defs"]["MangaTextPlacementV2"]["enum"]
+        .as_array_mut()
+        .expect("typed placement enum");
+    placements.extend(
+        MODEL_TEXT_PLACEMENT_ALIASES
+            .iter()
+            .map(|(alias, _)| serde_json::json!(alias)),
+    );
+    schema
+}
+
 pub(crate) fn parse_manga_page_slots(
     value: &Value,
     adaptation: &PreparedAdaptation,
@@ -112,15 +134,6 @@ pub(crate) fn parse_manga_page_storyboard_model_output(
     adaptation: &MangaPageAdaptationV1,
     context: &str,
 ) -> Result<MangaPageV4, AppError> {
-    const PLACEMENT_ALIASES: [(&str, &str); 6] = [
-        ("upper_left", "top_left"),
-        ("upper_right", "top_right"),
-        ("top_center", "upper_center"),
-        ("lower_left", "bottom_left"),
-        ("lower_right", "bottom_right"),
-        ("bottom_center", "lower_center"),
-    ];
-
     let mut normalized = value.clone();
     let mut normalized_placements = Vec::new();
     if let Some(panels) = normalized.get_mut("panels").and_then(Value::as_array_mut) {
@@ -133,7 +146,7 @@ pub(crate) fn parse_manga_page_storyboard_model_output(
                 let Some(Value::String(placement)) = layer.get_mut("placement") else {
                     continue;
                 };
-                if let Some((_, canonical)) = PLACEMENT_ALIASES
+                if let Some((_, canonical)) = MODEL_TEXT_PLACEMENT_ALIASES
                     .iter()
                     .find(|(alias, _)| *alias == placement.as_str())
                 {

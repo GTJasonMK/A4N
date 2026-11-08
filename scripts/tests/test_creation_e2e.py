@@ -181,7 +181,7 @@ class CreationAcceptanceTest(unittest.TestCase):
 
     def test_build_resources_and_version_files_invalidate_reuse(self):
         root = self.scratch()
-        for name in ("Cargo.toml", "Cargo.lock", "tools/onnxruntime/VERSION", "scripts/cargo.sh", "scripts/lib/common.sh", "crates/model/prompt.md", ".cargo/config.toml", "frontend/src/main.ts", "frontend/public/icon.svg"):
+        for name in ("Cargo.toml", "Cargo.lock", "tools/onnxruntime/VERSION", "scripts/cargo.sh", "scripts/lib/common.sh", "crates/model/prompt.md", ".cargo/config.toml", "frontend/src/main.ts", "frontend/public/icon.svg", "frontend/package.json", "frontend/package-lock.json"):
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("original")
@@ -203,11 +203,14 @@ class CreationAcceptanceTest(unittest.TestCase):
         (application / "Cargo.toml").write_text("[workspace]\n")
         (application / ".env.production").write_text("secret=value\n")
         (application / "frontend/package.json").write_text("{}\n")
+        (application / ".github/workflows").mkdir(parents=True)
+        (application / ".github/workflows/models.yml").write_text("name: Models\n")
 
         snapshot = snapshot_source(root / "report", application)
 
         self.assertEqual((snapshot / "Cargo.toml").read_text(), "[workspace]\n")
         self.assertEqual((snapshot / "frontend/package.json").read_text(), "{}\n")
+        self.assertEqual((snapshot / ".github/workflows/models.yml").read_text(), "name: Models\n")
         self.assertFalse((snapshot / ".env.production").exists())
         self.assertTrue((snapshot / ".env").is_file())
 

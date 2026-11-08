@@ -40,7 +40,11 @@ pub(in crate::import_reverse) async fn build_reverse_engineer_request(
     Ok(
         context_aware_system_user_request(sys, manifest, Some(0.3), None)?
             .with_prompt_assembly_key("ImportService.reverse_engineer")
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                prompt_name,
+                output_contract::reverse_output_schema(target),
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

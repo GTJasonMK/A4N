@@ -16,24 +16,54 @@ pub fn validate_embedding_connectivity_vectors(
     embeddings: &[Vec<f32>],
     expected_dimension: usize,
 ) -> Result<(), AppError> {
+    validate_embedding_vectors(embeddings, 1, expected_dimension)
+}
+
+pub fn validate_embedding_vectors(
+    embeddings: &[Vec<f32>],
+    expected_count: usize,
+    expected_dimension: usize,
+) -> Result<(), AppError> {
     if expected_dimension == 0 {
         return Err(AppError::Configuration(
             "嵌入连接测试配置维度必须为正整数".to_string(),
         ));
     }
-    let [embedding] = embeddings else {
+    if embeddings.len() != expected_count {
         return Err(AppError::Embedding(format!(
-            "嵌入连接测试返回 {} 个向量，期望 1 个",
+            "嵌入返回 {} 个向量，期望 {expected_count} 个",
             embeddings.len()
         )));
-    };
-    if embedding.len() != expected_dimension {
-        return Err(AppError::Embedding(format!(
-            "嵌入连接测试向量维度不匹配：返回 {}，期望 {expected_dimension}",
-            embedding.len()
-        )));
+    }
+    for embedding in embeddings {
+        if embedding.len() != expected_dimension {
+            return Err(AppError::Embedding(format!(
+                "嵌入连接测试向量维度不匹配：返回 {}，期望 {expected_dimension}",
+                embedding.len()
+            )));
+        }
+        if embedding.iter().any(|value| !value.is_finite()) {
+            return Err(AppError::Embedding("嵌入向量包含非有限数值".into()));
+        }
     }
     Ok(())
+}
+
+pub fn validate_embedding_output(
+    embeddings: &[Vec<f32>],
+    identity: &EmbeddingModelIdentity,
+    expected: &EmbeddingModelIdentity,
+    count: usize,
+) -> Result<(), AppError> {
+    if identity != expected
+        || identity.model.trim().is_empty()
+        || identity.backend.trim().is_empty()
+    {
+        return Err(AppError::Embedding(format!(
+            "嵌入响应模型身份不匹配：期望 {expected:?}，实际 {identity:?}"
+        )));
+    }
+    validate_embedding_vectors(embeddings, count, expected.dimension)
 }
 
 /// 嵌入后端类型。
@@ -93,7 +123,9 @@ pub trait EmbeddingProvider: Send + Sync {
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
         let identity = self.model_identity().await?;
+        let count = texts.len();
         let embeddings = self.embed(texts).await?;
+        validate_embedding_vectors(&embeddings, count, identity.dimension)?;
         Ok((embeddings, identity))
     }
 
@@ -158,8 +190,37 @@ mod tests {
                 dimension: 0,
                 embeddings: vec![Vec::new()],
             },
+            FixedEmbeddingProvider {
+                dimension: 1,
+                embeddings: vec![vec![f32::NAN]],
+            },
+            FixedEmbeddingProvider {
+                dimension: 1,
+                embeddings: vec![vec![f32::INFINITY]],
+            },
         ] {
             assert!(provider.test_connection().await.is_err());
         }
+    }
+
+    #[test]
+    fn embedding_output_checks_identity_count_dimensions_and_finite_values_together() {
+        let expected = EmbeddingModelIdentity {
+            backend: "Api".into(),
+            model: "configured-model".into(),
+            dimension: 2,
+        };
+        assert!(validate_embedding_output(&[vec![1.0, 2.0]], &expected, &expected, 1).is_ok());
+        let wrong = EmbeddingModelIdentity {
+            model: "different-model".into(),
+            ..expected.clone()
+        };
+        assert!(validate_embedding_output(&[vec![1.0, 2.0]], &wrong, &expected, 1).is_err());
+        assert!(
+            validate_embedding_output(&[vec![1.0, f32::INFINITY]], &expected, &expected, 1)
+                .is_err()
+        );
+        assert!(validate_embedding_output(&[], &expected, &expected, 1).is_err());
+        assert!(validate_embedding_output(&[vec![1.0]], &expected, &expected, 1).is_err());
     }
 }

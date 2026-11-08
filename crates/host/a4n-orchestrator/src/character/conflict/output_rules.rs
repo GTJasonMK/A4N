@@ -50,9 +50,10 @@ pub fn restored_character_conflict_checkpoint(
 }
 
 pub fn parse_conflict_output(content: &str) -> Result<Vec<CharacterConflictSummary>, AppError> {
-    let value: Value = serde_json::from_str(content.trim()).map_err(|err| {
-        AppError::InvalidArgument(format!("角色冲突检查结果必须是 JSON 数组: {err}"))
-    })?;
+    let value =
+        a4n_domain::json_contract::parse_strict_json_value(content.trim()).map_err(|err| {
+            AppError::InvalidArgument(format!("角色冲突检查结果必须是 JSON 数组: {err}"))
+        })?;
     let conflicts = value
         .as_array()
         .ok_or_else(|| AppError::InvalidArgument("角色冲突检查结果必须是 JSON 数组".to_string()))?;

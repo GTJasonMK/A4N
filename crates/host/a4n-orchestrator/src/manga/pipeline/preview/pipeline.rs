@@ -76,7 +76,11 @@ impl OrchestratorContext {
                 "漫画预处理",
                 "manga_preprocessing",
                 None,
-                crate::workflow::workflow_json_request(system, serde_json::to_string(&user)?),
+                crate::workflow::workflow_json_request(
+                    system,
+                    serde_json::to_string(&user)?,
+                    "manga_preprocessing",
+                )?,
             )]);
         }
         let preprocessing = preprocessing

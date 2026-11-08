@@ -12,7 +12,8 @@ use a4n_domain::image::{
     STABLE_DIFFUSION_IMAGE_BACKEND,
 };
 use a4n_image_contract::ImageGenerationRequest;
-use a4n_image_provider_contract::ImageProvider;
+use a4n_image_provider_contract::{ImageGenerationResult, ImageProvider};
+use async_trait::async_trait;
 use serde_json::Value;
 
 /// 选择 provider。
@@ -21,7 +22,7 @@ pub fn pick_image_provider(
     base_url: &str,
     api_key: &str,
 ) -> Result<Box<dyn ImageProvider>, AppError> {
-    match backend {
+    let inner: Result<Box<dyn ImageProvider>, AppError> = match backend {
         OPENAI_COMPATIBLE_IMAGE_BACKEND => Ok(Box::new(OpenAiCompatibleImageProvider::new(
             base_url, api_key,
         )?)),
@@ -37,13 +38,55 @@ pub fn pick_image_provider(
         }
         COMFYUI_IMAGE_BACKEND => Ok(Box::new(ComfyUiImageProvider::new(base_url)?)),
         _ => Err(internal_error(format!("未知 backend={backend}"))),
+    };
+    Ok(Box::new(ValidatedImageProvider {
+        backend: backend.to_string(),
+        inner: inner?,
+    }))
+}
+
+struct ValidatedImageProvider {
+    backend: String,
+    inner: Box<dyn ImageProvider>,
+}
+
+#[async_trait]
+impl ImageProvider for ValidatedImageProvider {
+    async fn generate(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationResult, AppError> {
+        validate_request(&self.backend, &request)?;
+        self.inner.generate(request).await
     }
+}
+
+fn validate_request(backend: &str, request: &ImageGenerationRequest) -> Result<(), AppError> {
+    use a4n_domain::json_contract::{OutputSchemaValidator, typed_output_schema};
+    static VALIDATOR: std::sync::LazyLock<OutputSchemaValidator> = std::sync::LazyLock::new(|| {
+        OutputSchemaValidator::new(&typed_output_schema::<ImageGenerationRequest>())
+            .expect("static image request schema")
+    });
+    VALIDATOR
+        .validate(
+            &serde_json::to_value(request).map_err(|error| internal_error(error.to_string()))?,
+        )
+        .map_err(AppError::InvalidArgument)?;
+    let capability = a4n_domain::image::image_provider_capabilities(backend)
+        .ok_or_else(|| AppError::InvalidArgument(format!("未知图片后端：{backend}")))?;
+    if !request.reference_images.is_empty() && !capability.supports_reference_images {
+        return Err(AppError::InvalidArgument(format!(
+            "{backend} 不支持参考图输入"
+        )));
+    }
+    Ok(())
 }
 
 pub fn image_provider_request_body_preview(
     backend: &str,
     request: &ImageGenerationRequest,
 ) -> Result<Value, AppError> {
+    validate_request(backend, request)?;
     match backend {
         OPENAI_COMPATIBLE_IMAGE_BACKEND => {
             OpenAiCompatibleImageProvider::request_body_preview(request)
@@ -51,9 +94,7 @@ pub fn image_provider_request_body_preview(
         OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND => {
             OpenAiCompatibleImageEditProvider::request_body_preview(request)
         }
-        OPENAI_CHAT_IMAGE_BACKEND => {
-            Ok(ChatCompletionsImageProvider::request_body_preview(request))
-        }
+        OPENAI_CHAT_IMAGE_BACKEND => ChatCompletionsImageProvider::request_body_preview(request),
         CLIPROXY_IMAGE_BACKEND => CliProxyImageProvider::request_body_preview(request),
         STABLE_DIFFUSION_IMAGE_BACKEND => StableDiffusionWebUiImageProvider::txt2img_body(request),
         COMFYUI_IMAGE_BACKEND => ComfyUiImageProvider::request_body_preview(request),

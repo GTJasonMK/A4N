@@ -18,14 +18,24 @@ pub(crate) const WORKFLOW_LLM_TEMPERATURE: f32 = 0.25;
 pub(crate) fn workflow_json_request(
     system: String,
     user: String,
-) -> a4n_llm_provider_contract::provider::ChatRequest {
+    prompt_name: &str,
+) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
     use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
+    let schema = if prompt_name == "chapter_media_adaptation_plan" {
+        a4n_domain::json_contract::typed_output_schema::<
+            a4n_domain::media_authoring::AdaptationPlanV1,
+        >()
+    } else if prompt_name == "manga_preprocessing" {
+        a4n_domain::json_contract::typed_output_schema::<a4n_domain::manga::MangaPreprocessingV3>()
+    } else {
+        crate::galgame::galgame_output_schema(prompt_name)?
+    };
     ChatRequest::new(
         vec![ChatMessage::system(system), ChatMessage::user(user)],
         Some(WORKFLOW_LLM_TEMPERATURE),
         None,
     )
-    .with_json_response_format()
+    .with_json_schema_response_format(prompt_name, schema, false)
 }
 
 pub(crate) struct WorkflowLlmOnceInput<'a> {

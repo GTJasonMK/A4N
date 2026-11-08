@@ -31,26 +31,7 @@ pub(super) async fn run(
         SCENE_TRANSITION_PROMPT,
         "基于场景与出场链抽取场景间转场，只输出 transitions",
         json!({ "scenes": scenes, "occurrences": occurrences }),
-        json!({
-            "format": "json_object",
-            "required_root_field": "transitions",
-            "field_types": {
-                "from_scene_ref":{"type":["string","null"]}, "to_scene_ref":{"type":"string","minLength":1},
-                "occurrence_ref":{"type":["string","null"]},
-                "movement_type":{"type":"string","enum":crate::scene_profile::SCENE_TRANSITION_MOVEMENT_TYPES},
-                "route_description":{"type":"string","minLength":1}, "time_cost":{"type":["string","null"]}, "distance_hint":{"type":["string","null"]},
-                "participants":{"type":"array","items":a4n_domain::json_contract::positive_i64_schema()},
-                "object_refs":{"type":"array","items":a4n_domain::json_contract::positive_i64_schema()},
-                "source_anchor_ids": positive_i64_array_schema(true)
-            },
-            "strict_rules": [
-                "只返回 transitions 数组，不要输出 scenes、occurrences 或 entity_states",
-                SCENE_TRANSITION_REFERENCE_RULE,
-                "occurrence_ref 必须来自 input.previous_stages.occurrences[].occurrence_ref 或 null",
-                SCENE_TRANSITION_MOVEMENT_TYPE_RULE,
-                "source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"
-            ]
-        }),
+        output_contract(),
     )
     .await?;
     let step_key = scene_profile_stage_step_key(request_context, "transitions");
@@ -72,4 +53,24 @@ pub(super) async fn run(
     )
     .await?;
     Ok((request, parsed))
+}
+
+fn output_contract() -> Value {
+    json!({"format":"json_object","required_root_field":"transitions",
+        "item_required_fields":["to_scene_ref","movement_type","route_description","participants","object_refs","source_anchor_ids"],
+        "field_types":{
+            "from_scene_ref":{"type":["string","null"]},"to_scene_ref":{"type":"string","minLength":1},"occurrence_ref":{"type":["string","null"]},
+            "movement_type":{"type":"string","enum":crate::scene_profile::SCENE_TRANSITION_MOVEMENT_TYPES},
+            "route_description":{"type":"string","minLength":1},"time_cost":{"type":["string","null"]},"distance_hint":{"type":["string","null"]},
+            "participants":{"type":"array","items":a4n_domain::json_contract::positive_i64_schema()},"object_refs":{"type":"array","items":a4n_domain::json_contract::positive_i64_schema()},"source_anchor_ids":positive_i64_array_schema(true)
+        },"strict_rules":["只返回 transitions 数组，不要输出 scenes、occurrences 或 entity_states",SCENE_TRANSITION_REFERENCE_RULE,"occurrence_ref 必须来自 input.previous_stages.occurrences[].occurrence_ref 或 null",SCENE_TRANSITION_MOVEMENT_TYPE_RULE,"source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"]})
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema(
+        SCENE_TRANSITION_PROMPT,
+        a4n_domain::json_contract::array_output_contract_schema(&output_contract()).unwrap(),
+    );
 }

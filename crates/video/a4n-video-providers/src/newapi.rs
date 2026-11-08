@@ -190,10 +190,6 @@ impl VideoProvider for NewApiVideoProvider {
         )
         .await?;
 
-        if let Some(result) = self.decode_result(&v, Some(job_id.to_string())).await? {
-            return Ok(VideoJobState::Completed(result));
-        }
-
         let status = extract_status(&v)
             .ok_or_else(|| AppError::Internal("New API 视频任务响应缺少 status".to_string()))?
             .to_ascii_lowercase();
@@ -210,6 +206,9 @@ impl VideoProvider for NewApiVideoProvider {
             status.as_str(),
             "completed" | "complete" | "succeeded" | "success" | "done"
         ) {
+            if let Some(result) = self.decode_result(&v, Some(job_id.to_string())).await? {
+                return Ok(VideoJobState::Completed(result));
+            }
             return Err(AppError::Internal(
                 "New API 视频任务已完成，但响应缺少可下载视频 URL 或 b64_json".to_string(),
             ));

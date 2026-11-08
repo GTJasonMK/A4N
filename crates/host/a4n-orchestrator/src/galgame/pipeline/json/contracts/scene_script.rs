@@ -71,13 +71,13 @@ pub struct GalgamePipelineBranchSceneLineDraft {
     pub lines: Vec<GalgamePipelineLineDraft>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct AdaptationProjectionRaw {
     pub(in crate::galgame::pipeline::json) scenes: Vec<SceneRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct SceneRaw {
     pub(in crate::galgame::pipeline::json) index: i32,
@@ -97,21 +97,21 @@ pub(in crate::galgame::pipeline::json) struct SceneRaw {
     pub(in crate::galgame::pipeline::json) beats: Vec<AdaptationBeat>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct ScriptAdaptationRaw {
     pub(in crate::galgame::pipeline::json) scene_lines: Vec<SceneLineDraftRaw>,
     pub(in crate::galgame::pipeline::json) branch_scene_lines: Vec<BranchSceneLineDraftRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct SceneLineDraftRaw {
     pub(in crate::galgame::pipeline::json) scene_index: i32,
     pub(in crate::galgame::pipeline::json) lines: Vec<LineDraftRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct LineDraftRaw {
     pub(in crate::galgame::pipeline::json) index: i32,
@@ -123,7 +123,7 @@ pub(in crate::galgame::pipeline::json) struct LineDraftRaw {
     pub(in crate::galgame::pipeline::json) source_span_ids: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct BranchSceneLineDraftRaw {
     pub(in crate::galgame::pipeline::json) branch_id: String,

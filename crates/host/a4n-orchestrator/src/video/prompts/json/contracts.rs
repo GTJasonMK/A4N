@@ -51,7 +51,7 @@ pub(in crate::video) struct VideoFramePrompt {
     pub segment_numbers: Vec<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StoryboardPanel {
     pub panel_index: i32,
@@ -61,7 +61,7 @@ pub(in crate::video) struct StoryboardPanel {
     pub continuity_note: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoPromptShotInput {
     pub title: String,
@@ -69,10 +69,21 @@ pub(in crate::video) struct VideoPromptShotInput {
     pub visual_prompt: String,
     pub motion_prompt: String,
     pub negative_prompt: String,
+    #[schemars(schema_with = "dialogue_cues_schema")]
     pub dialogue_cues: Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+fn dialogue_cues_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let fields = super::VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS;
+    let nonempty = a4n_domain::json_contract::nonempty_json_schema(generator).to_value();
+    let properties = fields
+        .iter()
+        .map(|name| (name.to_string(), nonempty.clone()))
+        .collect::<serde_json::Map<_, _>>();
+    serde_json::json!({"type":"array","items":{"type":"object","required":fields,"properties":properties,"additionalProperties":false}}).try_into().expect("static dialogue schema")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct InsertedSegmentDraft {
     pub title: String,
@@ -101,7 +112,7 @@ impl InsertedSegmentDraft {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoSegmentPlanInput {
     pub source_shot_id: String,
@@ -135,48 +146,52 @@ impl From<&VideoSegmentPlan> for VideoSegmentPlanInput {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StaticVideoFramePromptInput {
     pub title: String,
     pub scene_summary: String,
     pub frame_prompt: String,
+    #[schemars(schema_with = "a4n_domain::json_contract::nonempty_json_schema")]
     pub blocking_state: Value,
+    #[schemars(schema_with = "a4n_domain::json_contract::nonempty_json_schema")]
     pub lighting_state: Value,
     pub negative_prompt: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StoryboardVideoFramePromptInput {
     pub title: String,
     pub scene_summary: String,
     pub storyboard_panels: Vec<StoryboardPanel>,
     pub frame_prompt: String,
+    #[schemars(schema_with = "a4n_domain::json_contract::nonempty_json_schema")]
     pub blocking_state: Value,
+    #[schemars(schema_with = "a4n_domain::json_contract::nonempty_json_schema")]
     pub lighting_state: Value,
     pub negative_prompt: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoPromptResponse {
     pub(in crate::video) shots: Vec<VideoPromptShotInput>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct VideoSegmentPlanResponse {
     pub(in crate::video) segments: Vec<VideoSegmentPlanInput>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StaticVideoFramePromptResponse {
     pub(in crate::video) frames: Vec<StaticVideoFramePromptInput>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StoryboardVideoFramePromptResponse {
     pub(in crate::video) frames: Vec<StoryboardVideoFramePromptInput>,

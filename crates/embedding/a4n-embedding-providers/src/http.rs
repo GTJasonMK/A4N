@@ -31,6 +31,7 @@ fn required_f32(value: &Value, field: &str) -> Result<f32, AppError> {
     value
         .as_f64()
         .map(|number| number as f32)
+        .filter(|number| number.is_finite())
         .ok_or_else(|| internal_error(format!("嵌入响应字段 {field} 不是数字")))
 }
 
@@ -115,8 +116,18 @@ impl HttpEmbeddingProvider {
             )));
         }
 
-        let mut embeddings: Vec<Vec<f32>> = Vec::with_capacity(data.len());
+        let mut embeddings: Vec<Option<Vec<f32>>> = vec![None; data.len()];
         for (item_index, item) in data.iter().enumerate() {
+            let index = item["index"]
+                .as_u64()
+                .and_then(|index| usize::try_from(index).ok())
+                .filter(|index| *index < data.len())
+                .ok_or_else(|| {
+                    internal_error(format!("嵌入响应 data[{item_index}].index 缺失或越界"))
+                })?;
+            if embeddings[index].is_some() {
+                return Err(internal_error(format!("嵌入响应包含重复 index={index}")));
+            }
             let embedding =
                 required_array(&item["embedding"], &format!("data[{item_index}].embedding"))?;
             if embedding.len() != self.dim {
@@ -133,10 +144,16 @@ impl HttpEmbeddingProvider {
                     required_f32(value, &format!("data[{item_index}].embedding[{dim_index}]"))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            embeddings.push(vec);
+            embeddings[index] = Some(vec);
         }
 
-        Ok(embeddings)
+        embeddings
+            .into_iter()
+            .enumerate()
+            .map(|(index, vector)| {
+                vector.ok_or_else(|| internal_error(format!("嵌入响应缺少 index={index}")))
+            })
+            .collect()
     }
 }
 
@@ -145,6 +162,11 @@ impl EmbeddingProvider for HttpEmbeddingProvider {
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
         if self.batch == 0 {
             return Err(internal_error("嵌入批量大小不能为 0"));
+        }
+        if self.dim == 0 || self.model.trim().is_empty() {
+            return Err(AppError::Configuration(
+                "嵌入模型名称和正整数维度必须配置".into(),
+            ));
         }
 
         let mut all_embeddings = Vec::with_capacity(texts.len());
@@ -183,3 +205,6 @@ impl std::fmt::Debug for HttpEmbeddingProvider {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests;

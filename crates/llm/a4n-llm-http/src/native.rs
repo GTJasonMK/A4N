@@ -71,7 +71,9 @@ impl<S> NativeStream<S> {
         if self.terminal && self.protocol == LlmProtocolKind::OpenAiResponses {
             return Err(AppError::LlmError("模型终态后收到额外 SSE 事件".into()));
         }
-        let value: Value = serde_json::from_slice(&bytes)
+        let text = std::str::from_utf8(&bytes)
+            .map_err(|error| AppError::LlmError(format!("模型 SSE UTF-8 无效: {error}")))?;
+        let value = a4n_domain::json_contract::parse_strict_json_value(text)
             .map_err(|error| AppError::LlmError(format!("模型 SSE JSON 无效: {error}")))?;
         if !value["error"].is_null() {
             return Err(AppError::LlmError(format!(

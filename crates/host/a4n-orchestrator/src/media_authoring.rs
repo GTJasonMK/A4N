@@ -73,8 +73,10 @@ impl OrchestratorContext {
                 Some(input.project_id),
             )
             .await?;
-        Ok(crate::workflow::workflow_json_request(system, user)
-            .with_prompt_assembly_key("OrchestratorContext.generate_adaptation_plan"))
+        Ok(
+            crate::workflow::workflow_json_request(system, user, "chapter_media_adaptation_plan")?
+                .with_prompt_assembly_key("OrchestratorContext.generate_adaptation_plan"),
+        )
     }
 
     pub(crate) async fn preview_missing_galgame_adaptation_plan_request(

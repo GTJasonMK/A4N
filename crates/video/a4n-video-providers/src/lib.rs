@@ -4,6 +4,8 @@
 
 mod chat;
 mod cliproxy_openai;
+#[cfg(test)]
+mod contract_matrix;
 mod download;
 mod factory;
 mod format;

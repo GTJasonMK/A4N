@@ -39,6 +39,7 @@ SUITES = {
     "image_publication": ("run_image_publication_cli_e2e.py", {"media"}),
 }
 FULL_GENERATION_SUITES = {
+    "model_probes": "run_model_probe_cli_e2e.py",
     "media_authoring": "run_media_authoring_cli_e2e.py",
     "character_sync_resume": "run_character_sync_resume_cli_e2e.py",
     "scene_sync": "run_scene_sync_cli_e2e.py",
@@ -66,6 +67,10 @@ def source_fingerprint(root: Path = ROOT) -> str:
     paths += [root / name for name in (".cargo/config", ".cargo/config.toml", "rust-toolchain", "rust-toolchain.toml") if (root / name).is_file()]
     paths += [path for path in (root / "crates").rglob("*") if path.is_file()]
     paths += [path for path in (root / "prompts").rglob("*") if path.is_file()]
+    paths += [path for path in (root / "scripts").rglob("*") if path.is_file() and "__pycache__" not in path.parts]
+    paths += [path for path in (root / ".github").rglob("*") if path.is_file()]
+    paths += [path for path in (root / "frontend/e2e").rglob("*") if path.is_file()]
+    paths += [root / name for name in ("frontend/package.json", "frontend/package-lock.json")]
     return files_fingerprint(root, paths)
 
 
@@ -90,12 +95,12 @@ def snapshot_source(report_dir: Path, application_source: Path | None = None) ->
     application = application_source.resolve() if application_source else ROOT
     if application_source:
         files = [path.name for path in application.iterdir() if path.is_file()]
-        for directory in (".cargo", "crates", "prompts", "frontend", "scripts", "tools/onnxruntime"):
+        for directory in (".cargo", ".github", "crates", "prompts", "frontend", "scripts", "tools/onnxruntime"):
             for parent, directories, names in os.walk(application / directory):
                 directories[:] = [name for name in directories if name not in {"node_modules", "dist", "__pycache__"}]
                 files += [str((Path(parent) / name).relative_to(application)) for name in names]
     for name in files:
-        if not name or Path(name).name.startswith(".env") or not (name.startswith((".cargo/", "crates/", "prompts/", "frontend/", "scripts/", "tools/onnxruntime/")) or "/" not in name):
+        if not name or Path(name).name.startswith(".env") or not (name.startswith((".cargo/", ".github/", "crates/", "prompts/", "frontend/", "scripts/", "tools/onnxruntime/")) or "/" not in name):
             continue
         if name.startswith(("scripts/tests/", "frontend/e2e/")):
             continue

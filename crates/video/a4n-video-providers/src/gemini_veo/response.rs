@@ -9,6 +9,16 @@ pub(super) fn required_operation_name(v: &Value) -> Result<&str, AppError> {
         .ok_or_else(|| AppError::Internal("Gemini Veo 视频生成响应缺少 operation name".to_string()))
 }
 
+pub(super) fn operation_done(value: &Value) -> Result<bool, AppError> {
+    match value.get("done") {
+        None => Ok(false),
+        Some(Value::Bool(done)) => Ok(*done),
+        Some(_) => Err(AppError::Internal(
+            "Gemini Veo 任务 done 必须是布尔值".into(),
+        )),
+    }
+}
+
 pub(super) fn operation_error_message(v: &Value) -> Option<String> {
     let message = v
         .pointer("/error/message")

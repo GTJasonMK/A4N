@@ -37,7 +37,9 @@ where
 {
     let trimmed = raw.trim();
     let contract_hint = strict_json_contract_hint(trimmed);
-    serde_json::from_str(trimmed).map_err(|err| {
+    a4n_domain::json_contract::parse_strict_json_value(trimmed)
+        .and_then(serde_json::from_value)
+        .map_err(|err| {
         let parse_hint = strict_json_parse_error_hint(&err);
         AppError::InvalidArgument(format!(
             "{context} 响应必须是严格 JSON 对象{contract_hint}{parse_hint}: {err}; 输出预览：{}",

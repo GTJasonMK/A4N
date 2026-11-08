@@ -6,6 +6,8 @@
 mod chat;
 mod cliproxy;
 mod comfyui;
+#[cfg(test)]
+mod contract_matrix;
 mod factory;
 mod openai;
 mod openai_edit;

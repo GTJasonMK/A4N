@@ -550,7 +550,11 @@ fn build_video_prompt_optimization_request_with_prompts(
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.25), None)?
             .with_prompt_assembly_key(VIDEO_PROMPT_OPTIMIZATION_ASSEMBLY_CALL_KEY)
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                OPTIMIZATION_PROMPT_NAME,
+                a4n_domain::json_contract::typed_output_schema::<OptimizedVideoPromptFields>(),
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(prompt.project_id),
                 root_project_id: None,
@@ -940,7 +944,12 @@ mod tests {
         .await
         .expect("optimization prompt templates should render");
 
-        assert_eq!(request.messages.len(), 2);
+        assert_eq!(request.messages.len(), 3);
+        assert!(
+            request.messages[2]
+                .content
+                .contains("[A4N_OUTPUT_CONTRACT]")
+        );
         assert!(request.messages[1].content.contains("让镜头动作更具体"));
         assert!(request.messages[0].content.contains("\"output_contract\""));
         assert!(!request.messages[0].content.contains("density_rule"));
@@ -993,14 +1002,34 @@ mod tests {
     }
 }
 
-#[derive(PartialEq, Eq, Deserialize)]
+#[derive(PartialEq, Eq, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct OptimizedVideoPromptFields {
     pub(in crate::video) visual_prompt: String,
     #[serde(deserialize_with = "deserialize_required_option")]
+    #[schemars(with = "a4n_domain::json_contract::RequiredNullable<String>")]
     pub(in crate::video) motion_prompt: Option<String>,
     #[serde(deserialize_with = "deserialize_required_option")]
+    #[schemars(with = "a4n_domain::json_contract::RequiredNullable<String>")]
     pub(in crate::video) negative_prompt: Option<String>,
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    let schema = a4n_domain::json_contract::typed_output_schema::<OptimizedVideoPromptFields>();
+    let validator = a4n_domain::json_contract::OutputSchemaValidator::new(&schema).unwrap();
+    assert!(
+        validator
+            .validate(&json!({"visual_prompt":"画面","motion_prompt":null,"negative_prompt":null}))
+            .is_ok()
+    );
+    assert!(
+        validator
+            .validate(&json!({"visual_prompt":"画面"}))
+            .is_err()
+    );
+    a4n_test_support::model_contract::emit_schema(OPTIMIZATION_PROMPT_NAME, schema);
 }
 
 pub(in crate::video) fn video_prompt_optimization_checkpoint_output(

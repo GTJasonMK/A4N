@@ -63,7 +63,8 @@ impl SidecarEmbeddingProvider {
             .map(|text| (text.chars().count() as u64 / 4).max(1))
             .sum();
         let payload = embedding_texts_payload(&model, texts)?;
-        let expected_dimension = payload.dimension;
+        let expected_count = payload.texts.len();
+        let expected_identity = dynamic_embedding::model_identity_from_config(&model)?;
         let cost_record = self
             .facade
             .start_model_usage(ModelUsageRecordStart {
@@ -106,6 +107,18 @@ impl SidecarEmbeddingProvider {
                 },
             )
             .await;
+        let response = response.and_then(|response| {
+            let output: EmbedTextsOutput =
+                typed_response_payload(response, "embedding").map_err(service_app_error)?;
+            a4n_embedding_provider_contract::validate_embedding_output(
+                &output.embeddings,
+                &output.identity,
+                &expected_identity,
+                expected_count,
+            )
+            .map_err(AppError::from)?;
+            Ok((output.embeddings, output.identity))
+        });
         let status = if response.is_ok() {
             "completed"
         } else {
@@ -126,16 +139,7 @@ impl SidecarEmbeddingProvider {
                 },
             )
             .await?;
-        let response = response?;
-        let output: EmbedTextsOutput =
-            typed_response_payload(response, "embedding").map_err(service_app_error)?;
-        if output.identity.dimension != expected_dimension {
-            return Err(AppError::ConfigError(format!(
-                "嵌入配置 {} 的向量维度为 {}，但 sidecar 模型 {} 实际输出 {} 维",
-                model.name, expected_dimension, output.identity.model, output.identity.dimension
-            )));
-        }
-        Ok((output.embeddings, output.identity))
+        response
     }
 }
 

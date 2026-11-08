@@ -129,7 +129,7 @@ async fn correction_repeats_schema_for_missing_state_without_filling_it() {
                 feedback["validation_error"]
                     .as_str()
                     .unwrap()
-                    .contains("exit_state 缺少字段")
+                    .contains("exit_state")
             );
             assert_eq!(corrected.response_format, request.response_format);
             assert_eq!(corrected.max_tokens, request.max_tokens);

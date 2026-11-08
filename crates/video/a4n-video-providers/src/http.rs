@@ -105,10 +105,6 @@ impl VideoProvider for HttpVideoProvider {
         .await?;
         let status = required_string(&v, "/status", "视频任务 status")?.to_lowercase();
 
-        if let Some(result) = decode_result(&self.client, &v, Some(job_id.to_string())).await? {
-            return Ok(VideoJobState::Completed(result));
-        }
-
         if matches!(status.as_str(), "failed" | "cancelled") {
             let msg = required_string(&v, "/error_message", "视频任务 error_message")?
                 .chars()
@@ -126,6 +122,9 @@ impl VideoProvider for HttpVideoProvider {
         }
 
         if status == "completed" {
+            if let Some(result) = decode_result(&self.client, &v, Some(job_id.to_string())).await? {
+                return Ok(VideoJobState::Completed(result));
+            }
             return Err(AppError::Internal(
                 "视频任务已完成，但响应缺少 data[0].b64_json 或 data[0].url".to_string(),
             ));

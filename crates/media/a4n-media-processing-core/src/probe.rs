@@ -75,6 +75,46 @@ pub fn probe_video_properties(path: &Path) -> Result<VideoProbeProperties, Video
     parse_video_probe_properties(&output.stdout)
 }
 
+#[cfg(test)]
+#[test]
+fn model_contract_matrix_video_artifact_probe() {
+    use a4n_test_support::model_contract::{AUDIO_ONLY_MP4, VALID_VIDEO_MP4, assert_case};
+    use serde_json::json;
+    let dir = tempfile::tempdir().unwrap();
+    let valid = dir.path().join("valid.mp4");
+    std::fs::write(&valid, VALID_VIDEO_MP4).unwrap();
+    let properties = probe_video_properties(&valid).expect("real video fixture");
+    assert_case(
+        "video.artifact",
+        "ffprobe",
+        "valid",
+        "actual-metadata",
+        json!([16, 16]),
+        json!([properties.width, properties.height]),
+        json!({"duration_secs":properties.duration_secs,"fps":properties.fps,"bytes":VALID_VIDEO_MP4.len()}),
+    );
+    assert!((properties.duration_secs - 1.0).abs() < 0.1);
+    for (scenario, bytes) in [
+        ("empty", b"".as_slice()),
+        ("fake", b"not a video"),
+        ("truncated", &VALID_VIDEO_MP4[..32]),
+        ("audio-only", AUDIO_ONLY_MP4),
+    ] {
+        let path = dir.path().join(format!("{scenario}.mp4"));
+        std::fs::write(&path, bytes).unwrap();
+        let result = probe_video_properties(&path);
+        assert_case(
+            "video.artifact",
+            "ffprobe",
+            "invalid",
+            scenario,
+            json!(true),
+            json!(result.is_err()),
+            json!({"bytes":bytes.len(),"error":result.err().map(|error|error.to_string())}),
+        );
+    }
+}
+
 pub fn probe_video_has_audio(path: &Path) -> Result<bool, FfprobeCommandError> {
     let output = run_ffprobe(
         &[

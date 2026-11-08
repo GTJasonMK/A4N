@@ -101,6 +101,23 @@ pub(super) fn build_character_conflict_request(
             call_key: Some(call_key.clone()),
         },
     )
-    .map_err(AppError::InvalidArgument)?;
+    .map_err(AppError::InvalidArgument)?
+    .with_prompt_output_contract(
+        CHARACTER_CONFLICT_KIND,
+        a4n_domain::json_contract::typed_output_schema::<
+            Vec<a4n_api_contract::character::CharacterConflictSummary>,
+        >(),
+    )?;
     Ok((call_key, request))
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema(
+        CHARACTER_CONFLICT_KIND,
+        a4n_domain::json_contract::typed_output_schema::<
+            Vec<a4n_api_contract::character::CharacterConflictSummary>,
+        >(),
+    );
 }

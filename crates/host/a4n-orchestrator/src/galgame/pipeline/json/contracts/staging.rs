@@ -34,21 +34,21 @@ pub struct GalgamePipelineBranchSceneLineStaged {
     pub lines: Vec<GalgamePipelineLineStaged>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct CharacterStagingRaw {
     pub(in crate::galgame::pipeline::json) scene_lines: Vec<SceneLineStagedRaw>,
     pub(in crate::galgame::pipeline::json) branch_scene_lines: Vec<BranchSceneLineStagedRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct SceneLineStagedRaw {
     pub(in crate::galgame::pipeline::json) scene_index: i32,
     pub(in crate::galgame::pipeline::json) lines: Vec<LineStagedRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct LineStagedRaw {
     pub(in crate::galgame::pipeline::json) index: i32,
@@ -62,7 +62,7 @@ pub(in crate::galgame::pipeline::json) struct LineStagedRaw {
     pub(in crate::galgame::pipeline::json) source_span_ids: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct BranchSceneLineStagedRaw {
     pub(in crate::galgame::pipeline::json) branch_id: String,

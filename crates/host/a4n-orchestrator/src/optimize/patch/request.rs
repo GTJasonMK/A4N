@@ -25,7 +25,11 @@ pub(in crate::optimize) fn build_content_optimization_patch_request(
     )?;
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                "content_optimization_patch",
+                super::response::output_schema(),
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

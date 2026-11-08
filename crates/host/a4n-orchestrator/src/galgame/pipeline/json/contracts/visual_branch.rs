@@ -30,14 +30,14 @@ pub use a4n_domain::media_authoring::{
     GalgameBranchDesign, GalgamePipelineChoiceOptionPlan, GalgamePipelineChoicePlan,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct VisualPlanRaw {
     pub(in crate::galgame::pipeline::json) backgrounds: Vec<BackgroundPlanRaw>,
     pub(in crate::galgame::pipeline::json) event_cgs: Vec<EventCgPlanRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct BackgroundPlanRaw {
     pub(in crate::galgame::pipeline::json) scene_index: i32,
@@ -46,7 +46,7 @@ pub(in crate::galgame::pipeline::json) struct BackgroundPlanRaw {
     pub(in crate::galgame::pipeline::json) source_span_ids: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct EventCgPlanRaw {
     pub(in crate::galgame::pipeline::json) scene_index: i32,
@@ -56,13 +56,13 @@ pub(in crate::galgame::pipeline::json) struct EventCgPlanRaw {
     pub(in crate::galgame::pipeline::json) source_span_ids: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct BranchDesignRaw {
     pub(in crate::galgame::pipeline::json) choices: Vec<ChoicePlanRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct ChoicePlanRaw {
     pub(in crate::galgame::pipeline::json) after_beat_ref: GalgamePipelineBeatRefV4,
@@ -70,7 +70,7 @@ pub(in crate::galgame::pipeline::json) struct ChoicePlanRaw {
     pub(in crate::galgame::pipeline::json) options: Vec<ChoiceOptionPlanRaw>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct ChoiceOptionPlanRaw {
     pub(in crate::galgame::pipeline::json) branch_id: String,

@@ -7,4 +7,5 @@ license.workspace = true
 [dependencies]
 a4n-generation-artifact-contract = { workspace = true }
 serde = { workspace = true }
+schemars = { workspace = true }
 serde_json = { workspace = true }

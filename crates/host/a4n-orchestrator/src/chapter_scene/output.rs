@@ -46,3 +46,24 @@ fn looks_like_structured_or_fenced_scene_response(raw: &str) -> bool {
         || trimmed.starts_with('[')
         || trimmed.starts_with("<think>")
 }
+
+#[test]
+fn model_contract_matrix_scene_plain_text_boundary() {
+    for (scenario, raw, expected) in [
+        ("valid", "她把信放在桌上。", true),
+        ("empty", " \n\t", false),
+        ("structured", "{\"content\":\"正文\"}", false),
+        ("fenced", "```\n正文\n```", false),
+        ("thinking", "<think>推理</think>正文", false),
+    ] {
+        a4n_test_support::model_contract::assert_case(
+            "chapter_scene_generation",
+            "runtime-text",
+            "output",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(normalize_scene_generation_output(raw).is_ok()),
+            serde_json::json!({"validator":"normalize_scene_generation_output"}),
+        );
+    }
+}

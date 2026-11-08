@@ -4,6 +4,8 @@ pub mod capability;
 pub mod database;
 pub mod embedding;
 pub mod llm;
+pub mod model_contract;
 pub mod process;
+pub mod provider_http;
 pub mod rag;
 pub mod workflow;

@@ -1,4 +1,4 @@
-mod contracts;
+pub(super) mod contracts;
 mod parser;
 mod prompt_text;
 mod validation;

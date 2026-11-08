@@ -10,6 +10,27 @@ fn metadata() -> GeneratedChapterMetadata {
 }
 
 #[test]
+fn model_contract_matrix_chapter_plain_text_boundary() {
+    for (scenario, raw, expected) in [
+        ("valid", "她把信放在桌上。", true),
+        ("empty", " \n\t", false),
+        ("structured", "{\"content\":\"正文\"}", false),
+        ("fenced", "```\n正文\n```", false),
+        ("thinking", "<think>推理</think>正文", false),
+    ] {
+        a4n_test_support::model_contract::assert_case(
+            "chapter_generation",
+            "runtime-text",
+            "output",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(normalize_generated_chapter_response(raw, &metadata()).is_ok()),
+            serde_json::json!({"validator":"normalize_generated_chapter_response"}),
+        );
+    }
+}
+
+#[test]
 fn rejects_structured_chapter_json_response() {
     let err = normalize_generated_chapter_response(
         r#"{"title":"灰烬低语","summary":"主角发现线索。","full_content":"正文内容"}"#,

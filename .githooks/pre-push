@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+hook_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+while read -r local_ref local_oid remote_ref remote_oid; do
+    if [[ "$remote_ref" == refs/heads/master && ! "$local_oid" =~ ^0+$ ]]; then
+        python3 "$hook_dir/../scripts/tests/verify_model_report.py" --candidate "$local_oid"
+    fi
+done

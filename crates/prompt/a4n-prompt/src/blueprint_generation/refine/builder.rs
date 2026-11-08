@@ -49,7 +49,11 @@ pub async fn build_blueprint_refine_request(
             .with_prompt_assembly_key(
                 "a4n_prompt::blueprint_generation::build_blueprint_refine_request",
             )
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                BLUEPRINT_REFINEMENT_PROMPT,
+                a4n_domain::project::blueprint_refinement_output_schema(),
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

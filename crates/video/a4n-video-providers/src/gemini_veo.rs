@@ -259,7 +259,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
         if let Some(message) = operation_error_message(&v) {
             return Ok(VideoJobState::Failed(message));
         }
-        if v.get("done").and_then(Value::as_bool) != Some(true) {
+        if !response::operation_done(&v)? {
             return Ok(VideoJobState::Running);
         }
         Ok(VideoJobState::Completed(self.decode_completed(&v).await?))
@@ -288,7 +288,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
         if let Some(message) = operation_error_message(&value) {
             return Ok(VideoJobStatus::Failed(message));
         }
-        if value.get("done").and_then(Value::as_bool) == Some(true) {
+        if response::operation_done(&value)? {
             return Ok(VideoJobStatus::Completed);
         }
         Ok(VideoJobStatus::Running)

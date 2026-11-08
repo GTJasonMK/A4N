@@ -8,7 +8,7 @@ pub(super) fn json_response_preview(value: &Value, max_chars: usize) -> String {
 
 #[cfg(test)]
 pub(crate) fn parse_response_json(body: &str, label: &str) -> Result<Value, AppError> {
-    serde_json::from_str::<Value>(body).map_err(|error| {
+    a4n_domain::json_contract::parse_strict_json_value(body).map_err(|error| {
         internal_error(format!(
             "解析{label}响应 JSON 失败: {error}; 响应片段: {}",
             response_preview(body, 500)

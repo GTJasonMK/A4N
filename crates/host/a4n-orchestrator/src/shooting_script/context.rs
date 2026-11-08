@@ -28,7 +28,11 @@ pub(super) fn shooting_context_request<T: Serialize>(
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
             .with_prompt_assembly_key("OrchestratorContext.prepare_chapter_shooting_script_request")
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                prompt_name,
+                shooting_output_schema(prompt_name)?,
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(prepared.source.requested_project_id),
                 root_project_id: Some(prepared.source.root_project_id),
@@ -42,6 +46,39 @@ pub(super) fn shooting_context_request<T: Serialize>(
                 context_pack_refs_json: None,
             }),
     )
+}
+
+fn shooting_output_schema(prompt_name: &str) -> Result<serde_json::Value, AppError> {
+    use super::contracts::*;
+    use a4n_domain::json_contract::typed_output_schema;
+    Ok(match prompt_name {
+        CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT => {
+            typed_output_schema::<ScreenplayLayoutUnitDetailV2>()
+        }
+        CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT => {
+            typed_output_schema::<ScreenplayUnitAdaptationV1>()
+        }
+        CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT => {
+            typed_output_schema::<a4n_domain::shooting_script::ShootingSceneV2>()
+        }
+        _ => {
+            return Err(AppError::InvalidArgument(format!(
+                "未知拍摄剧本输出合同：{prompt_name}"
+            )));
+        }
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    for name in [
+        super::contracts::CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
+        super::contracts::CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT,
+        super::contracts::CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
+    ] {
+        a4n_test_support::model_contract::emit_schema(name, shooting_output_schema(name).unwrap());
+    }
 }
 
 pub(super) fn shooting_context_manifest<T: Serialize>(
@@ -264,7 +301,7 @@ mod tests {
             shooting_context_request::<serde_json::Value>(
                 &prepared,
                 1,
-                "layout",
+                super::super::contracts::CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
                 format!("unit:{index}"),
                 "固定布局规则".into(),
                 (&[prepared.source_spans[index].id.clone()], binding),

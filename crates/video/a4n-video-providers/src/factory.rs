@@ -21,7 +21,7 @@ pub fn pick_video_provider(
     base_url: &str,
     api_key: &str,
 ) -> Result<Box<dyn VideoProvider>, AppError> {
-    match backend {
+    let inner: Result<Box<dyn VideoProvider>, AppError> = match backend {
         OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(Box::new(HttpVideoProvider::new(base_url, api_key))),
         NEWAPI_VIDEO_BACKEND => Ok(Box::new(NewApiVideoProvider::new(base_url, api_key))),
         GEMINI_VEO_VIDEO_BACKEND => Ok(Box::new(GeminiVeoVideoProvider::new(base_url, api_key))),
@@ -33,7 +33,57 @@ pub fn pick_video_provider(
             base_url, api_key,
         )?)),
         _ => Err(AppError::Internal(format!("未知视频 backend={backend}"))),
+    };
+    Ok(Box::new(ValidatedVideoProvider {
+        backend: backend.to_string(),
+        inner: inner?,
+    }))
+}
+
+struct ValidatedVideoProvider {
+    backend: String,
+    inner: Box<dyn VideoProvider>,
+}
+
+#[async_trait::async_trait]
+impl VideoProvider for ValidatedVideoProvider {
+    async fn generate(
+        &self,
+        request: a4n_video_sidecar_contract::VideoGenerationRequest,
+        key: Option<&str>,
+    ) -> Result<a4n_video_provider_contract::VideoGenerationResult, AppError> {
+        a4n_video_provider_contract::validate_video_provider_request(&self.backend, &request)
+            .map_err(AppError::InvalidArgument)?;
+        self.inner.generate(request, key).await
     }
+    async fn poll(
+        &self,
+        job_id: &str,
+    ) -> Result<a4n_video_provider_contract::VideoJobState, AppError> {
+        validate_job_id(job_id)?;
+        self.inner.poll(job_id).await
+    }
+    async fn status(
+        &self,
+        job_id: &str,
+    ) -> Result<a4n_video_provider_contract::VideoJobStatus, AppError> {
+        validate_job_id(job_id)?;
+        self.inner.status(job_id).await
+    }
+    async fn delete(
+        &self,
+        job_id: &str,
+    ) -> Result<a4n_video_provider_contract::VideoJobDeleteOutcome, AppError> {
+        validate_job_id(job_id)?;
+        self.inner.delete(job_id).await
+    }
+}
+
+fn validate_job_id(job_id: &str) -> Result<(), AppError> {
+    if job_id.trim().is_empty() {
+        return Err(AppError::InvalidArgument("视频 job_id 不能为空".into()));
+    }
+    Ok(())
 }
 
 pub fn video_provider_request_body_preview(
@@ -60,6 +110,8 @@ pub fn video_provider_request_body_preview(
             }
         })?;
     let request = &request;
+    a4n_video_provider_contract::validate_video_provider_request(backend, request)
+        .map_err(AppError::InvalidArgument)?;
     match backend {
         OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(HttpVideoProvider::request_body(request)),
         NEWAPI_VIDEO_BACKEND => NewApiVideoProvider::request_body(request),

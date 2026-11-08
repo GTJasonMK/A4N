@@ -1,5 +1,20 @@
 use serde_json::{Map, Value, json};
 
+pub fn typed_output_schema<T: schemars::JsonSchema>() -> Value {
+    schemars::schema_for!(T).to_value()
+}
+
+pub fn nonempty_json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    json!({"anyOf":[
+        {"type":"string","minLength":1,"pattern":"\\S"},
+        {"type":"array","minItems":1},
+        {"type":"object","minProperties":1},
+        {"type":["boolean","number"]}
+    ]})
+    .try_into()
+    .expect("static nonempty JSON schema")
+}
+
 /// Projects machine-readable field constraints from the same contract sent in
 /// the task payload. Unspecified business fields remain the domain validator's responsibility.
 pub fn array_output_contract_schema(contract: &Value) -> Result<Value, String> {
@@ -38,9 +53,27 @@ pub fn array_output_contract_schema(contract: &Value) -> Result<Value, String> {
             properties.entry(field.to_string()).or_insert(json!({}));
         }
     }
-    for field in properties.keys() {
-        if !required.iter().any(|item| item.as_str() == Some(field)) {
-            required.push(json!(field));
+    if let Some(rules) = contract.get("field_value_rules") {
+        for (name, rule) in rules.as_object().ok_or("field_value_rules 必须是对象")? {
+            let Some(values) = rule.get("allowed_values") else {
+                continue;
+            };
+            if values.as_array().is_none_or(|values| values.is_empty()) {
+                return Err(format!("{name}.allowed_values 必须是非空数组"));
+            }
+            let property = properties
+                .get_mut(name)
+                .ok_or_else(|| format!("{name} 枚举缺少字段类型合同"))?;
+            if property
+                .get("enum")
+                .is_some_and(|declared| declared != values)
+            {
+                return Err(format!("{name} 枚举与 field_value_rules 冲突"));
+            }
+            property
+                .as_object_mut()
+                .ok_or_else(|| format!("{name} 枚举必须使用对象 Schema"))?
+                .insert("enum".into(), values.clone());
         }
     }
     Ok(json!({
@@ -123,6 +156,23 @@ mod tests {
         assert!(
             array_output_contract_schema(&json!({"required_root_field":"events","field_types":[]}))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn nullable_optional_and_required_empty_objects_are_distinct() {
+        let schema = array_output_contract_schema(&json!({
+            "required_root_field":"items", "item_required_fields":["state"],
+            "field_types":{"state":{"type":"object"},"note":{"type":["string","null"]}}
+        }))
+        .unwrap();
+        assert_eq!(
+            schema["properties"]["items"]["items"]["required"],
+            json!(["state"])
+        );
+        assert_eq!(
+            schema["properties"]["items"]["items"]["properties"]["note"]["type"],
+            json!(["string", "null"])
         );
     }
 }

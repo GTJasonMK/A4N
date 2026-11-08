@@ -16,6 +16,7 @@ pub fn part_generation_manifest_user_message(
     previous_parts: &[PartOutlineRecord],
 ) -> Result<String, AppError> {
     let payload = json!({
+        "output_contract": {"schema":a4n_domain::chapter::part_outline_output_schema()},
         "context_refs": {
             "novel_blueprint": "稳定上下文包 outline_blueprint_context",
             "previous_parts": if previous_parts.is_empty() {

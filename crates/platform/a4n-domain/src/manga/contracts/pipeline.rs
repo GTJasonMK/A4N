@@ -7,12 +7,16 @@ use serde_json::{Value, json};
 use super::super::MangaBoundReferenceAsset;
 use super::{MangaPageDrawingPromptV2, MangaPageSlotsSchemaVersion, MangaPageV4};
 use crate::media_authoring::AdaptationBeatRef;
+mod preprocessing_schema;
 
 pub const MANGA_PAGE_PIPELINE_STATE_V1: &str = "manga_page_pipeline_state_v1";
 pub const MANGA_PAGE_SLOT_LIMIT: usize = 100;
 pub const MANGA_PAGE_REFERENCE_DISCOVERY_V1: &str = "manga_page_reference_discovery_v1";
 pub const MANGA_PAGE_REFERENCE_IMAGE_LIMIT: usize = 12;
 pub const MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT: usize = 24;
+pub const MANGA_REFERENCE_TARGET_NAME_MAX_CHARS: usize = 100;
+pub const MANGA_REFERENCE_DESCRIPTION_MAX_CHARS: usize = 600;
+pub const MANGA_REFERENCE_USAGE_MAX_CHARS: usize = 400;
 pub const MANGA_PREPROCESSING_V3: &str = "manga_preprocessing_v3";
 
 pub fn manga_preprocessing_input_fingerprint(
@@ -32,52 +36,50 @@ pub fn manga_preprocessing_input_fingerprint(
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MangaChapterComicSynthesisV1 {
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub chapter_summary: String,
+    #[schemars(schema_with = "preprocessing_schema::mood_progression")]
     pub mood_progression: Vec<String>,
 }
 
 impl MangaChapterComicSynthesisV1 {
     pub fn validate(&self) -> Result<(), String> {
-        if self.chapter_summary.trim().is_empty() {
-            return Err("comic_synthesis.chapter_summary 必须是非空字符串".into());
-        }
-        if !(3..=6).contains(&self.mood_progression.len())
-            || self
-                .mood_progression
-                .iter()
-                .any(|phase| phase.trim().is_empty())
-        {
-            return Err("comic_synthesis.mood_progression 必须包含 3-6 个非空阶段".into());
-        }
-        Ok(())
+        crate::json_contract::OutputSchemaValidator::new(
+            &crate::json_contract::typed_output_schema::<Self>(),
+        )?
+        .validate(&serde_json::to_value(self).map_err(|error| error.to_string())?)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MangaPreprocessingV3 {
+    #[schemars(extend("const"=MANGA_PREPROCESSING_V3))]
     pub schema_version: String,
+    #[schemars(schema_with = "preprocessing_schema::source_events")]
     pub source_events: Value,
+    #[schemars(schema_with = "preprocessing_schema::characters")]
     pub characters: Value,
+    #[schemars(schema_with = "preprocessing_schema::speech")]
     pub speech: Value,
+    #[schemars(schema_with = "preprocessing_schema::visual_anchors")]
     pub visual_anchors: Value,
+    #[schemars(schema_with = "preprocessing_schema::items")]
     pub items: Value,
     pub comic_synthesis: MangaChapterComicSynthesisV1,
 }
 
 impl MangaPreprocessingV3 {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema_version != MANGA_PREPROCESSING_V3 {
-            return Err(format!("schema_version 必须是 {MANGA_PREPROCESSING_V3}"));
-        }
+        crate::json_contract::OutputSchemaValidator::new(
+            &crate::json_contract::typed_output_schema::<Self>(),
+        )?
+        .validate(&serde_json::to_value(self).map_err(|error| error.to_string())?)?;
         let events = self
             .source_events
             .get("events")
             .and_then(Value::as_array)
             .ok_or_else(|| "source_events.events 必须是数组".to_string())?;
-        if events.is_empty() {
-            return Err("source_events.events 至少需要一个事件".into());
-        }
         let mut event_ids = std::collections::HashSet::with_capacity(events.len());
         for (index, event) in events.iter().enumerate() {
             let path = format!("source_events.events[{index}]");
@@ -90,52 +92,6 @@ impl MangaPreprocessingV3 {
             if !event_ids.insert(event_id) {
                 return Err(format!("{path}.event_id 不能重复"));
             }
-            if event
-                .get("description")
-                .and_then(Value::as_str)
-                .is_none_or(|value| value.trim().is_empty())
-            {
-                return Err(format!("{path}.description 必须是非空字符串"));
-            }
-            if event
-                .get("type")
-                .and_then(Value::as_str)
-                .is_none_or(|value| value.trim().is_empty())
-                || event
-                    .get("participants")
-                    .is_none_or(|value| !value.is_array())
-            {
-                return Err(format!("{path}.type 和 {path}.participants 无效"));
-            }
-            let source_span_ids = event
-                .get("source_span_ids")
-                .and_then(Value::as_array)
-                .ok_or_else(|| format!("{path}.source_span_ids 必须是数组"))?;
-            if source_span_ids.is_empty()
-                || source_span_ids
-                    .iter()
-                    .any(|id| id.as_str().is_none_or(|value| value.trim().is_empty()))
-            {
-                return Err(format!("{path}.source_span_ids 必须包含来源 ID"));
-            }
-        }
-        if !self.characters.is_object() {
-            return Err("characters 必须是对象".into());
-        }
-        if !self.speech.get("dialogues").is_some_and(Value::is_array)
-            || !self.speech.get("narrations").is_some_and(Value::is_array)
-        {
-            return Err("speech.dialogues 和 speech.narrations 必须是数组".into());
-        }
-        if !self
-            .visual_anchors
-            .get("scenes")
-            .is_some_and(Value::is_array)
-        {
-            return Err("visual_anchors.scenes 必须是数组".into());
-        }
-        if !self.items.get("items").is_some_and(Value::is_array) {
-            return Err("items.items 必须是数组".into());
         }
         let event_ids = event_ids
             .into_iter()
@@ -150,7 +106,6 @@ impl MangaPreprocessingV3 {
             "first_appearance_source_event_id",
             &event_ids,
         )?;
-        self.comic_synthesis.validate()?;
         Ok(())
     }
 }
@@ -555,8 +510,11 @@ pub struct MangaPageReferenceImageV1 {
 #[serde(deny_unknown_fields)]
 pub struct MangaPageReferenceNeedV1 {
     pub target_kind: MangaPageReferenceTargetKind,
+    #[schemars(length(min=1,max=MANGA_REFERENCE_TARGET_NAME_MAX_CHARS),regex(pattern=r"\S"))]
     pub target_name: String,
+    #[schemars(length(min=1,max=MANGA_REFERENCE_DESCRIPTION_MAX_CHARS),regex(pattern=r"\S"))]
     pub description: String,
+    #[schemars(length(min=1,max=MANGA_REFERENCE_USAGE_MAX_CHARS),regex(pattern=r"\S"))]
     pub usage: String,
 }
 
@@ -589,15 +547,19 @@ impl MangaPageReferenceDiscoveryV1 {
         }
         for (index, requirement) in self.requirements.iter().enumerate() {
             let target_name = requirement.target_name.trim();
-            if target_name.is_empty() || target_name.chars().count() > 100 {
+            if target_name.is_empty()
+                || target_name.chars().count() > MANGA_REFERENCE_TARGET_NAME_MAX_CHARS
+            {
                 return Err(format!("requirements[{index}].target_name 无效"));
             }
             let description = requirement.description.trim();
-            if description.is_empty() || description.chars().count() > 600 {
+            if description.is_empty()
+                || description.chars().count() > MANGA_REFERENCE_DESCRIPTION_MAX_CHARS
+            {
                 return Err(format!("requirements[{index}].description 无效"));
             }
             let usage = requirement.usage.trim();
-            if usage.is_empty() || usage.chars().count() > 400 {
+            if usage.is_empty() || usage.chars().count() > MANGA_REFERENCE_USAGE_MAX_CHARS {
                 return Err(format!("requirements[{index}].usage 无效"));
             }
         }

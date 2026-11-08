@@ -40,6 +40,7 @@ pub fn prepare_output_format(
     provider: &str,
     mut request: ChatRequest,
 ) -> Result<ChatRequest, AppError> {
+    request.protect_output_contract()?;
     let Some(format) = request.response_format.as_ref() else {
         return Ok(request);
     };
@@ -66,26 +67,6 @@ pub fn prepare_output_format(
         return Err(AppError::ConfigError(format!(
             "{provider} 预设未声明原生严格 Schema 能力，不能执行 strict=true 请求"
         )));
-    }
-    let instruction = format!(
-        "[A4N 输出合同：提示词 Schema]\n此协议预设使用 JSON 模式及应用侧校验。输出必须遵守以下 JSON Schema，来源及业务规则仍以原任务为准：\n{}",
-        schema.schema
-    );
-    if let Some(system) = request
-        .messages
-        .iter_mut()
-        .find(|message| matches!(message.role, a4n_llm_provider_contract::MessageRole::System))
-    {
-        system.content.push_str("\n\n");
-        system.content.push_str(&instruction);
-    } else {
-        request.messages.insert(0, ChatMessage::system(instruction));
-        for breakpoint in &mut request.cache_breakpoints {
-            breakpoint.message_index =
-                breakpoint.message_index.checked_add(1).ok_or_else(|| {
-                    AppError::InvalidArgument("输出 Schema 的缓存断点索引溢出".into())
-                })?;
-        }
     }
     request.response_format = Some(ResponseFormat::json_object());
     if let Some(trace) = request.trace_context.as_mut() {
@@ -122,10 +103,8 @@ mod tests {
         assert!(
             prompt_only
                 .messages
-                .first()
-                .unwrap()
-                .content
-                .contains("提示词 Schema")
+                .iter()
+                .any(|message| message.content.contains("[A4N_OUTPUT_CONTRACT]"))
         );
         let mut strict = request;
         strict

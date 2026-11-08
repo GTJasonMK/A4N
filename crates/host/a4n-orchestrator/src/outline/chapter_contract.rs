@@ -9,9 +9,9 @@ pub(in crate::outline) use fields::optional_i32;
 pub(in crate::outline) use fields::{
     required_array, required_i32, required_object, required_string,
 };
-pub(in crate::outline) use parsing::{
-    parse_chapter_outline_batch, parse_outline_json_object, reject_keys, reject_unknown_keys,
-};
+pub(in crate::outline) use parsing::{parse_chapter_outline_batch, parse_outline_json_object};
+#[cfg(test)]
+pub(in crate::outline) use parsing::{reject_keys, reject_unknown_keys};
 pub(in crate::outline) use part_context::{
     ensure_focus_part_in_context, requested_part_for_chapter, required_part_summary,
     validate_chapter_generation_range, validate_requested_part_context,

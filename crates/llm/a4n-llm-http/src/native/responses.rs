@@ -183,7 +183,7 @@ fn terminal_chunks(response: &Value, event_kind: &str) -> Result<Vec<ChatChunk>,
             calls.push(ToolCall {
                 id: required_string(&item["call_id"], "function_call.call_id")?.into(),
                 name: required_string(&item["name"], "function_call.name")?.into(),
-                arguments: serde_json::from_str(required_string(
+                arguments: a4n_domain::json_contract::parse_strict_json_value(required_string(
                     &item["arguments"],
                     "function_call.arguments",
                 )?)

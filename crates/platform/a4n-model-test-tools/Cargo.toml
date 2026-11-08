@@ -1,0 +1,12 @@
+[package]
+name = "a4n-model-test-tools"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+publish = false
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-video-provider-contract = { workspace = true }
+serde_json = { workspace = true }
+syn = { version = "2", features = ["full", "visit"] }

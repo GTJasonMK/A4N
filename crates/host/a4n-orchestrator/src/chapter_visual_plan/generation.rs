@@ -353,7 +353,7 @@ impl OrchestratorContext {
             Err(error) => return Err(execution.fail(error).await),
         };
         candidate.prompt = output.content.trim().to_string();
-        if candidate.prompt.is_empty() || candidate.prompt.chars().count() > 100_000 {
+        if validate_candidate_prompt(&candidate.prompt).is_err() {
             return Err(execution
                 .fail(generation_public_error(
                     "generation_validation_failed",
@@ -477,4 +477,28 @@ fn validate_description(value: &str) -> Result<(), AppError> {
         return Err(AppError::InvalidArgument("生成描述最多 100000 字符".into()));
     }
     Ok(())
+}
+
+fn validate_candidate_prompt(value: &str) -> Result<(), AppError> {
+    a4n_llm_provider_contract::validate_text_content(value)?;
+    validate_description(value)
+}
+
+#[test]
+fn model_contract_matrix_visual_plan_text_boundary() {
+    for (scenario, raw, expected) in [
+        ("valid", "镜头从雨幕推向门内。".to_string(), true),
+        ("empty", " \n\t".to_string(), false),
+        ("over-limit", "镜".repeat(100_001), false),
+    ] {
+        a4n_test_support::model_contract::assert_case(
+            "chapter_visual_plan",
+            "runtime-text",
+            "output",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(validate_candidate_prompt(&raw).is_ok()),
+            serde_json::json!({"validator":"validate_candidate_prompt"}),
+        );
+    }
 }

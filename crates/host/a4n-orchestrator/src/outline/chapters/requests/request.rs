@@ -78,7 +78,7 @@ pub(in crate::outline::chapters) fn build_context_aware_chapter_outline_request(
         temperature,
         None,
     )?
-    .with_json_response_format()
+    .with_json_schema_response_format("outline", a4n_domain::chapter::chapter_outline_output_schema(Some(usize::try_from(count).map_err(|_| AppError::InvalidArgument("章节数量必须为正整数".into()))?)), false)?
     .with_trace_context(LlmTraceContext {
         project_id: Some(project_id),
         root_project_id: None,

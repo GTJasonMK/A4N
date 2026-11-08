@@ -1,7 +1,6 @@
 use super::errors::{error_chain, internal_error, request_error};
 use super::format::image_format_hint;
 use a4n_domain::ProviderError as AppError;
-use reqwest::header::CONTENT_TYPE;
 use std::time::Duration;
 
 const IMAGE_CONNECT_TIMEOUT_SECS: u64 = 20;
@@ -103,18 +102,12 @@ async fn download_image_url_once(
         ))));
     }
 
-    let content_type = resp
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string);
     let bytes = resp
         .bytes()
         .await
         .map(|bytes| bytes.to_vec())
         .map_err(ImageDownloadError::Body)?;
-    let format = image_format_hint(declared_format, Some(url), content_type.as_deref(), &bytes)
-        .map_err(ImageDownloadError::Other)?;
+    let format = image_format_hint(declared_format, &bytes).map_err(ImageDownloadError::Other)?;
     Ok((bytes, format))
 }
 

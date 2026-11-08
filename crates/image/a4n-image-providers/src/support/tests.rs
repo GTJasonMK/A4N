@@ -14,36 +14,43 @@ fn normalizes_supported_declared_formats() {
 }
 
 #[test]
-fn detects_known_image_magic_without_default_format() {
-    assert_eq!(
-        detect_format_from_bytes(b"\x89PNG\r\n\x1a\nrest").unwrap(),
-        "png"
-    );
-    assert_eq!(
-        detect_format_from_bytes(b"\xff\xd8\xffrest").unwrap(),
-        "jpg"
-    );
-    assert_eq!(
-        detect_format_from_bytes(b"RIFFxxxxWEBPrest").unwrap(),
-        "webp"
-    );
-    assert!(detect_format_from_bytes(b"not-an-image").is_err());
+fn rejects_fake_magic_headers_and_decodes_all_supported_formats() {
+    for fake in [
+        b"\x89PNG\r\n\x1a\nrest".as_slice(),
+        b"\xff\xd8\xffrest",
+        b"RIFFxxxxWEBPrest",
+        b"not-an-image",
+        b"",
+    ] {
+        assert!(detect_format_from_bytes(fake).is_err());
+    }
+    for (format, extension) in [
+        (image::ImageFormat::Png, "png"),
+        (image::ImageFormat::Jpeg, "jpg"),
+        (image::ImageFormat::WebP, "webp"),
+    ] {
+        assert_eq!(
+            detect_format_from_bytes(&image_bytes(format)).unwrap(),
+            extension
+        );
+    }
+}
+
+fn image_bytes(format: image::ImageFormat) -> Vec<u8> {
+    let image = image::RgbImage::from_pixel(3, 2, image::Rgb([25, 50, 75]));
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut bytes, format).unwrap();
+    bytes.into_inner()
 }
 
 #[test]
-fn infers_image_format_from_url_content_type_or_bytes() {
-    assert_eq!(
-        image_format_hint(None, Some("https://example.com/a.jpeg?x=1"), None, b"").unwrap(),
-        "jpg"
-    );
-    assert_eq!(
-        image_format_hint(None, None, Some("image/webp; charset=utf-8"), b"").unwrap(),
-        "webp"
-    );
-    assert_eq!(
-        image_format_hint(None, None, None, b"\x89PNG\r\n\x1a\nrest").unwrap(),
-        "png"
-    );
+fn image_format_requires_decodable_bytes_and_matching_declared_format() {
+    let bytes = image_bytes(image::ImageFormat::Png);
+    assert_eq!(image_format_hint(None, &bytes).unwrap(), "png");
+    assert_eq!(image_format_hint(Some("png"), &bytes).unwrap(), "png");
+    assert!(image_format_hint(Some("jpg"), &bytes).is_err());
+    assert!(image_format_hint(Some("png"), &bytes[..bytes.len() / 2]).is_err());
+    assert!(image_format_hint(Some("png"), b"<html>error</html>").is_err());
 }
 
 #[test]
@@ -114,11 +121,10 @@ async fn retries_transient_image_download_failures() {
         "http://{}/generated",
         listener.local_addr().expect("image test server address")
     );
+    let png = image_bytes(image::ImageFormat::Png);
+    let expected = png.clone();
     let server = tokio::spawn(async move {
-        for (declared_length, body) in [
-            (12, b"\x89PNG".as_slice()),
-            (12, b"\x89PNG\r\n\x1a\nrest".as_slice()),
-        ] {
+        for (declared_length, body) in [(12, b"\x89PNG".as_slice()), (png.len(), png.as_slice())] {
             let (mut stream, _) = listener.accept().await.expect("accept image request");
             let headers = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {declared_length}\r\nConnection: close\r\n\r\n"
@@ -141,7 +147,7 @@ async fn retries_transient_image_download_failures() {
         .expect("transient image download should be retried");
 
     assert_eq!(format, "png");
-    assert_eq!(bytes, b"\x89PNG\r\n\x1a\nrest");
+    assert_eq!(bytes, expected);
     server.await.expect("image test server");
 }
 

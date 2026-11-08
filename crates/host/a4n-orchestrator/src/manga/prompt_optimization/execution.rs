@@ -24,7 +24,7 @@ use super::{
     request::{build_manga_prompt_optimization_request, manga_prompt_optimization_call_key},
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct OptimizedMangaPromptFields {
     pub(super) image_prompt: String,

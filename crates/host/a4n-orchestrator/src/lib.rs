@@ -62,4 +62,6 @@ pub(crate) use errors::{
 };
 
 #[cfg(test)]
+mod model_contract_exports;
+#[cfg(test)]
 mod tests;

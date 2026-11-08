@@ -37,6 +37,17 @@ where
 {
     ensure_not_cancelled(cancel_token)?;
     a4n_llm_provider_contract::validate_finish_reason(initial.finish_reason.as_deref())?;
+    let schema_validator = request.output_validator()?;
+    let mut validate = |raw: &str| {
+        if let Some(validator) = schema_validator.as_ref() {
+            let value = a4n_domain::json_contract::parse_strict_json_value(raw)
+                .map_err(|error| AppError::LlmError(format!("模型输出必须是严格 JSON：{error}")))?;
+            validator
+                .validate(&value)
+                .map_err(AppError::InvalidArgument)?;
+        }
+        validate(raw)
+    };
     let first_error = match validate(&initial.message.content) {
         Ok(parsed) => return Ok((initial, parsed)),
         Err(error) if is_output_error(&error) => error,
@@ -168,5 +179,7 @@ fn merge_usage(
     }))
 }
 
+#[cfg(test)]
+mod matrix;
 #[cfg(test)]
 mod tests;

@@ -1,54 +1,88 @@
 #!/usr/bin/env python3
-"""Fail when chat model call boundaries drift from their declared validation/recovery test inventory."""
+"""Check Cargo-wide AST discovery and stable business contract registration.
 
+This is inventory validation. Executed case evidence is verified independently;
+file existence or membership of a suite is never reported as runtime coverage.
+"""
+from __future__ import annotations
+import argparse
 import json
-import re
-from collections import Counter
+import os
+import subprocess
 from pathlib import Path
 
-from run_creation_e2e import FULL_GENERATION_SUITES, SUITES
-
-ROOT = Path(__file__).resolve().parents[2]
-CALLS = re.compile(r"(?<!fn )\b(execute_llm_generation|execute_validated_llm_generation|execute_outline_llm_call|execute_portrait_llm_call|execute_task_llm_chat_response|stream_complete_llm|stream_complete_llm_with_sink|chat_json_stream_result_with_sink|run_workflow_llm_once|render_and_chat_trace_with_context|chat_stream)\s*\(")
-
-
-def inspect(root=ROOT, ledger=None, suites=None):
-    ledger = ledger if ledger is not None else json.loads((root / "scripts/tests/model_call_coverage.json").read_text())
-    if ledger.get("schema_version") != 1 or not ledger.get("roots") or not ledger.get("owners"):
-        raise ValueError("模型调用清单版本、扫描根或 owner 不能为空")
-    suite_scripts = {name: row[0] for name, row in SUITES.items()} | FULL_GENERATION_SUITES if suites is None else suites
-    observed = {}
-    for alias, directory in ledger["roots"].items():
-        parent = (root / directory).resolve()
-        if not parent.is_dir() or not parent.is_relative_to(root.resolve()):
-            raise ValueError("无效模型调用扫描根：" + directory)
-        for source in sorted(parent.rglob("*.rs")):
-            if source.name == "tests.rs" or "tests" in source.relative_to(parent).parts:
-                continue
-            text = re.split(r"#\[cfg\(test\)\]\s*mod tests\s*\{", source.read_text())[0]
-            counts = dict(Counter(CALLS.findall(text)))
-            if counts:
-                observed[alias + ":" + str(source.relative_to(parent))] = counts
-    declared = ledger["owners"]
-    if set(observed) != set(declared):
-        raise ValueError(f"模型调用登记不完整；新增：{sorted(set(observed)-set(declared))}；失效：{sorted(set(declared)-set(observed))}")
-    for name, counts in observed.items():
-        owner = declared[name]
-        if owner.get("calls") != counts:
-            raise ValueError(f"{name} 的调用次数或执行器已改变：{counts}")
-        if owner.get("kind") not in {"text", "json", "agent", "driver"} or owner.get("recovery") not in {"bounded_once", "cancel_resume", "agent_budget", "terminal_error", "delegated"}:
-            raise ValueError(name + " 缺少明确的输出及恢复策略")
-        if not owner.get("suites"):
-            raise ValueError(name + " 未登记功能验证套件")
-        for suite in owner["suites"]:
-            if suite not in suite_scripts or not (root / "scripts/tests" / suite_scripts[suite]).is_file():
-                raise ValueError(name + " 引用了未注册或不存在的套件：" + suite)
-    return {"owners": len(observed), "static_calls": sum(sum(row.values()) for row in observed.values()),
-            "scope": ledger["scope"], "runtime_coverage_measured": False}
+ROOT=Path(__file__).resolve().parents[2]
+MANIFEST="scripts/tests/model_calls.json"
+BASELINE="scripts/tests/model_call_sites.json"
+ORCHESTRATOR="crates/host/a4n-orchestrator/src/"
 
 
-if __name__ == "__main__":
+def scan(root:Path=ROOT,binary:Path|None=None)->dict:
+    selected=binary or os.environ.get("A4N_MODEL_TEST_TOOLS_BINARY")
+    command=[str(selected),str(root)] if selected else ["cargo","run","--locked","-q","-p","a4n-model-test-tools","--",str(root)]
+    result=subprocess.run(command,cwd=root,capture_output=True,text=True,timeout=300)
+    if result.returncode: raise ValueError("Rust AST 扫描失败："+result.stderr[-2000:])
+    return json.loads(result.stdout)
+
+
+def structured_ids(ledger:dict)->set[str]:
+    result=set()
+    for group in ledger.get("structured",[]):
+        for call_id in group.get("calls",[]):
+            if call_id in result: raise ValueError("重复业务 call_id："+call_id)
+            result.add(call_id)
+    return result
+
+
+def inspect(root:Path=ROOT,ledger:dict|None=None,ast:dict|None=None,baseline:dict|None=None)->dict:
+    ledger=ledger if ledger is not None else json.loads((root/MANIFEST).read_text())
+    ast=ast if ast is not None else scan(root)
+    baseline=baseline if baseline is not None else json.loads((root/BASELINE).read_text())
+    if ledger.get("schema_version")!=2 or not ledger.get("structured") or not ledger.get("shared_scenarios"):
+        raise ValueError("模型业务清单必须是非空版本 2 合同/场景登记")
+    if ast.get("schema_version")!=2 or ast.get("scanner")!="syn-workspace" or not ast.get("calls"):
+        raise ValueError("缺少 Cargo 工作区 AST 扫描结果")
+    for field in ("calls","implementations","catalogs"):
+        if ast.get(field)!=baseline.get(field):
+            if field=="calls":
+                before={json.dumps(row,sort_keys=True) for row in baseline.get(field,[])}
+                after={json.dumps(row,sort_keys=True) for row in ast[field]}
+                raise ValueError(f"模型调用登记不完整；新增调用：{sorted(after-before)}；失效调用：{sorted(before-after)}")
+            raise ValueError(f"模型 {field} 已变化，必须审查适用能力和执行证据清单")
+    observed_files={row["file"] for row in ast["calls"]}
+    ids=structured_ids(ledger)
+    if not ids or any(not isinstance(call_id,str) or not call_id.strip() for call_id in ids):
+        raise ValueError("业务 call_id 无效")
+    for group in ledger["structured"]:
+        if "suites" in group or not group.get("owners") or not group.get("validators") or not group.get("branches"):
+            raise ValueError("业务调用必须登记 owner、生产 validator 和分支，不能用 suite 名称替代执行证据")
+        for owner in group["owners"]:
+            if ORCHESTRATOR+owner not in observed_files:
+                raise ValueError("业务 owner 未发现实际模型调用："+owner)
+        for source in [group.get("contract_owner",""),*(ORCHESTRATOR+name for name in group["validators"])]:
+            path=(root/source).resolve()
+            if not source or not path.is_relative_to(root.resolve()) or not path.exists():
+                raise ValueError("生产合同或 validator 不存在："+source)
+    for row in ledger.get("free_text",[]):
+        if row.get("call_id") in ids: raise ValueError("业务 call_id 重复")
+        if ORCHESTRATOR+row.get("owner","") not in observed_files or not row.get("validator") or not row.get("branches"):
+            raise ValueError("自由文本业务调用未完整登记")
+    for capability in ("text","image","video"):
+        catalog=ast["catalogs"].get(capability)
+        if not catalog or len({row["id"] for row in catalog})!=len(catalog):
+            raise ValueError("生产能力目录为空或重复："+capability)
+        if not ledger["shared_scenarios"].get(capability):
+            raise ValueError("生产能力缺少必测异常场景："+capability)
+    return {"business_json_calls":len(ids),"free_text_calls":len(ledger.get("free_text",[])),"ast_call_sites":len(ast["calls"]),"provider_implementations":len(ast["implementations"]),"scope":ledger["scope"],"runtime_coverage_measured":False}
+
+
+if __name__=="__main__":
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--ast",type=Path)
+    parser.add_argument("--binary",type=Path)
+    args=parser.parse_args()
     try:
-        print(json.dumps(inspect(), ensure_ascii=False, indent=2))
-    except (OSError, ValueError, TypeError, KeyError) as error:
-        raise SystemExit("模型调用登记检查失败：" + str(error))
+        ast=json.loads(args.ast.read_text()) if args.ast else scan(binary=args.binary)
+        print(json.dumps(inspect(ast=ast),ensure_ascii=False,indent=2))
+    except (OSError,ValueError,TypeError,KeyError,subprocess.TimeoutExpired) as error:
+        raise SystemExit("模型调用登记检查失败："+str(error))

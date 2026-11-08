@@ -29,6 +29,7 @@ from mock_openai.protocol import (
     VideoIdempotencyConflict,
 )
 from mock_openai.response import response_for
+from mock_openai.contract_guard import unique_object, validate_business_request
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
 
@@ -107,12 +108,11 @@ class ProviderHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         raw_body = self.rfile.read(length)
         try:
-            body = json.loads(raw_body or b"{}")
-        except json.JSONDecodeError as error:
+            body = json.loads(raw_body or b"{}", object_pairs_hook=unique_object)
+            if not isinstance(body, dict):
+                raise ValueError("request body must be a JSON object")
+        except ValueError as error:
             self._json(400, {"error": {"message": f"invalid json: {error}"}})
-            return
-        if not isinstance(body, dict):
-            self._json(400, {"error": {"message": "request body must be a JSON object"}})
             return
         sha256 = body.get("sha256")
         if not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
@@ -227,8 +227,10 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            body = json.loads(raw_body or b"{}")
-        except json.JSONDecodeError as error:
+            body = json.loads(raw_body or b"{}", object_pairs_hook=unique_object)
+            if not isinstance(body, dict):
+                raise ValueError("request body must be a JSON object")
+        except ValueError as error:
             self._json(400, {"error": {"message": f"invalid json: {error}"}})
             return
 
@@ -328,6 +330,11 @@ class ProviderHandler(BaseHTTPRequestHandler):
         if agent_fixture is None:
             try:
                 content = response_for(body)
+                # Deliberate fault responses must reach the production recovery path.
+                # Validate their normal fixture, then send the injected response unchanged.
+                normal_body = {**body, "model": "a4n-virtual-text"} if str(body.get("model", "")).startswith(("a4n-output-", "a4n-anchor-", "a4n-checkpoint-")) or body.get("model") == "a4n-fact-feedback-invalid" else body
+                normal = response_for(normal_body) if normal_body is not body else content
+                validate_business_request(body, body.get("messages", []), normal)
             except (UnhandledPromptError, ValueError) as error:
                 self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
                 return
@@ -477,9 +484,11 @@ class ProviderHandler(BaseHTTPRequestHandler):
             else:
                 if not self.headers.get("x-goog-api-key") or "alt=sse" not in self.path:
                     raise ValueError("Gemini requires native auth and alt=sse")
+                body = {**body, "model": path.split("/models/", 1)[1].split(":", 1)[0]}
                 messages = [{"role": "system", "content": "\n".join(part["text"] for part in body.get("systemInstruction", {}).get("parts", []))}]
                 messages += [{"role": "assistant" if item["role"] == "model" else "user", "content": "\n".join(part["text"] for part in item["parts"])} for item in body["contents"]]
             content = "雨夜里，角色谨慎地推开仓库门。" if body.get("a4n_test_cache_usage") is True else response_for({"messages": messages, "model": body.get("model", "")})
+            validate_business_request(body, messages, content)
         except (KeyError, TypeError, ValueError, UnhandledPromptError) as error:
             self._json(422, {"error": {"message": str(error)}})
             return True

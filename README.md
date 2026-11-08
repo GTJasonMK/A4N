@@ -12,6 +12,7 @@
   <a href="#一眼了解-a4n">功能总览</a> ·
   <a href="#核心创作链路">创作链路</a> ·
   <a href="#核心设计">核心设计</a> ·
+  <a href="docs/MODEL_TESTING.md">模型调用测试</a> ·
   <a href="https://github.com/GTJasonMK/A4N/issues">反馈问题</a>
 </p>
 

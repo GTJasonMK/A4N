@@ -280,6 +280,14 @@ pub(crate) async fn execute_llm_generation(
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
                 flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 if let Some(finish_reason) = finish_reason {
+                    if a4n_llm_provider_contract::validate_text_content(&content).is_err() {
+                        return Err(public_error(
+                            "llm_empty_response",
+                            "模型未返回有效正文",
+                            false,
+                            "provider_stream",
+                        ));
+                    }
                     let content_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
                     return Ok(LlmGenerationOutput {
                         content,
@@ -318,6 +326,31 @@ pub(crate) async fn execute_llm_generation(
                 ));
             }
             Next::Item(Some(Ok(chunk))) => {
+                if finish_reason.is_some()
+                    && chunk
+                        .content
+                        .as_deref()
+                        .is_some_and(|delta| !delta.is_empty())
+                {
+                    return Err(public_error(
+                        "llm_content_after_finish",
+                        "模型在结束标记之后继续返回正文",
+                        false,
+                        "provider_stream",
+                    ));
+                }
+                if chunk
+                    .tool_calls
+                    .as_ref()
+                    .is_some_and(|calls| !calls.is_empty())
+                {
+                    return Err(public_error(
+                        "llm_unexpected_tool_call",
+                        "当前生成入口不允许工具调用",
+                        false,
+                        "provider_stream",
+                    ));
+                }
                 if let Some(delta) = chunk.content.as_deref().filter(|delta| !delta.is_empty()) {
                     if !saw_content {
                         saw_content = true;

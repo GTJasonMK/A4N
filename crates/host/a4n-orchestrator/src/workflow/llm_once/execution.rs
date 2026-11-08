@@ -19,20 +19,24 @@ where
     T: serde::Serialize,
     F: Fn(Value) -> Result<T, AppError>,
 {
-    let request = super::workflow_json_request(prepared.system_prompt, input.user_prompt.clone())
-        .with_prompt_assembly_key(input.prompt_assembly_call_key)
-        .with_trace_context(LlmTraceContext {
-            project_id: Some(input.project_id),
-            root_project_id: Some(input.root_project_id),
-            workflow: input.workflow.to_string(),
-            step_key: input.step_key.clone(),
-            generation_run_id: None,
-            workflow_run_id: Some(input.workflow_run_id),
-            call_key: Some(input.step_key.clone()),
-            input_fingerprint_sha256: Some(prepared.input_fingerprint_sha256),
-            context_plan_json: None,
-            context_pack_refs_json: None,
-        });
+    let request = super::workflow_json_request(
+        prepared.system_prompt,
+        input.user_prompt.clone(),
+        input.prompt_name,
+    )?
+    .with_prompt_assembly_key(input.prompt_assembly_call_key)
+    .with_trace_context(LlmTraceContext {
+        project_id: Some(input.project_id),
+        root_project_id: Some(input.root_project_id),
+        workflow: input.workflow.to_string(),
+        step_key: input.step_key.clone(),
+        generation_run_id: None,
+        workflow_run_id: Some(input.workflow_run_id),
+        call_key: Some(input.step_key.clone()),
+        input_fingerprint_sha256: Some(prepared.input_fingerprint_sha256),
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    });
     let response = service
         .stream_complete_llm_with_sink(request.clone(), stream_reporter, input.cancel_token)
         .await?;

@@ -66,7 +66,7 @@ pub(super) fn parse_sse_data_line(line_bytes: &[u8]) -> ParsedSseLine {
         return ParsedSseLine::Done;
     }
 
-    match serde_json::from_str::<Value>(data) {
+    match a4n_domain::json_contract::parse_strict_json_value(data) {
         Ok(json) => {
             match stream_usage_only_chunk(&json) {
                 Ok(Some(usage)) => {

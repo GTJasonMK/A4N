@@ -263,11 +263,14 @@ fn responses_caches_native_dialogue_from_its_first_user_message() {
 fn native_usage_normalizes_cache_misses_and_preserves_write_tokens() {
     let response = collect(
         LlmProtocolKind::OpenAiResponses,
-        &[json!({"type": "response.completed", "response": {
-            "status": "completed", "output": [],
-            "usage": {"input_tokens": 10000, "output_tokens": 100, "total_tokens": 10100,
-                "input_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
-        }})],
+        &[
+            json!({"type":"response.output_text.delta","delta":"ok"}),
+            json!({"type": "response.completed", "response": {
+                "status": "completed", "output": [],
+                "usage": {"input_tokens": 10000, "output_tokens": 100, "total_tokens": 10100,
+                    "input_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
+            }}),
+        ],
     )
     .unwrap();
     let usage = response.usage.unwrap();

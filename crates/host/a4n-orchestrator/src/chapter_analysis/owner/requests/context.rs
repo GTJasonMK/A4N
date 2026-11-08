@@ -55,7 +55,12 @@ pub(super) async fn build_chapter_analysis_stage_request(
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
             .with_prompt_assembly_key(prompt_name)
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                prompt_name,
+                a4n_chapter_analysis::chapter_analysis_output_schema(prompt_name)
+                    .map_err(AppError::InvalidArgument)?,
+                false,
+            )?
             .with_trace_context(chapter_analysis_trace_context(ch.project_id, prompt_name)),
     )
 }

@@ -41,7 +41,7 @@ pub(in crate::optimize) fn build_agent_loop_chat_request(
     let step_user_message = build_agent_loop_step_user_message(observations, step)?;
     let manifest = build_agent_loop_context_manifest(base_user_message)?;
     let mut request = context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
-        .with_json_response_format()
+        .with_json_schema_response_format(workflow, decision_output_schema(), false)?
         .with_trace_context(LlmTraceContext {
             project_id: Some(project_id),
             root_project_id: None,
@@ -73,6 +73,24 @@ pub(in crate::optimize) fn build_agent_loop_chat_request(
     }
     request.messages.push(ChatMessage::user(step_user_message));
     Ok(request)
+}
+
+fn decision_output_schema() -> Value {
+    json!({"type":"object","required":["thought","action","arguments"],"additionalProperties":false,"properties":{
+        "thought":{"type":"string","minLength":1,"pattern":"\\S"},"action":{"type":"string","enum":["think","run_tool","final"]},
+        "arguments":{"type":"object"},"public_update":{"type":["string","null"]}
+    },"allOf":[{"if":{"properties":{"action":{"enum":["think","run_tool"]}}},"then":{"required":["public_update"],"properties":{"public_update":{"type":"string","minLength":1,"pattern":"\\S"}}}}]})
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    for name in [
+        "content_optimization_agent_loop",
+        "content_optimization_chat_agent_loop",
+    ] {
+        a4n_test_support::model_contract::emit_schema(name, decision_output_schema());
+    }
 }
 
 fn build_agent_loop_context_manifest(
@@ -170,11 +188,20 @@ mod tests {
             serde_json::to_value(&first.messages[..3]).unwrap(),
             serde_json::to_value(&next.messages[..3]).unwrap()
         );
-        assert!(
+        assert!(next.messages.iter().skip(1).all(|message| matches!(
+            message.role,
+            MessageRole::User
+        ) || (matches!(
+            message.role,
+            MessageRole::System
+        )
+            && message.content.contains("[A4N_OUTPUT_CONTRACT]"))));
+        assert_eq!(
             next.messages
                 .iter()
-                .skip(1)
-                .all(|message| matches!(message.role, MessageRole::User))
+                .filter(|message| matches!(message.role, MessageRole::System))
+                .count(),
+            2
         );
         assert_eq!(next.cache_mode, Some(PromptCacheMode::Explicit));
         assert_eq!(

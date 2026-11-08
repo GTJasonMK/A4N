@@ -42,7 +42,14 @@ pub(super) async fn prepare_galgame_llm_stage(
         &shared_adaptation_projection,
         input.request_user_prompt.clone(),
     )?;
+    let request = a4n_llm_provider_contract::ChatRequest::new(request_messages, Some(0.25), None)
+        .with_json_schema_response_format(
+        input.prompt_name,
+        crate::galgame::pipeline::json::output_schema(input.prompt_name)?,
+        false,
+    )?;
     let mut fingerprint_json = json!({
+        "request": request.snapshot_value()?,
         "workflow": GALGAME_PIPELINE_WORKFLOW,
         "stage": input.stage.key(),
         "checkpoint_key": input.checkpoint_key,
@@ -58,7 +65,7 @@ pub(super) async fn prepare_galgame_llm_stage(
         workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)
             .map_err(workflow_checkpoint_contract_app_error)?;
     Ok(PreparedGalgameLlmStage {
-        request_messages,
+        request_messages: request.messages,
         fingerprint_json,
         input_fingerprint_sha256,
     })

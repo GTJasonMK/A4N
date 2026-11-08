@@ -33,8 +33,9 @@ pub fn image_dimensions_from_bytes(bytes: &[u8]) -> Result<(i32, i32), ImageDime
         .with_guessed_format()
         .map_err(ImageDimensionsError::Format)?;
     let (width, height) = reader
-        .into_dimensions()
-        .map_err(ImageDimensionsError::Dimensions)?;
+        .decode()
+        .map_err(ImageDimensionsError::Dimensions)?
+        .dimensions();
     Ok((
         i32::try_from(width).map_err(|_| ImageDimensionsError::WidthOverflow)?,
         i32::try_from(height).map_err(|_| ImageDimensionsError::HeightOverflow)?,
@@ -59,6 +60,14 @@ pub fn required_upload_file_name(file_name: &str, label: &str) -> Result<String,
         return Err(format!("{label}不能包含路径"));
     }
     Ok(name.to_string())
+}
+
+pub fn validated_image_format(bytes: &[u8]) -> Result<ImageUploadFormat, String> {
+    let format =
+        image::guess_format(bytes).map_err(|error| format!("无法识别图片字节格式：{error}"))?;
+    let format = image_upload_format_from_image_format(format).ok_or("不支持的图片字节格式")?;
+    image_dimensions_from_bytes(bytes).map_err(|error| format!("图片无法完整解码：{error}"))?;
+    Ok(*format)
 }
 
 pub fn decode_uploaded_bytes(

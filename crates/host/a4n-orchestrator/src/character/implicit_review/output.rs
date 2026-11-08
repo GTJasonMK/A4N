@@ -14,7 +14,7 @@ pub(super) fn parse_implicit_update_decision(
     content: &str,
     stats: &ImplicitAttributeReviewSummary,
 ) -> Result<ParsedImplicitDecision, String> {
-    let value: Value = serde_json::from_str(content.trim())
+    let value = a4n_domain::json_contract::parse_strict_json_value(content.trim())
         .map_err(|error| format!("隐性属性复审结果必须是 JSON 对象: {error}"))?;
     let object = value
         .as_object()

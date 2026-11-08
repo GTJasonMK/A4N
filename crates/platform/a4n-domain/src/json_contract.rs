@@ -1,8 +1,17 @@
 mod arrays;
 mod fields;
+mod nullable;
 mod object;
 mod schema;
-pub use schema::{array_output_contract_schema, json_schema_from_output_shape};
+mod strict;
+mod validation;
+pub use nullable::RequiredNullable;
+pub use schema::{
+    array_output_contract_schema, json_schema_from_output_shape, nonempty_json_schema,
+    typed_output_schema,
+};
+pub use strict::parse_strict_json_value;
+pub use validation::OutputSchemaValidator;
 
 pub fn is_empty_json_value(value: &serde_json::Value) -> bool {
     match value {

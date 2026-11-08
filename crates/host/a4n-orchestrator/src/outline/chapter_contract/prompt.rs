@@ -55,9 +55,7 @@ pub(in crate::outline) fn chapter_outline_generation_manifest_user_message(
             "只输出一个 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段。\
              输出根对象必须且只能包含 chapters。\
              chapters 必须包含 {count} 个对象，数组顺序即第 {start_chapter} 章到第 {end_chapter} 章；不要输出 chapter_number，后端会按顺序补齐。\
-             每个 chapters 元素必须包含 title、summary；可额外包含且只能包含 beats、key_scenes、pacing_score、foreshadowing_setup、foreshadowing_payoff、characters_involved、word_count_target。\
-             beats、key_scenes、foreshadowing_setup、foreshadowing_payoff、characters_involved 必须是 JSON 数组。\
-             pacing_score、word_count_target 必须是 JSON 数字，不能是字符串"
+             字段、类型和可空约束遵守系统输出合同。"
         ),
         &payload,
     )
@@ -110,10 +108,7 @@ pub(in crate::outline) fn beat_mapping_manifest_user_message(
             "只输出一个 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段。\
              输出根对象必须且只能包含 chapters。\
              chapters 必须包含 {count} 个对象，数组顺序即第 {} 章到第 {} 章；不要输出 chapter_number，后端会按顺序补齐。\
-             每个 chapters 元素必须包含 title、summary；可额外包含且只能包含 beats、key_scenes、pacing_score、foreshadowing_setup、foreshadowing_payoff、characters_involved、word_count_target。\
-             不要输出 beat_assignment 或其他未列出的字段。\
-             beats、key_scenes、foreshadowing_setup、foreshadowing_payoff、characters_involved 必须是 JSON 数组。\
-             pacing_score、word_count_target 必须是 JSON 数字，不能是字符串",
+             字段、类型和可空约束遵守系统输出合同；不要输出 beat_assignment。",
             part.start_chapter, part.end_chapter
         ),
         &payload,

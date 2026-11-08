@@ -1,0 +1,4862 @@
+{
+  "schema_version": 2,
+  "scanner": "syn-workspace",
+  "calls": [
+    {
+      "callee": "analyze_and_store_chapter",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "run_chapter_analysis_inner",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "analyze_chapter",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/execution/storage.rs",
+      "function": "analyze_and_store_chapter",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "append_chapter_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/rag/ingest.rs",
+      "function": "expected_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "apply_beat_mapping",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "apply_beat_mapping_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "apply_beat_mapping_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "apply_downstream_cleanup",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "delete_chapter_video_prompt_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "apply_downstream_cleanup",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "update_chapter_video_prompt_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "apply_source_sync_decisions_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/source_sync/service.rs",
+      "function": "run_source_sync_apply_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "batch_generate_part_outlines_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "blueprint_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/manual.rs",
+      "function": "save_blueprint",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "blueprint_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/manual.rs",
+      "function": "sync_blueprint_materials",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "blueprint_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/versions.rs",
+      "function": "restore_blueprint_version",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "blueprint_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/world_setting.rs",
+      "function": "update_world_setting",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "blueprint_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/import_reverse/api.rs",
+      "function": "reverse_material_sync_warnings",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "build_prepared_galgame_scene_regeneration_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/source_sync/decisions/preparation/execution.rs",
+      "function": "prepare_decision_execution_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "call_patch_generation_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/patch/generation/execution/call.rs",
+      "function": "execute_patch_generation_call",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chapter_rag_chunks_with_provider",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/chapter_records/records.rs",
+      "function": "chapter_rag_records_with_provider",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chapter_rag_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/rag/ingest.rs",
+      "function": "append_chapter_records",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
+      "callee": "chapter_rag_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/chapter_records/sync.rs",
+      "function": "sync_chapter_rag_records",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "chapter_rag_records_with_provider",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
+      "function": "chapter_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_chapter_analysis_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/runner.rs",
+      "function": "execute_chapter_analysis_stage",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_json_stream_result_with_progress",
+      "crate": "a4n-llm-structured-stream",
+      "file": "crates/llm/a4n-llm-structured-stream/src/lib.rs",
+      "function": "chat_json_stream_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-llm-structured-stream",
+      "file": "crates/llm/a4n-llm-structured-stream/src/lib.rs",
+      "function": "chat_json_stream_result_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/runner/call.rs",
+      "function": "chat_chapter_analysis_stage",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/discovery/execution.rs",
+      "function": "run_character_discovery_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
+      "function": "chat_json_stream_result_with_sink",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/object_discovery/execution.rs",
+      "function": "run_object_discovery_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/execution/call.rs",
+      "function": "chat_scene_profile_stage",
+      "ordinal": 1,
+      "receiver": "state"
+    },
+    {
+      "callee": "chat_json_stream_result_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/stage/raw_call.rs",
+      "function": "run_or_restore_raw_shooting_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "chat_scene_profile_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/execution.rs",
+      "function": "run_scene_profile_stage_with_checkpoint",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-agent-runtime",
+      "file": "crates/agent/a4n-agent-runtime/src/engine/context.rs",
+      "function": "compact_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-agent-runtime",
+      "file": "crates/agent/a4n-agent-runtime/src/engine/loop.rs",
+      "function": "process_claimed_run_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-llm-gateway",
+      "file": "crates/llm/a4n-llm-gateway/src/handlers/stream/execution.rs",
+      "function": "stream_with_provider",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/output_format.rs",
+      "function": "chat_stream",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-llm-provider-contract",
+      "file": "crates/llm/a4n-llm-provider-contract/src/provider/stream_collect.rs",
+      "function": "collect_chat_stream",
+      "ordinal": 1,
+      "receiver": "llm"
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-llm-structured-stream",
+      "file": "crates/llm/a4n-llm-structured-stream/src/lib.rs",
+      "function": "chat_json_stream_result_with_sink",
+      "ordinal": 1,
+      "receiver": "llm"
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/generation/stream.rs",
+      "function": "execute_llm_generation",
+      "ordinal": 1,
+      "receiver": "llm"
+    },
+    {
+      "callee": "chat_stream",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/llm_chat/streaming/wait.rs",
+      "function": "open_video_prompt_stream",
+      "ordinal": 1,
+      "receiver": "llm"
+    },
+    {
+      "callee": "chat_with_video_cancel",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/llm_chat.rs",
+      "function": "render_and_chat_trace_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "check_character_conflict_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/conflict/execution.rs",
+      "function": "check",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "check_implicit_update_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/character.rs",
+      "function": "check",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "chunk_text",
+      "crate": "a4n-rag-core",
+      "file": "crates/rag/a4n-rag-core/src/semantic_chunker.rs",
+      "function": "split_semantic_dp_text",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "classify_character_sync_behaviors_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/execution.rs",
+      "function": "execute_character_profile_sync",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "collect_chat_stream",
+      "crate": "a4n-llm-gateway",
+      "file": "crates/llm/a4n-llm-gateway/src/handlers/probe.rs",
+      "function": "probe_existing_provider",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "compact_context",
+      "crate": "a4n-agent-runtime",
+      "file": "crates/agent/a4n-agent-runtime/src/engine/loop.rs",
+      "function": "process_claimed_run_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "complete_pipeline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/pipeline/execution.rs",
+      "function": "generate_page_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "complete_pipeline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/single_stage.rs",
+      "function": "run_single_stage",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "complete_pipeline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/single_stage.rs",
+      "function": "run_single_stage",
+      "ordinal": 2,
+      "receiver": null
+    },
+    {
+      "callee": "complete_pipeline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/single_stage.rs",
+      "function": "run_single_stage",
+      "ordinal": 3,
+      "receiver": null
+    },
+    {
+      "callee": "consolidate_facts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/ports.rs",
+      "function": "run_feedback",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "consolidate_facts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "consolidate_facts_if_due",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "consolidate_facts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "rebuild_facts",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "consolidate_facts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_analysis/application.rs",
+      "function": "execute_import_project_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "consolidate_facts_if_due",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_project_state_after_chapter_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "continue_part_outline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "continue_part_outlines_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "continue_part_outlines_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "decide_implicit_reviews_for_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/execution.rs",
+      "function": "execute_character_profile_sync",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "delete",
+      "crate": "a4n-cli",
+      "file": "crates/host/a4n-cli/src/shell.rs",
+      "function": "delete",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "delete",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/video/operations/routing.rs",
+      "function": "delete_video_job",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "delete",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/factory.rs",
+      "function": "delete",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "delete",
+      "crate": "a4n-video-service",
+      "file": "crates/video/a4n-video-service/src/handlers.rs",
+      "function": "delete",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "delete_canvas_video",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/media_import.rs",
+      "function": "import_canvas_video_validated",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "delete_chapter_video_prompt_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/ports.rs",
+      "function": "delete_chapter_video_prompt",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "delete_downstream_media",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "apply_downstream_cleanup",
+      "ordinal": 1,
+      "receiver": "cleanup"
+    },
+    {
+      "callee": "delete_downstream_media",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/optimization.rs",
+      "function": "optimize_video_prompt_validated",
+      "ordinal": 1,
+      "receiver": "cleanup_port"
+    },
+    {
+      "callee": "delete_video",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/video.rs",
+      "function": "try_dispatch",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "delete_video",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/media/video/records.rs",
+      "function": "delete_video",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "delete_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/media_import/video.rs",
+      "function": "delete_canvas_video",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "delete_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/config_records/video.rs",
+      "function": "remove_video_config",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "delete_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_prompts.rs",
+      "function": "delete_downstream_media",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "delete_video_job",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/cleanup_outbox/claim/generation.rs",
+      "function": "process_claimed_provider_job_cleanup",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "discover",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_ai/character_discovery_flow/execution.rs",
+      "function": "discover_character_profiles",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "discover_character_profiles",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/assets_and_media.rs",
+      "function": "try_dispatch",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "discover_character_profiles_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_character_discovery_phase",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "discover_character_profiles_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character.rs",
+      "function": "discover",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "discover_object_profiles_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_object_discovery_phase",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "dispatch_agent_host_command_inner",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "dispatch_agent_host_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_agent_host_command_inner",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "dispatch_agent_host_command_value",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_agent_host_command_value",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/agent_runtime/worker_routes.rs",
+      "function": "command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_generation_start",
+      "crate": "a4n-tauri",
+      "file": "crates/host/a4n-tauri/src/commands/dispatch.rs",
+      "function": "invoke_host_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_runtime_command_inner",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "dispatch_agent_host_command_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_runtime_command_inner",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "dispatch_runtime_command_value",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_runtime_command_inner",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "invoke",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "dispatch_runtime_command_value",
+      "crate": "a4n-tauri",
+      "file": "crates/host/a4n-tauri/src/commands/dispatch.rs",
+      "function": "invoke_host_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "drain_cleanup_outbox",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/project_records/api/mutations.rs",
+      "function": "delete_project",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "drain_cleanup_outbox",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/cleanup_outbox/worker.rs",
+      "function": "recover_cleanup_outbox",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "drain_cleanup_outbox",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/cleanup_outbox/worker.rs",
+      "function": "spawn_cleanup_worker",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "embed",
+      "crate": "a4n-embedding-fastembed",
+      "file": "crates/embedding/a4n-embedding-fastembed/src/provider.rs",
+      "function": "embed",
+      "ordinal": 1,
+      "receiver": "model"
+    },
+    {
+      "callee": "embed",
+      "crate": "a4n-embedding-provider-contract",
+      "file": "crates/embedding/a4n-embedding-provider-contract/src/lib.rs",
+      "function": "embed_with_identity",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "embed",
+      "crate": "a4n-embedding-provider-contract",
+      "file": "crates/embedding/a4n-embedding-provider-contract/src/lib.rs",
+      "function": "test_connection",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "embed",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/download.rs",
+      "function": "test_embedding_config_via_sidecar",
+      "ordinal": 1,
+      "receiver": "client"
+    },
+    {
+      "callee": "embed",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/provider/sidecar.rs",
+      "function": "embed_via_sidecar",
+      "ordinal": 1,
+      "receiver": "client"
+    },
+    {
+      "callee": "embed_queries_in_batch",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/rag_context/execution.rs",
+      "function": "execute_prepared_chapter_generation_rag_search_in_store",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "embed_queries_in_batch",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/search/enhanced/execution.rs",
+      "function": "execute_prepared_enhanced_rag_search_in_store",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "embed_rag_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/rag/store.rs",
+      "function": "rag_embed_and_store_record",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "embed_rag_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/rag/store.rs",
+      "function": "rag_embed_and_store_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "embed_via_sidecar",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/provider/sidecar.rs",
+      "function": "embed_with_identity",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-embedding-service",
+      "file": "crates/embedding/a4n-embedding-service/src/handlers/embedding.rs",
+      "function": "embed_texts",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/search/execution.rs",
+      "function": "embed_queries_in_batch",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/write/provider.rs",
+      "function": "embed_rag_records",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-rag-core",
+      "file": "crates/rag/a4n-rag-core/src/semantic_chunker.rs",
+      "function": "chunk_text",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/embedding_model/runtime.rs",
+      "function": "embed_texts",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_embedding.rs",
+      "function": "embed",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_embedding.rs",
+      "function": "embed_with_identity",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "embed_with_identity",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/provider/sidecar.rs",
+      "function": "embed",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "ensure_adaptation_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/preparation.rs",
+      "function": "prepare_galgame_pipeline",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "ensure_adaptation_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/source_sync/decisions/preparation/plan.rs",
+      "function": "build_prepared_galgame_scene_regeneration_plan",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "execute_agent_loop_decision_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/agent_loop/executor/decision/execution.rs",
+      "function": "request_agent_loop_decision",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_batch_image_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/batch/application.rs",
+      "function": "run_batch_image_generation_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_blueprint_refine_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint/refine/execution.rs",
+      "function": "run_blueprint_refinement_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_blueprint_stage_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint/generation/stage.rs",
+      "function": "generate_or_resume_blueprint_stage",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_chapter_analysis_character_state_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/execution/run.rs",
+      "function": "analyze_chapter",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_facts_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/execution/run.rs",
+      "function": "analyze_chapter",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_foreshadowing_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/execution/run.rs",
+      "function": "analyze_chapter",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/entrypoints.rs",
+      "function": "execute_chapter_analysis_character_state_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/entrypoints.rs",
+      "function": "execute_chapter_analysis_facts_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/entrypoints.rs",
+      "function": "execute_chapter_analysis_foreshadowing_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/entrypoints.rs",
+      "function": "execute_chapter_analysis_summary_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_analysis_summary_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/execution/run.rs",
+      "function": "analyze_chapter",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_chapter_scene_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_scene/execution.rs",
+      "function": "generate_chapter_scene_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_character_profile_sync",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/execution.rs",
+      "function": "run_prepared_character_profile_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_consolidation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "consolidate_facts",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_consolidation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "consolidate_facts",
+      "ordinal": 2,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_galgame_llm_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/llm/stage.rs",
+      "function": "run_galgame_llm_stage",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_image_generation_item",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/execution.rs",
+      "function": "run_image_generation_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_image_generation_operation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "run_image_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_import_project_analysis",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_analysis/application.rs",
+      "function": "run_import_project_analysis_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_import_reverse_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_reverse/execution.rs",
+      "function": "reverse_engineer_request",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_chat_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "execute_consolidation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_chat_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/llm_chat/request.rs",
+      "function": "chat_with_video_cancel",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_chat_response_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
+      "function": "stream_complete_llm_with_sink",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_chat_response_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/generation/stream.rs",
+      "function": "execute_llm_chat_response",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/generation.rs",
+      "function": "run_chapter_generation_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_visual_plan/generation.rs",
+      "function": "run_visual_plan_prompt_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/generation/stream.rs",
+      "function": "execute_llm_chat_response_with_sink",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/generation/stream.rs",
+      "function": "execute_validated_llm_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/generation/stream.rs",
+      "function": "execute_validated_llm_generation",
+      "ordinal": 2,
+      "receiver": null
+    },
+    {
+      "callee": "execute_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/agent_loop/executor/decision/execution/call.rs",
+      "function": "execute_agent_loop_decision_call",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_manga_prompt_optimization",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs",
+      "function": "optimize_manga_prompt_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_node",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/graph_execution/execution.rs",
+      "function": "execute_prepared_canvas_graph",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "execute_outline_generation_operation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "run_outline_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_outline_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/chapters/beat_mapping/execution.rs",
+      "function": "apply_beat_mapping",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_outline_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/chapters/llm/execution.rs",
+      "function": "generate_single_chapter_outline_json",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_outline_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/llm/execution.rs",
+      "function": "generate_part_outline_json",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_part_regeneration",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/regeneration/execution.rs",
+      "function": "regenerate_last_part",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_part_regeneration",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/regeneration/execution.rs",
+      "function": "regenerate_part_outline",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_patch_generation_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/patch/generation/execution.rs",
+      "function": "prepare_patch_generation_result",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_portrait_generation_operation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/generation.rs",
+      "function": "run_portrait_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_portrait_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait.rs",
+      "function": "generate_prompt_with_checkpoint",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_portrait_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/application/workflow.rs",
+      "function": "resolve_initial_portrait_prompt",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_prepared_canvas_graph",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/graph_execution/execution.rs",
+      "function": "run_prepared_canvas_graph_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_prepared_chapter_generation_rag_search",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/generation.rs",
+      "function": "resolve_chapter_generation_rag_context",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_prepared_chapter_generation_rag_search_in_store",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/rag/store.rs",
+      "function": "execute_prepared_chapter_generation_rag_search",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_prepared_direct_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_direct_image",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_prepared_enhanced_rag_search_in_store",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/rag/store.rs",
+      "function": "execute_prepared_enhanced_rag_search",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_task_llm_chat_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/llm_stream.rs",
+      "function": "execute_outline_llm_call",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_task_llm_chat_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/llm_stream.rs",
+      "function": "execute_portrait_llm_call",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_validated_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint/generation/stage/transport.rs",
+      "function": "generate_blueprint_stage_output",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_validated_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint/refine/execution/call.rs",
+      "function": "execute_blueprint_refine_call",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_validated_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/generation/stream.rs",
+      "function": "execute_task_llm_chat_response",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_validated_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/inspiration/application.rs",
+      "function": "run_inspiration_generation_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_validated_llm_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/patch/generation/execution/call/transport.rs",
+      "function": "call_patch_generation_llm",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_video_generation_operation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "run_video_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_video_prompt_generation_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "generate_chapter_video_prompt_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_video_prompt_optimization",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/optimization.rs",
+      "function": "optimize_video_prompt_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_video_prompt_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/task.rs",
+      "function": "run_video_prompt_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "execute_video_prompt_unit",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/unit_workflow.rs",
+      "function": "generate_video_prompt_units",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "execute_workflow_llm_once",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/workflow/llm_once.rs",
+      "function": "run_workflow_llm_once_with_stream_reporter",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_blueprint_material_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/orchestration/materials.rs",
+      "function": "sync_blueprint_material_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_for_set",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/expected_records.rs",
+      "function": "expected_blueprint_material_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_for_set",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/expected_records.rs",
+      "function": "expected_outline_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_for_set",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/expected_records.rs",
+      "function": "expected_protagonist_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_for_set",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/expected_records.rs",
+      "function": "expected_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_for_set",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/expected_records.rs",
+      "function": "expected_scene_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_for_set",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/orchestration/materials.rs",
+      "function": "sync_character_continuity_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_outline_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/orchestration/materials.rs",
+      "function": "sync_outline_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_protagonist_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/orchestration/materials.rs",
+      "function": "sync_protagonist_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/client_ingest/context.rs",
+      "function": "load_client_ingest_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/orchestration/scope.rs",
+      "function": "rag_ingest_task_scope",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/expected_records.rs",
+      "function": "expected_for_set",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "expected_scene_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/orchestration/scene.rs",
+      "function": "sync_scene_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "finish_chapter_derived_cleanup_inner",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_cleanup.rs",
+      "function": "finish_chapter_derived_cleanup",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "finish_consolidation_index",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "consolidate_facts",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "finish_consolidation_index",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "consolidate_facts",
+      "ordinal": 2,
+      "receiver": "self"
+    },
+    {
+      "callee": "finish_consolidation_index",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "execute_consolidation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-db",
+      "file": "crates/platform/a4n-db/src/auth/rules.rs",
+      "function": "hash_password",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/factory.rs",
+      "function": "generate",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/openai_edit.rs",
+      "function": "generate",
+      "ordinal": 1,
+      "receiver": "generation_provider"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-image-service",
+      "file": "crates/image/a4n-image-service/src/handlers/events/execution.rs",
+      "function": "image_generation_event_stream",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/media_authoring.rs",
+      "function": "generate_media_adaptation_plan",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/image/operations/routing.rs",
+      "function": "generate_image",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/video/operations/routing.rs",
+      "function": "generate_video",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_analysis/execution.rs",
+      "function": "run_chapter_analysis_application",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/factory.rs",
+      "function": "generate",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "generate",
+      "crate": "a4n-video-service",
+      "file": "crates/video/a4n-video-service/src/events.rs",
+      "function": "video_generation_event_stream",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "generate_adaptation_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media_authoring.rs",
+      "function": "ensure_adaptation_plan",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_adaptation_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media_authoring/ports.rs",
+      "function": "generate",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_adaptation_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/source_sync/decisions/preparation/plan.rs",
+      "function": "build_prepared_galgame_scene_regeneration_plan",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "generate_attached_page_image",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/manga_pipeline.rs",
+      "function": "generate_page_image",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_batch_images_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_batch_images_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 2,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_blueprint_stage_output",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint/generation/stage/call.rs",
+      "function": "execute_blueprint_stage_call",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_boundary_frame_workflow",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/layout_dispatch.rs",
+      "function": "generate_frame_layout",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_boundary_frame_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_frame_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_chat_video_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_video_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_first_frame_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_frame_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_first_frame_video_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_video_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_frame_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/frame_stages.rs",
+      "function": "generate_chapter_boundary_frame_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_frame_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/frame_stages.rs",
+      "function": "generate_chapter_first_frame_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_frame_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/frame_stages.rs",
+      "function": "generate_chapter_storyboard_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_frame_prompts_for_mode",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "execute_video_prompt_generation_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_outline_sequence",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/chapters/generation.rs",
+      "function": "generate_chapter_outlines",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_outline_sequence",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/chapters/generation.rs",
+      "function": "generate_chapter_outlines_by_count",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_outlines",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "batch_generate_part_outlines_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_outlines",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "generate_part_chapter_outlines_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_outlines_by_count",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "generate_chapter_outlines_by_count_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_outlines_by_count_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_scene_for_user_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/project/scene_records.rs",
+      "function": "generate_for_user",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_scene_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_scene/execution.rs",
+      "function": "generate_chapter_scene_for_user_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_segment_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "execute_video_prompt_generation_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_storyboard_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_frame_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_storyboard_video_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_video_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_frame_prompts_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/task.rs",
+      "function": "execute_video_prompt_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/video_stages.rs",
+      "function": "generate_chapter_chat_video_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_video_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/video_stages.rs",
+      "function": "generate_chapter_first_frame_video_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_video_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/video_stages.rs",
+      "function": "generate_chapter_storyboard_video_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_video_prompt_chain",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/video_stages.rs",
+      "function": "generate_chapter_video_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_chapter_video_prompt_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "generate_chapter_video_frame_prompts_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_prompt_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "generate_chapter_video_prompts_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_prompt_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "generate_chapter_video_segment_plan_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/mode_routers.rs",
+      "function": "generate_chapter_video_prompts_for_mode",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_prompts_for_mode",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "execute_video_prompt_generation_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_prompts_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/task.rs",
+      "function": "generate_video_prompt_for_target",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_chapter_video_segment_plan_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/task.rs",
+      "function": "execute_video_prompt_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_direct_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_galgame_image_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_direct_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_profile_image",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_direct_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_scene_image_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_first_frame_workflow",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/layout_dispatch.rs",
+      "function": "generate_frame_layout",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_for_user",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/chapter_scene/generation.rs",
+      "function": "generate_chapter_scene",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_frame_layout",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/orchestration.rs",
+      "function": "generate_chapter_frame_prompt_chain",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_galgame_image_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/ports.rs",
+      "function": "generate_galgame_image",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/execution.rs",
+      "function": "execute_image_generation_item",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "generate_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/application/image.rs",
+      "function": "generate_portrait_image",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "generate_image",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/config_records/image/connectivity.rs",
+      "function": "test_image_config",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_image",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/image_generation/host_port.rs",
+      "function": "generate_image",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_image",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/portrait_generation/host_port.rs",
+      "function": "generate_image",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_inserted_segment_draft",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/task.rs",
+      "function": "execute_video_prompt_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_media_adaptation_plan",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/media_authoring.rs",
+      "function": "try_dispatch",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_object_profile_image_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_or_resume_blueprint_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint/generation/execution.rs",
+      "function": "run_blueprint_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_page_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs",
+      "function": "process_manga_page_stages",
+      "ordinal": 1,
+      "receiver": "generator"
+    },
+    {
+      "callee": "generate_page_image_attached_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/ports.rs",
+      "function": "generate_attached_page_image",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_page_image_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_page_image_with_workflow_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_page_image_attached_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_page_image_with_workflow_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_page_image_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_page_prompts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/application.rs",
+      "function": "run_manga_pipeline_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_part_chapter_outlines_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_part_outline_json",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/continuation.rs",
+      "function": "continue_part_outline",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_part_outline_json",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/generation/append.rs",
+      "function": "generate_parts",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_part_outline_json",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/generation/replacement.rs",
+      "function": "regenerate_parts",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_part_outline_json",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/parts/regeneration/execution.rs",
+      "function": "execute_part_regeneration",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_parts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "generate_parts_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_parts_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_portrait_prompt_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/generation.rs",
+      "function": "generate_portrait_prompt",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_portrait_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/generation.rs",
+      "function": "execute_portrait_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_profile_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_object_profile_image_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_profile_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_scene_profile_image_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_prompt_with_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/application/execution.rs",
+      "function": "generate_portrait_prompt_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_scene_image_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_scene_profile_image_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_screenplay_adaptation_unit",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation.rs",
+      "function": "regenerate_chapter_shooting_script_units_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_screenplay_layout_unit",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation.rs",
+      "function": "regenerate_chapter_shooting_script_units_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_shared_segment_plan",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/service_facade/frame_stages.rs",
+      "function": "generate_chapter_segment_plan",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_shooting_scene",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation.rs",
+      "function": "regenerate_chapter_shooting_script_units_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_shooting_script_for_user",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/task.rs",
+      "function": "run_shooting_script_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_single_chapter_outline_json",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/chapters/generation.rs",
+      "function": "generate_chapter_outline_sequence",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_single_chapter_outline_json",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/chapters/regeneration.rs",
+      "function": "regenerate_chapter_outline",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_storyboard_frames",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/storyboard_workflow.rs",
+      "function": "generate_storyboard_workflow",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_storyboard_workflow",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/layout_dispatch.rs",
+      "function": "generate_frame_layout",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_generation/provider_host.rs",
+      "function": "submit_video",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_generation/provider_host/canvas.rs",
+      "function": "submit_canvas_video",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_video_prompt_draft",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/unit_execution/workflow.rs",
+      "function": "execute_video_prompt_unit",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_video_prompt_for_target",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/task.rs",
+      "function": "execute_video_prompt_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "generate_video_prompt_units",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain.rs",
+      "function": "generate_chapter_video_prompt_chain",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "image_generation_event_stream",
+      "crate": "a4n-image-service",
+      "file": "crates/image/a4n-image-service/src/handlers/events/api.rs",
+      "function": "generate_events",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "import_canvas_video_media",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/media_import.rs",
+      "function": "import_canvas_media",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "import_canvas_video_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/media_import.rs",
+      "function": "import_video",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "import_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/media_import/video.rs",
+      "function": "import_canvas_video_media",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "load_client_ingest_context",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/client_ingest/prepare.rs",
+      "function": "rag_prepare_ingest_all",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "load_client_ingest_context",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/client_ingest/upload.rs",
+      "function": "rag_upload_ingest_embeddings_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "open_video_prompt_stream",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/llm_chat/streaming/collector.rs",
+      "function": "stream_chat_with_video_cancel",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "optimize_chapter_video_prompt_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/ports.rs",
+      "function": "optimize_chapter_video_prompt",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "optimize_manga_prompt_record_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/application.rs",
+      "function": "optimize_prompt",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "optimize_manga_prompt_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/application.rs",
+      "function": "optimize_manga_prompt_record_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "optimize_prompt",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/manga_records/optimization/mod.rs",
+      "function": "optimize_manga_prompt",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "optimize_video_prompt_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/application/execution.rs",
+      "function": "optimize_chapter_video_prompt_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/import_reverse/api.rs",
+      "function": "reverse_material_sync_warnings",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records.rs",
+      "function": "sync_outline_materials",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records/chapters/records.rs",
+      "function": "delete_latest_chapter_outlines",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records/chapters/records.rs",
+      "function": "save_chapter_outline",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records/chapters/records.rs",
+      "function": "update_chapter_outline",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records/parts/records.rs",
+      "function": "delete_latest_parts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "outline_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records/parts/records.rs",
+      "function": "save_part_outline",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "poll",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/video/operations/routing.rs",
+      "function": "poll_video",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "poll",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/factory.rs",
+      "function": "poll",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "poll",
+      "crate": "a4n-video-service",
+      "file": "crates/video/a4n-video-service/src/handlers.rs",
+      "function": "poll",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "poll_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_generation/job_lifecycle/polling.rs",
+      "function": "poll_provider_job",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "prepare_chapter_generation_application",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/generation.rs",
+      "function": "preview_chapter_generation_request_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "prepare_chapter_generation_application",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/generation.rs",
+      "function": "run_chapter_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "prepare_decision_execution_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/source_sync/service.rs",
+      "function": "apply_source_sync_decisions_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "prepare_galgame_pipeline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/orchestration.rs",
+      "function": "run_pipeline",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "prepare_patch_generation_result",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/patch/generation.rs",
+      "function": "run_optimize_patch_generation_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "preview_chapter_generation_request_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/contracts.rs",
+      "function": "preview_request",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "probe_existing_provider",
+      "crate": "a4n-llm-gateway",
+      "file": "crates/llm/a4n-llm-gateway/src/handlers/probe.rs",
+      "function": "probe",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "process_claimed_generation_cleanup",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/cleanup_outbox/worker.rs",
+      "function": "drain_cleanup_outbox",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "process_claimed_provider_job_cleanup",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/cleanup_outbox/claim/generation.rs",
+      "function": "process_claimed_generation_cleanup",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "process_manga_page",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/completion.rs",
+      "function": "complete_pipeline",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "process_manga_page_stages",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs",
+      "function": "process_manga_page",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "profile_rag_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_records/profiles.rs",
+      "function": "create_profile",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "profile_rag_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_records/profiles.rs",
+      "function": "update_character_profile",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "rag_embed_and_store_record",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/sync/context.rs",
+      "function": "sync_record",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
+      "callee": "rag_embed_and_store_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/sync/operations.rs",
+      "function": "store_prepared_rag_records",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "rag_ingest_task_scope",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/front/rag_embedding.rs",
+      "function": "rag_ingest_all",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "rag_upload_ingest_embeddings_inner",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/rag_ingest/client_ingest/upload.rs",
+      "function": "rag_upload_ingest_embeddings",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "rebuild_facts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/ports.rs",
+      "function": "run_feedback",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_chapter_outline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "regenerate_chapter_outline_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_chapter_outline_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_chapter_shooting_script_units_with_progress",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation.rs",
+      "function": "generate_shooting_script_for_user",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_last_part",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "regenerate_last_part_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_last_part_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_part_outline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "regenerate_part_outline_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_part_outline_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_parts",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/application.rs",
+      "function": "regenerate_parts_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "regenerate_parts_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "execute_outline_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "remove_video_config",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/video.rs",
+      "function": "try_dispatch",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_and_chat_trace_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/render_restore.rs",
+      "function": "render_json_with_validation_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_and_chat_trace_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/render_restore.rs",
+      "function": "render_or_restore_json_with_validation_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_and_validate_manga_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
+      "function": "render_and_validate_manga_call_with_markers",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "render_and_validate_manga_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/drawing_prompt/page.rs",
+      "function": "run_single_page_drawing_prompt",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "render_and_validate_manga_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs",
+      "function": "process_manga_page_stages",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "render_and_validate_manga_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs",
+      "function": "process_manga_page_stages",
+      "ordinal": 2,
+      "receiver": "service"
+    },
+    {
+      "callee": "render_and_validate_manga_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs",
+      "function": "process_manga_page_stages",
+      "ordinal": 3,
+      "receiver": "service"
+    },
+    {
+      "callee": "render_and_validate_manga_call_with_markers",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots.rs",
+      "function": "run_page_slots",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "render_and_validate_manga_call_with_markers",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs",
+      "function": "run_manga_preprocessing",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
+      "callee": "render_boundary_frame_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/boundary_workflow/execution.rs",
+      "function": "generate_boundary_frame_workflow",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_json_with_validation_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/staged_segment_plan/shots.rs",
+      "function": "render_segment_plan_shots",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_or_restore_json_with_validation_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/boundary_frames/checkpoint.rs",
+      "function": "render_boundary_frame_checkpoint",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_or_restore_json_with_validation_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/first_frame_workflow.rs",
+      "function": "generate_first_frame_workflow",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_or_restore_json_with_validation_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/storyboard_workflow/generation/checkpoint.rs",
+      "function": "render_storyboard_frame_checkpoint",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_or_restore_json_with_validation_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/inserted_segment.rs",
+      "function": "generate_inserted_segment_draft",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_or_restore_json_with_validation_with_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/video_chain/unit_execution/draft.rs",
+      "function": "generate_video_prompt_draft",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_segment_plan_from_shooting_script_projection",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/segment_plan.rs",
+      "function": "generate_shared_segment_plan",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_segment_plan_shots",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/staged_segment_plan.rs",
+      "function": "render_staged_segment_plan_with_duration",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_staged_segment_plan_with_duration",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/shooting_script_projection.rs",
+      "function": "render_segment_plan_from_shooting_script_projection",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "render_storyboard_frame_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/storyboard_workflow/generation.rs",
+      "function": "generate_storyboard_frames",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "request_agent_loop_decision",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/agent_loop/executor/analysis/execution.rs",
+      "function": "run_explicit_analysis_agent_loop",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "request_agent_loop_decision",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/chat/loop_executor/execution.rs",
+      "function": "run_chat_agent_loop",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "required_status",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/cliproxy_openai.rs",
+      "function": "poll",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "required_status",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/cliproxy_openai.rs",
+      "function": "status",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "resolve_chapter_generation_rag_context",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/generation.rs",
+      "function": "prepare_chapter_generation_application",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "resolve_initial_portrait_prompt",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/application/execution.rs",
+      "function": "generate_portrait_validated",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "restore_blueprint_version",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/projects_and_content.rs",
+      "function": "try_dispatch_content",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "resume_blueprint_generation_workflow",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/task_records/workflows/resume.rs",
+      "function": "resume_workflow_run_for_user",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "resume_blueprint_refinement_workflow",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/task_records/workflows/resume.rs",
+      "function": "resume_workflow_run_for_user",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "resume_canvas_graph_run",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/task_records/workflows/resume.rs",
+      "function": "resume_workflow_run_for_user",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "resume_chapter_analysis_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/contracts.rs",
+      "function": "resume_sync",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "resume_chapter_analysis_workflow_run_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/contracts.rs",
+      "function": "resume_workflow_run",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "resume_sync",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_analysis/api/resume.rs",
+      "function": "resume_chapter_analysis_sync_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "resume_workflow_run_for_user",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/front/workflow_task.rs",
+      "function": "resume_workflow_run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "reverse_engineer",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/import_project/reverse.rs",
+      "function": "reverse_engineer_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "reverse_engineer_command",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/import_project/reverse.rs",
+      "function": "run_reverse_engineer_web_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "reverse_engineer_request",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_reverse/application.rs",
+      "function": "run_reverse_engineering_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "reverse_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/import_reverse/api.rs",
+      "function": "confirm_reverse_engineering_candidate",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "reverse_material_sync_warnings",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/import_reverse/api.rs",
+      "function": "reverse_engineer",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_all_character_profile_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character.rs",
+      "function": "sync_all_profiles",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_analysis_character_profile_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_character_profiles_phase",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_analysis_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/optimize/analysis.rs",
+      "function": "start_optimize_analysis_generation_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_analysis_session",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/analysis/generation.rs",
+      "function": "run_optimize_analysis_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_batch_image_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_batch_images_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_blueprint_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint.rs",
+      "function": "run_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_blueprint_refinement_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/blueprint.rs",
+      "function": "run_refinement",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_branch_design_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/early_stages.rs",
+      "function": "run_galgame_pipeline_early_stages",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canonical_chapter_video_batch",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "execute_video_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_canvas_generate_image_node",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/host_port.rs",
+      "function": "execute_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_generate_video_node",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/host_port.rs",
+      "function": "execute_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_graph_with_origin",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_domains/canvas.rs",
+      "function": "run_graph",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_graph_with_origin",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "run_canvas_graph",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_image_node_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/canvas.rs",
+      "function": "run_image",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_canvas_node_with_origin",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_domains/canvas.rs",
+      "function": "run_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_node_with_origin",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "run_canvas_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_video_node_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/canvas.rs",
+      "function": "run_video",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_analysis_application",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_analysis/api/generation.rs",
+      "function": "generate_chapter_analysis_with_progress",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_chapter_analysis_inner",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "resume_chapter_analysis_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_analysis_inner",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "resume_chapter_analysis_workflow_run_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_analysis_inner",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "run_chapter_analysis_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_analysis_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/contracts.rs",
+      "function": "generate",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_analysis_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "rebuild_facts",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_analysis_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_analysis/application.rs",
+      "function": "run_import_analysis_chapter_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_generation/application/contracts.rs",
+      "function": "run_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_chapter_scene_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_scene/execution.rs",
+      "function": "execute_chapter_scene_generation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_video_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "execute_video_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chapter_video_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "run_canonical_chapter_video_batch",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_conflict_llm_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/conflict/execution.rs",
+      "function": "check_character_conflict_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_discovery_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/discovery/execution.rs",
+      "function": "discover_character_profiles_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_profile_sync_batch",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/batch.rs",
+      "function": "run_all_character_profile_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_profile_sync_batch",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/batch.rs",
+      "function": "run_analysis_character_profile_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_profile_sync_stage_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/stages/execution.rs",
+      "function": "run_character_profile_sync_stages_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_profile_sync_stages_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/execution.rs",
+      "function": "execute_character_profile_sync",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_character_profile_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character.rs",
+      "function": "sync_profile",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chat_agent_loop",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/chat/execution.rs",
+      "function": "send_user_message_with_permissions",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_chat_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/optimize/chat.rs",
+      "function": "start_optimize_chat_generation_with_output_limit",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_explicit_analysis_agent_loop",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/analysis/execution.rs",
+      "function": "run_analysis_session",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_feedback",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/fact_feedback.rs",
+      "function": "run_project_fact_feedback",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_galgame_llm_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/early_stages/branch.rs",
+      "function": "run_branch_design_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_galgame_llm_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/early_stages/script.rs",
+      "function": "run_script_adaptation_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_galgame_llm_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/early_stages/staging.rs",
+      "function": "run_character_staging_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_galgame_llm_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/late_stages/visual.rs",
+      "function": "run_visual_planning_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_galgame_pipeline_early_stages",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/orchestration.rs",
+      "function": "run_pipeline",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_galgame_pipeline_for_user_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline_ports.rs",
+      "function": "start",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_galgame_pipeline_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/application.rs",
+      "function": "run_galgame_pipeline_for_user_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_graph",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs",
+      "function": "dispatch_agent_host_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_graph",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs",
+      "function": "execute",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_image",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/image.rs",
+      "function": "run_canvas_generate_image_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_image_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/ports.rs",
+      "function": "run_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_image_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/image_generation/execution.rs",
+      "function": "run_canvas_image_node_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_image_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/batch/application.rs",
+      "function": "execute_batch_image_generation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_image_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "execute_prepared_direct_image",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_image_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/generation.rs",
+      "function": "generate_page_image_with_workflow_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_implicit_classification_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_classification/execution.rs",
+      "function": "classify_character_sync_behaviors_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_implicit_review_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs",
+      "function": "check_implicit_update_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_implicit_review_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs",
+      "function": "decide_implicit_reviews_for_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_import_analysis_chapter_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_analysis/application.rs",
+      "function": "execute_import_project_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_import_project_analysis_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_analysis/ports.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_inspiration_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/inspiration/ports.rs",
+      "function": "run_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_local",
+      "crate": "a4n-cli",
+      "file": "crates/host/a4n-cli/src/cli/bootstrap.rs",
+      "function": "execute_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_manga_pipeline_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/application.rs",
+      "function": "run_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_manga_pipeline_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/application.rs",
+      "function": "run_manga_pipeline_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_manga_preprocessing",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/pipeline/execution.rs",
+      "function": "generate_page_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_manga_prompt_optimization_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs",
+      "function": "execute_manga_prompt_optimization",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_node",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs",
+      "function": "dispatch_agent_host_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_node",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs",
+      "function": "execute",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_object_discovery_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/object_discovery/execution.rs",
+      "function": "discover_object_profiles_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_optimize_analysis_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/application.rs",
+      "function": "run_analysis_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_optimize_chat_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/application.rs",
+      "function": "run_chat_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_optimize_patch_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/application.rs",
+      "function": "run_patch_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_or_restore_raw_shooting_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/stage.rs",
+      "function": "run_shooting_script_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_outline_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
+      "function": "run_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_page_slots",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/pipeline/execution.rs",
+      "function": "generate_page_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_page_slots",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/single_stage.rs",
+      "function": "run_single_stage",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_patch_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/optimize/patches/proposal.rs",
+      "function": "start_optimize_patch_generation_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_pipeline",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/application.rs",
+      "function": "run_galgame_pipeline_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_portrait_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/portrait/generation.rs",
+      "function": "run_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_prepared",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "run_prepared_canvas_graph",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_prepared_canvas_graph",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "submit_prepared_canvas_graph_run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_prepared_canvas_graph_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/canvas.rs",
+      "function": "run_prepared",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_prepared_character_profile_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/batch.rs",
+      "function": "run_character_profile_sync_batch",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_prepared_character_profile_sync_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/execution.rs",
+      "function": "run_character_profile_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_prompt_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/chapter_visual_plan_records/generation.rs",
+      "function": "start_visual_plan_prompt_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_prompt_task",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_generation/generation_task.rs",
+      "function": "start_video_generation_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_reference_media_video_generation_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "execute_video_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_refinement",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/refinement.rs",
+      "function": "resume_blueprint_refinement_workflow",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_refinement",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/refinement.rs",
+      "function": "start_blueprint_refinement_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_reverse_engineer_web_command",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "dispatch_runtime_command_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_reverse_engineering_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_reverse/ports.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_scene_profile_stage_with_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/orchestration/entity_states.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_scene_profile_stage_with_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/orchestration/occurrences.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_scene_profile_stage_with_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/orchestration/scenes.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_scene_profile_stage_with_checkpoint",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/orchestration/transitions.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_shooting_script_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script.rs",
+      "function": "run",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_shooting_script_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation/design.rs",
+      "function": "generate_shooting_scene",
+      "ordinal": 1,
+      "receiver": "orchestrator"
+    },
+    {
+      "callee": "run_shooting_script_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation/screenplay/adaptation.rs",
+      "function": "generate_screenplay_adaptation_unit",
+      "ordinal": 1,
+      "receiver": "orchestrator"
+    },
+    {
+      "callee": "run_shooting_script_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/generation/screenplay/layout.rs",
+      "function": "generate_screenplay_layout_unit",
+      "ordinal": 1,
+      "receiver": "orchestrator"
+    },
+    {
+      "callee": "run_single_page_drawing_prompt",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs",
+      "function": "process_manga_page_stages",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_single_stage",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/pipeline/execution.rs",
+      "function": "generate_page_prompts",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_source_sync_apply_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/source_sync.rs",
+      "function": "apply",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/video.rs",
+      "function": "run_canvas_generate_video_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_video_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "run_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_video_prompt_generation_task",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/generation.rs",
+      "function": "run_prompt_task",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_video_prompt_optimization_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/optimization.rs",
+      "function": "execute_video_prompt_optimization",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_visual_plan_prompt_generation",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_visual_plan.rs",
+      "function": "run_prompt_generation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_workflow_llm_once",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/regeneration/stages/script.rs",
+      "function": "run_script_adaptation_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_workflow_llm_once",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/regeneration/stages/staging.rs",
+      "function": "run_character_staging_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_workflow_llm_once",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/regeneration/stages/visual.rs",
+      "function": "run_visual_planning_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "run_workflow_llm_once_with_stream_reporter",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media_authoring.rs",
+      "function": "generate_adaptation_plan",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "run_workflow_llm_once_with_stream_reporter",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/workflow/llm_once.rs",
+      "function": "run_workflow_llm_once",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "save_blueprint",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/projects_and_content.rs",
+      "function": "try_dispatch_content",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "send_user_message_with_permissions",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/optimize/chat/generation.rs",
+      "function": "run_optimize_chat_generation_task",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "spawn_cleanup_worker",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/state/app/bootstrap.rs",
+      "function": "finish",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "split_semantic_dp_text",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/rag/chapter_records/chunks.rs",
+      "function": "chapter_rag_chunks_with_provider",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "start_generation",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/generation.rs",
+      "function": "dispatch_generation_start",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "start_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/generation.rs",
+      "function": "resume_blueprint_generation_workflow",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "start_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/generation.rs",
+      "function": "start_blueprint_generation_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "start_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/inspiration_records/conversations.rs",
+      "function": "start_inspiration_generation_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "start_optimize_chat_generation_with_output_limit",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/optimize/chat.rs",
+      "function": "start_optimize_chat_generation_typed",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "start_visual_plan_prompt_generation",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs",
+      "function": "dispatch_agent_host_command",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "status",
+      "crate": "a4n-cli",
+      "file": "crates/host/a4n-cli/src/cli/handlers/local.rs",
+      "function": "run_local",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "status",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/video/operations/routing.rs",
+      "function": "video_job_status",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "status",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/cliproxy_openai.rs",
+      "function": "generate",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "status",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/cliproxy_openai/response.rs",
+      "function": "required_status",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "status",
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/factory.rs",
+      "function": "status",
+      "ordinal": 1,
+      "receiver": "inner"
+    },
+    {
+      "callee": "status",
+      "crate": "a4n-video-service",
+      "file": "crates/video/a4n-video-service/src/handlers.rs",
+      "function": "status",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "stream_chat_with_video_cancel",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/llm_chat.rs",
+      "function": "render_and_chat_trace_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_scene/execution.rs",
+      "function": "run_chapter_scene_llm_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/conflict/execution.rs",
+      "function": "run_character_conflict_llm_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_classification/execution.rs",
+      "function": "run_implicit_classification_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs",
+      "function": "run_implicit_review_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/stages/execution.rs",
+      "function": "run_character_profile_sync_stage_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/llm/stage/execution.rs",
+      "function": "execute_galgame_llm_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_reverse/execution/call.rs",
+      "function": "execute_import_reverse_call",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs",
+      "function": "run_manga_prompt_optimization_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/optimization.rs",
+      "function": "run_video_prompt_optimization_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
+      "function": "stream_complete_llm",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
+      "function": "validate_llm_response",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
+      "function": "render_and_validate_manga_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "stream_complete_llm_with_sink",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/workflow/llm_once/execution.rs",
+      "function": "execute_workflow_llm_once",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "stream_with_provider",
+      "crate": "a4n-llm-gateway",
+      "file": "crates/llm/a4n-llm-gateway/src/handlers/stream/api.rs",
+      "function": "stream_chat",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "submit_canvas_video",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/video_generation.rs",
+      "function": "run_canvas_video_node_validated",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "submit_chapter_video",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/chapter_video_generation/generation.rs",
+      "function": "run_chapter_video_generation_validated",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "submit_prepared_canvas_graph_run",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "resume_canvas_graph_run",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "submit_prepared_canvas_graph_run",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "run_canvas_graph_with_origin",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "submit_prepared_canvas_graph_run",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/api.rs",
+      "function": "run_canvas_node_with_origin",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "submit_reference_media_video",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/reference_media_generation.rs",
+      "function": "run_reference_media_video_generation_validated",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "submit_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_generation/provider_host/chapter.rs",
+      "function": "submit_chapter_video",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "submit_video",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/video_generation/provider_host/reference_media.rs",
+      "function": "submit_reference_media_video",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_all_profiles",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_ai/sync/batch.rs",
+      "function": "sync_all_character_profiles_to_chapter",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_blueprint_material_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/blueprint_records/manual.rs",
+      "function": "blueprint_material_sync_warnings",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_blueprint_material_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_analysis/host_port.rs",
+      "function": "sync_fact_material_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_blueprint_material_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_cleanup.rs",
+      "function": "finish_chapter_derived_cleanup_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_chapter_fact_indexes",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_project_state_after_chapter_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_character_continuity_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_analysis/host_port.rs",
+      "function": "sync_fact_material_rag_records",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_character_discovery_phase",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_project_state_after_chapter_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_character_profile_input_with_scope",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_ai/sync/profile/execution.rs",
+      "function": "sync_character_profile_from_chapters",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_character_profiles_phase",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_project_state_after_chapter_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_fact_material_rag_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_chapter_fact_indexes",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "sync_fact_material_rag_records",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "finish_consolidation_index",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "sync_object_discovery_phase",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "sync_project_state_after_chapter_analysis",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_outline_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/outline_records.rs",
+      "function": "outline_material_sync_warnings",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_profile",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_ai/sync/profile/execution.rs",
+      "function": "sync_character_profile_input_with_scope",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_profile_rag",
+      "crate": "a4n-character-mutation-worker-client",
+      "file": "crates/profiles/a4n-character-mutation-worker-client/src/lib.rs",
+      "function": "delete",
+      "ordinal": 1,
+      "receiver": "host_port"
+    },
+    {
+      "callee": "sync_project_state_after_chapter_analysis",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "resume_chapter_analysis_sync_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_project_state_after_chapter_analysis",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "resume_chapter_analysis_workflow_run_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_project_state_after_chapter_analysis",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/application/analysis.rs",
+      "function": "run_chapter_analysis_inner",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "sync_protagonist_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/character_records/profiles.rs",
+      "function": "profile_rag_sync_warnings",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_protagonist_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_analysis/host_port.rs",
+      "function": "sync_profile_rag",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "sync_protagonist_rag_records",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/workflow/chapter_cleanup.rs",
+      "function": "finish_chapter_derived_cleanup_inner",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "test_connection",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/config_records/embedding/connectivity.rs",
+      "function": "test_embedding_config",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "test_connection",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/embedding_model/runtime.rs",
+      "function": "test_embedding_config",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "test_embedding_config_via_sidecar",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/config_records/embedding/connectivity.rs",
+      "function": "test_embedding_config",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "try_dispatch_content",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/projects_and_content.rs",
+      "function": "try_dispatch",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "update_chapter_video_prompt_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/ports.rs",
+      "function": "update_chapter_video_prompt",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "update_character_profile",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/dispatch/system_and_collaboration.rs",
+      "function": "try_dispatch",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/chapter_analysis/stages/runner.rs",
+      "function": "execute_chapter_analysis_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/conflict/execution.rs",
+      "function": "run_character_conflict_llm_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/discovery/execution.rs",
+      "function": "run_character_discovery_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_classification/execution.rs",
+      "function": "run_implicit_classification_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs",
+      "function": "run_implicit_review_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/character/profile_sync/stages/execution.rs",
+      "function": "run_character_profile_sync_stages_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/fact_feedback/run.rs",
+      "function": "execute_consolidation",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/galgame/pipeline/run/llm/stage/execution.rs",
+      "function": "execute_galgame_llm_stage",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/import_reverse/execution/call.rs",
+      "function": "execute_import_reverse_call",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
+      "function": "render_and_validate_manga_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs",
+      "function": "run_manga_prompt_optimization_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/object_discovery/execution.rs",
+      "function": "run_object_discovery_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/scene_profile/application/stages/execution.rs",
+      "function": "run_scene_profile_stage_with_checkpoint",
+      "ordinal": 1,
+      "receiver": "state"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/shooting_script/stage.rs",
+      "function": "run_shooting_script_stage",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/render_restore.rs",
+      "function": "validate_video_trace",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/optimization.rs",
+      "function": "run_video_prompt_optimization_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/workflow/llm_once/execution.rs",
+      "function": "execute_workflow_llm_once",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "validate_video_trace",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/render_restore.rs",
+      "function": "render_json_with_validation_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "validate_video_trace",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/render_restore.rs",
+      "function": "render_or_restore_json_with_validation_with_context",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "video_generation_event_stream",
+      "crate": "a4n-video-service",
+      "file": "crates/video/a4n-video-service/src/handlers.rs",
+      "function": "generate_events",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "video_job_status",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/cleanup_outbox/claim/generation.rs",
+      "function": "process_claimed_provider_job_cleanup",
+      "ordinal": 1,
+      "receiver": null
+    }
+  ],
+  "implementations": [
+    {
+      "crate": "a4n-embedding-fastembed",
+      "file": "crates/embedding/a4n-embedding-fastembed/src/provider.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-embedding-providers",
+      "file": "crates/embedding/a4n-embedding-providers/src/http.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-embedding-providers",
+      "file": "crates/embedding/a4n-embedding-providers/src/local.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/chat.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/cliproxy.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/comfyui.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/factory.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/openai.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/openai_edit.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/sd_webui.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/anthropic.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/output_format.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/provider/trait_impl.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_embedding.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_llm/contracts/model.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_llm/llm_provider.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/provider/sidecar.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/chat.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/cliproxy_openai.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/factory.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/gemini_veo.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/http.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/newapi.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/seedance2.rs",
+      "trait": "VideoProvider"
+    }
+  ],
+  "catalogs": {
+    "image": [
+      {
+        "id": "openai-compatible-image",
+        "references": false
+      },
+      {
+        "id": "openai-compatible-image-edit",
+        "references": true
+      },
+      {
+        "id": "openai-chat-image",
+        "references": true
+      },
+      {
+        "id": "cliproxy-image",
+        "references": true
+      },
+      {
+        "id": "stable-diffusion",
+        "references": false
+      },
+      {
+        "id": "comfyui",
+        "references": false
+      }
+    ],
+    "text": [
+      {
+        "id": "openai",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "openai-responses",
+        "protocol": "OpenAiResponses"
+      },
+      {
+        "id": "anthropic",
+        "protocol": "AnthropicMessages"
+      },
+      {
+        "id": "gemini",
+        "protocol": "GeminiGenerateContent"
+      },
+      {
+        "id": "deepseek",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "qwen",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "moonshot",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "zhipu",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "doubao",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "siliconflow",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "ollama",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "custom-chat-completions",
+        "protocol": "OpenAiChatCompletions"
+      },
+      {
+        "id": "custom-responses",
+        "protocol": "OpenAiResponses"
+      },
+      {
+        "id": "custom-anthropic",
+        "protocol": "AnthropicMessages"
+      },
+      {
+        "id": "custom-gemini",
+        "protocol": "GeminiGenerateContent"
+      }
+    ],
+    "video": [
+      {
+        "asynchronous": true,
+        "delete": false,
+        "first_frame_with_references": true,
+        "fps_parameter": true,
+        "id": "openai-compatible-video",
+        "last_frame": true,
+        "max_reference_images": null,
+        "reference_video_audio": false,
+        "status_query": true
+      },
+      {
+        "asynchronous": true,
+        "delete": false,
+        "first_frame_with_references": true,
+        "fps_parameter": false,
+        "id": "newapi-video",
+        "last_frame": false,
+        "max_reference_images": 0,
+        "reference_video_audio": false,
+        "status_query": true
+      },
+      {
+        "asynchronous": true,
+        "delete": false,
+        "first_frame_with_references": true,
+        "fps_parameter": false,
+        "id": "gemini-veo-video",
+        "last_frame": true,
+        "max_reference_images": 3,
+        "reference_video_audio": false,
+        "status_query": true
+      },
+      {
+        "asynchronous": true,
+        "delete": false,
+        "first_frame_with_references": true,
+        "fps_parameter": false,
+        "id": "seedance2-video",
+        "last_frame": true,
+        "max_reference_images": null,
+        "reference_video_audio": true,
+        "status_query": true
+      },
+      {
+        "asynchronous": true,
+        "delete": true,
+        "first_frame_with_references": false,
+        "fps_parameter": false,
+        "id": "cliproxy-openai-video",
+        "last_frame": false,
+        "max_reference_images": 7,
+        "reference_video_audio": false,
+        "status_query": true
+      },
+      {
+        "asynchronous": false,
+        "delete": false,
+        "first_frame_with_references": true,
+        "fps_parameter": true,
+        "id": "openai-chat-video",
+        "last_frame": true,
+        "max_reference_images": null,
+        "reference_video_audio": false,
+        "status_query": false
+      }
+    ]
+  }
+}

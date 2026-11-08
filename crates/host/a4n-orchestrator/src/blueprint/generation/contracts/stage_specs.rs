@@ -4,6 +4,10 @@ use crate::blueprint::json::{
 };
 
 use super::BlueprintStageSpec;
+use a4n_domain::project::{
+    BLUEPRINT_CHARACTERS_SHAPE, BLUEPRINT_RELATIONSHIPS_SHAPE, BLUEPRINT_STORY_CORE_SHAPE,
+    BLUEPRINT_WORLD_SHAPE,
+};
 
 pub(in crate::blueprint) const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec; 4] = [
     BlueprintStageSpec {
@@ -13,7 +17,7 @@ pub(in crate::blueprint) const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec;
         progress_current: 2,
         progress_message: "生成故事核心与完整梗概",
         restored_message: "已恢复故事核心断点",
-        output_schema: r#"{"title":"string","target_audience":"string","genre":"string","style":"string","tone":"string","one_sentence_summary":"string","full_synopsis":"string"}"#,
+        output_schema: BLUEPRINT_STORY_CORE_SHAPE,
     },
     BlueprintStageSpec {
         key: "world",
@@ -22,7 +26,7 @@ pub(in crate::blueprint) const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec;
         progress_current: 3,
         progress_message: "生成结构化世界观",
         restored_message: "已恢复世界观断点",
-        output_schema: r#"{"world_setting":{"premise":"string","core_rules":"string","technology_or_magic":{"source":"string","rules":["string"],"limits":["string"],"costs":["string"]},"key_locations":[{"name":"string","description":"string","story_function":"string"}],"factions":[{"name":"string","description":"string","agenda":"string","representative_characters":["string"]}],"history_timeline":[{"period":"string","event":"string","impact":"string"}],"culture_and_society":{"values":"string","class_structure":"string","daily_life":"string"},"conflict_sources":[{"name":"string","description":"string","stakes":"string"}],"mysteries_and_foreshadowing":[{"mystery":"string","early_clues":["string"],"payoff_direction":"string"}],"genre_promises":["string"]}}"#,
+        output_schema: BLUEPRINT_WORLD_SHAPE,
     },
     BlueprintStageSpec {
         key: "characters",
@@ -31,7 +35,7 @@ pub(in crate::blueprint) const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec;
         progress_current: 4,
         progress_message: "生成主要角色档案",
         restored_message: "已恢复角色档案断点",
-        output_schema: r#"{"characters":[{"name":"string","character_type":"protagonist|antagonist|supporting|minor","gender":"string","age":"string","appearance":"string","personality":"string","background":"string","motivation":"string","arc_summary":"string","relationship_to_protagonist":"string","arc_stages":{"start":"string","core_wound":"string","desire":"string","need":"string","secret":"string","voice_style":"string","turning_point":"string","end":"string"}}]}"#,
+        output_schema: BLUEPRINT_CHARACTERS_SHAPE,
     },
     BlueprintStageSpec {
         key: "relationships",
@@ -40,6 +44,6 @@ pub(in crate::blueprint) const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec;
         progress_current: 5,
         progress_message: "生成人物关系网络",
         restored_message: "已恢复人物关系断点",
-        output_schema: r#"{"relationships":[{"relationship_type":"family|friend|enemy|lover|rival|mentor|other","character_a":"string","character_b":"string","description":"string","strength":1,"evolution":{"start":"string","tension":"string","turning_points":["string"],"hidden_truth":"string","story_function":"string","end":"string"}}]}"#,
+        output_schema: BLUEPRINT_RELATIONSHIPS_SHAPE,
     },
 ];

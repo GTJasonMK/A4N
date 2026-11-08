@@ -379,7 +379,7 @@ fn parse_anthropic_line(line: &[u8], state: &mut AnthropicStreamState) {
     if data.is_empty() {
         return;
     }
-    let event: Value = match serde_json::from_str(data) {
+    let event: Value = match a4n_domain::json_contract::parse_strict_json_value(data) {
         Ok(event) => event,
         Err(error) => {
             state.queued.push_back(Err(AppError::LlmError(format!(
@@ -459,9 +459,9 @@ fn project_anthropic_event(
                 let arguments = if tool.input_json.trim().is_empty() {
                     json!({})
                 } else {
-                    serde_json::from_str(&tool.input_json).map_err(|error| {
-                        AppError::LlmError(format!("Anthropic tool参数JSON无效: {error}"))
-                    })?
+                    a4n_domain::json_contract::parse_strict_json_value(&tool.input_json).map_err(
+                        |error| AppError::LlmError(format!("Anthropic tool参数JSON无效: {error}")),
+                    )?
                 };
                 push_chunk(
                     state,

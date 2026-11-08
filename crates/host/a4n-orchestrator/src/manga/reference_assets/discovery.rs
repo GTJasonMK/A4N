@@ -3,9 +3,12 @@ use std::collections::{HashMap, HashSet};
 use a4n_domain::{
     manga::{
         MANGA_PAGE_REFERENCE_DISCOVERY_V1, MANGA_PAGE_REFERENCE_IMAGE_LIMIT,
-        MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT, MangaPageReferenceDiscoveryV1,
-        MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaPageReferenceTargetKind,
-        MangaReferenceAssetKind, MangaReferenceBindingSummary,
+        MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT,
+        MANGA_REFERENCE_DESCRIPTION_MAX_CHARS as MAX_REFERENCE_DESCRIPTION_CHARS,
+        MANGA_REFERENCE_TARGET_NAME_MAX_CHARS,
+        MANGA_REFERENCE_USAGE_MAX_CHARS as MAX_REFERENCE_USAGE_CHARS,
+        MangaPageReferenceDiscoveryV1, MangaPageReferenceImageV1, MangaPageReferenceNeedV1,
+        MangaPageReferenceTargetKind, MangaReferenceAssetKind, MangaReferenceBindingSummary,
     },
     media::GeneratedImageRecord,
 };
@@ -14,28 +17,70 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 const MAX_REFERENCE_CANDIDATES: usize = 48;
-const MAX_REFERENCE_DESCRIPTION_CHARS: usize = 600;
-const MAX_REFERENCE_USAGE_CHARS: usize = 400;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ReferenceDiscoveryResponse {
+    #[schemars(extend("const"=MANGA_PAGE_REFERENCE_DISCOVERY_V1))]
     schema_version: String,
+    #[schemars(range(min = 1))]
     page_number: u32,
-    #[serde(default)]
+    #[schemars(length(max=MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT))]
     requirements: Vec<MangaPageReferenceNeedV1>,
-    #[serde(default)]
+    #[schemars(length(max=MANGA_PAGE_REFERENCE_IMAGE_LIMIT))]
     references: Vec<ReferenceSelection>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ReferenceSelection {
     target_kind: MangaPageReferenceTargetKind,
+    #[schemars(length(min=1,max=MANGA_REFERENCE_TARGET_NAME_MAX_CHARS),regex(pattern=r"\S"))]
     target_name: String,
     asset_kind: MangaReferenceAssetKind,
+    #[schemars(range(min = 1))]
     asset_id: i64,
+    #[schemars(length(min=1,max=MAX_REFERENCE_USAGE_CHARS),regex(pattern=r"\S"))]
     usage: String,
+}
+
+pub(in crate::manga) fn manga_reference_discovery_output_schema() -> Value {
+    a4n_domain::json_contract::typed_output_schema::<ReferenceDiscoveryResponse>()
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix_raw_reference_response() {
+    let raw = json!({"schema_version":MANGA_PAGE_REFERENCE_DISCOVERY_V1,"page_number":1,"requirements":[],"references":[]});
+    let parsed = parse_manga_page_reference_discovery(&raw, 1, &HashMap::new()).unwrap();
+    let validator = a4n_domain::json_contract::OutputSchemaValidator::new(
+        &manga_reference_discovery_output_schema(),
+    )
+    .unwrap();
+    assert_eq!(
+        crate::manga::pipeline::json::output_schema("manga_page_reference_discovery").unwrap(),
+        manga_reference_discovery_output_schema()
+    );
+    validator.validate(&raw).unwrap();
+    assert!(
+        validator
+            .validate(&serde_json::to_value(parsed).unwrap())
+            .is_err(),
+        "normalized storage data must not become the model output schema"
+    );
+    for field in [
+        "schema_version",
+        "page_number",
+        "requirements",
+        "references",
+    ] {
+        let mut missing = raw.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        assert!(
+            parse_manga_page_reference_discovery(&missing, 1, &HashMap::new()).is_err(),
+            "{field}"
+        );
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -160,7 +205,9 @@ pub(in crate::manga) fn parse_manga_page_reference_discovery(
         let target_name = requirement.target_name.trim();
         let description = requirement.description.trim();
         let usage = requirement.usage.trim();
-        if target_name.is_empty() || target_name.chars().count() > 100 {
+        if target_name.is_empty()
+            || target_name.chars().count() > MANGA_REFERENCE_TARGET_NAME_MAX_CHARS
+        {
             return Err(AppError::InvalidArgument(format!(
                 "manga_page_reference_discovery.requirements[{index}].target_name 无效"
             )));
@@ -187,7 +234,9 @@ pub(in crate::manga) fn parse_manga_page_reference_discovery(
     for (index, selected) in response.references.into_iter().enumerate() {
         let target_name = selected.target_name.trim();
         let usage = selected.usage.trim();
-        if target_name.is_empty() || target_name.chars().count() > 100 {
+        if target_name.is_empty()
+            || target_name.chars().count() > MANGA_REFERENCE_TARGET_NAME_MAX_CHARS
+        {
             return Err(AppError::InvalidArgument(format!(
                 "manga_page_reference_discovery.references[{index}].target_name 无效"
             )));

@@ -145,10 +145,10 @@ fn parse_part_outline_single_response_rejects_wrappers_and_unknown_fields() {
     let wrapped =
         parse_part_outline_single_response(r#"{"parts":[{"title":"暗潮卷"}]}"#, 2, 11, 20)
             .expect_err("wrapped parts must fail");
-    assert!(wrapped.to_string().contains("parts"));
+    assert!(wrapped.to_string().contains("合同"));
 
     let unknown = parse_part_outline_single_response(
-            r#"{"title":"暗潮卷","summary":"主线推进","theme":"代价","key_events":["旧敌回归"],"character_focus":{"主角":"成长"},"unexpected_field":{}}"#,
+            r#"{"title":"暗潮卷","summary":"主线推进","theme":"代价","key_events":["旧敌回归","盟友背叛","发现真相"],"character_focus":{"主角":"成长"},"unexpected_field":{}}"#,
             2,
             11,
             20,

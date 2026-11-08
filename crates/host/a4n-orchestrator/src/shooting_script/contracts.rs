@@ -28,7 +28,7 @@ pub(super) struct ShootingScriptStageResult<T> {
     pub(super) restored: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ChapterScreenplaySkeletonV1 {
     pub(super) schema_version: String,
@@ -36,7 +36,7 @@ pub(super) struct ChapterScreenplaySkeletonV1 {
     pub(super) units: Vec<ScreenplaySkeletonUnitV1>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ScreenplaySkeletonUnitV1 {
     pub(super) scene_identity: String,
@@ -48,7 +48,7 @@ pub(super) struct ScreenplaySkeletonUnitV1 {
     pub(super) source_span_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ScreenplayLayoutUnitDetailV2 {
     pub(super) schema_version: String,
@@ -85,7 +85,7 @@ pub(super) struct ScreenplayLayoutUnitV1 {
     pub(super) exit_state: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ScreenplayUnitAdaptationV1 {
     pub(super) schema_version: String,
@@ -114,7 +114,7 @@ pub(super) struct ScreenplayPlanUnit {
     pub(super) performance_facts: Vec<ScreenplayPerformanceFactV1>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ScreenplayPerformanceFactV1 {
     pub(super) fact_index: u32,

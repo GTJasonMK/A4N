@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "scope": "Offline engineering acceptance. Provider availability, compliance and artistic quality require separate live evaluation.",
+  "request_contracts":[{"call_id":"image.request","crate":"a4n-image-providers","test":"contract_matrix::model_contract_matrix_request_boundary"},{"call_id":"video.request","crate":"a4n-video-providers","test":"contract_matrix::model_contract_matrix_request_boundary"}],
+  "structured": [
+    {"calls":["blueprint_story_core","blueprint_world","blueprint_characters","blueprint_relationships"],"owners":["blueprint/generation/stage/transport.rs"],"contract_owner":"crates/platform/a4n-domain/src/project/output_contract.rs","validators":["blueprint/json.rs"],"branches":["generate","resume"]},
+    {"calls":["blueprint_optimization"],"owners":["blueprint/refine/execution/call.rs"],"contract_owner":"crates/platform/a4n-domain/src/project/output_contract.rs","validators":["blueprint/json/parser/optimization.rs"],"branches":["generate","resume"]},
+    {"calls":["chapter_fact_extraction","chapter_summary_synthesis","chapter_character_state","chapter_foreshadowing_events"],"owners":["chapter_analysis/stages/runner/call.rs"],"contract_owner":"crates/chapter/a4n-chapter-analysis/src/model_output.rs","validators":["chapter_analysis/owner/validation.rs"],"branches":["analyze","resume"]},
+    {"calls":["inspiration"],"owners":["inspiration/application.rs"],"contract_owner":"crates/platform/a4n-domain/src/inspiration.rs","validators":["inspiration/validation.rs"],"branches":["conversation","resume"]},
+    {"calls":["outline"],"owners":["outline/chapters/llm/execution.rs","outline/chapters/beat_mapping/execution.rs"],"contract_owner":"crates/platform/a4n-domain/src/chapter/model_output.rs","validators":["outline/chapter_contract/parsing/batch.rs"],"branches":["generate","beat_mapping","resume"]},
+    {"calls":["part_outline_single"],"owners":["outline/parts/llm/execution.rs"],"contract_owner":"crates/platform/a4n-domain/src/chapter/model_output.rs","validators":["outline/part_contract/parsing.rs"],"branches":["generate","resume"]},
+    {"calls":["character_discovery"],"owners":["character/discovery/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/character/discovery/request.rs","validators":["character/discovery/output.rs"],"branches":["discover","existing_match","resume"]},
+    {"calls":["object_discovery"],"owners":["object_discovery/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/object_discovery/request.rs","validators":["object_discovery/output.rs"],"branches":["discover","existing_match","resume"]},
+    {"calls":["scene_profile_candidates","scene_occurrence_extraction","scene_transition_extraction","scene_entity_state_extraction"],"owners":["scene_profile/application/stages/execution/call.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/scene_profile/application/stages","validators":["scene_profile/application/parsing.rs"],"branches":["sync","resume"]},
+    {"calls":["character_sync_evidence_events","character_sync_attribute_changes","character_sync_chapter_states","character_sync_behavior_records","character_sync_deletion_candidates"],"owners":["character/profile_sync/stages/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/character/profile_sync/stages/request.rs","validators":["character/profile_sync/stages/output.rs"],"branches":["sync","resume"]},
+    {"calls":["implicit_classification"],"owners":["character/implicit_classification/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/character/implicit_classification/request.rs","validators":["character/implicit_classification/output.rs"],"branches":["classify","resume"]},
+    {"calls":["implicit_update"],"owners":["character/implicit_review/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/character/implicit_review/request.rs","validators":["character/implicit_review/output.rs"],"branches":["review","resume"]},
+    {"calls":["character_conflict_check"],"owners":["character/conflict/execution.rs"],"contract_owner":"crates/host/a4n-api-contract/src/character.rs","validators":["character/conflict/output_rules.rs"],"branches":["check","resume"]},
+    {"calls":["chapter_media_adaptation_plan"],"owners":["workflow/llm_once/execution.rs"],"contract_owner":"crates/platform/a4n-domain/src/media_authoring/contracts.rs","validators":["media_authoring.rs"],"branches":["manga","galgame","video","resume"]},
+    {"calls":["galgame_branch_design","galgame_script_adaptation","galgame_character_staging","galgame_visual_planning"],"owners":["galgame/pipeline/run/llm/stage/execution.rs","galgame/pipeline/run/regeneration/stages/script.rs","galgame/pipeline/run/regeneration/stages/staging.rs","galgame/pipeline/run/regeneration/stages/visual.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/galgame/pipeline/json/contracts","validators":["galgame/pipeline/json.rs"],"branches":["pipeline","regenerate","resume"]},
+    {"calls":["manga_preprocessing","manga_page_slots","manga_page_adaptation_plan","manga_page_storyboard","manga_page_drawing_prompt"],"owners":["manga/pipeline/prompt/llm/execution.rs"],"contract_owner":"crates/platform/a4n-domain/src/manga/contracts","validators":["manga/pipeline/json.rs","manga/pipeline/prompt/validation.rs"],"branches":["pipeline","single_page","resume"]},
+    {"calls":["manga_page_reference_discovery"],"owners":["manga/pipeline/prompt/llm/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/manga/reference_assets/discovery.rs","validators":["manga/reference_assets/discovery.rs"],"branches":["pipeline","single_page","resume"]},
+    {"calls":["manga_prompt_optimization"],"owners":["manga/prompt_optimization/execution.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs","validators":["manga/prompt_optimization/execution.rs"],"branches":["optimize","resume"]},
+    {"calls":["chapter_screenplay_layout_unit","chapter_screenplay_unit_adaptation","chapter_shooting_design_unit"],"owners":["shooting_script/stage/raw_call.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/shooting_script/contracts.rs","validators":["shooting_script/generation/screenplay/validation.rs","shooting_script/generation/design.rs"],"branches":["unit","shot","regenerate","resume"]},
+    {"calls":["chapter_video_segment_plan","chapter_video_frame_prompts","chapter_video_first_frame_prompts","chapter_video_storyboard_prompts","chapter_video_chat_prompt","chapter_video_inserted_segment","chapter_video_prompt","chapter_video_first_frame_video_prompt","chapter_video_storyboard_video_prompt"],"owners":["video/prompts/generation/frame_prompts/render_restore.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/video/prompts/json","validators":["video/prompts/json.rs"],"branches":["boundary_frames","first_frame_chain","storyboard","chat_video","resume"]},
+    {"calls":["chapter_video_prompt_optimization"],"owners":["video/prompts/optimization.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/video/prompts/optimization.rs","validators":["video/prompts/optimization.rs"],"branches":["optimize","resume"]},
+    {"calls":["content_optimization_agent_loop","content_optimization_chat_agent_loop"],"owners":["optimize/agent_loop/executor/decision/execution/call.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/optimize/agent_loop/request/envelope.rs","validators":["optimize/agent_loop/decision.rs"],"branches":["think","run_tool","final"]},
+    {"calls":["content_optimization_patch"],"owners":["optimize/patch/generation/execution/call/transport.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/optimize/patch/response.rs","validators":["optimize/patch/response.rs","optimize/patch/validation.rs"],"branches":["propose","resume"]},
+    {"calls":["reverse_blueprint","reverse_outline","reverse_part_outline"],"owners":["import_reverse/execution/call.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/import_reverse/request/output_contract.rs","validators":["import_reverse/application/apply/validation","import_reverse/application/apply/blueprint/payload.rs"],"branches":["reverse","resume"]},
+    {"calls":["project_fact_consolidation"],"owners":["fact_feedback/run.rs"],"contract_owner":"crates/platform/a4n-domain/src/fact_feedback/contracts.rs","validators":["fact_feedback/run.rs"],"branches":["periodic","immediate","resume"]}
+  ],
+  "free_text": [
+    {"call_id":"chapter_generation","owner":"chapter_generation/application/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"]},
+    {"call_id":"chapter_scene_generation","owner":"chapter_scene/execution.rs","validator":"validate_text_content","branches":["generate","resume"]},
+    {"call_id":"chapter_visual_plan","owner":"chapter_visual_plan/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"]},
+    {"call_id":"portrait_prompt","owner":"portrait/application/workflow.rs","validator":"validate_text_content","branches":["initial","regenerate","resume"]}
+  ],
+  "shared_scenarios": {
+    "text":["actual-protocol-contract-budget","auth","rate-limit","server","malformed-sse","missing-finish","truncated","refusal","empty","disconnect","bounded-timeout"],
+    "tools":["valid","malformed-arguments","duplicate-keys","missing-name","missing-finish","truncated"],
+    "image":["actual-request-parameters","decodable-artifact","unsupported-before-request","auth","rate-limit","server","malformed-envelope","empty","fake-image","truncated-image","empty-prompt","bad-width","empty-model","reference-base64","reference-corrupt","reference-mime"],
+    "video":["actual-request-parameters","real-artifact","unsupported-before-request","auth","rate-limit","server","malformed-envelope","disconnect","missing-job","download-failure","completed-no-artifact","corrupt-artifact","no-video-stream","empty-artifact","unknown-status","pending","failed","prompt","model","width","fps","duration","delete-capability","empty-job-before-request"],
+    "embedding":["order-and-identity","actual-request-order","auth","rate-limit","server","missing-data","count","dimension","missing-index","index-type","index-range","value-type","float-overflow","duplicate-index","batch","model"]
+  },
+  "semantic_rust_groups": {
+    "a4n-domain":["json_contract::","inspiration::","media_authoring::","manga::","shooting_script::","fact_feedback::"],
+    "a4n-llm-provider-contract":["provider::"],
+    "a4n-llm-context":["request::"],
+    "a4n-llm-http":["tests::","native::","output_format::","contract_matrix::"],
+    "a4n-image-providers":["contract_matrix::","support::","factory::"],
+    "a4n-video-providers":["contract_matrix::","factory::","cliproxy_openai::","http::","newapi::","gemini_veo::","seedance2::","chat::"],
+    "a4n-embedding-providers":["http::","local::"],
+    "a4n-embedding-provider-contract":["tests::"],
+    "a4n-media-processing-core":["probe::"],
+    "a4n-orchestrator":["model_contract_exports::","structured_llm::","generation::stream::","blueprint::tests::","outline::tests::","chapter_analysis::owner::","character::discovery::","character::profile_sync::stages::","character::implicit_review::","character::implicit_classification::","character::conflict::output_rules::","scene_profile::application::","object_discovery::","manga::pipeline::json::","manga::prompt_optimization::","manga::reference_assets::discovery::","galgame::pipeline::json::","shooting_script::context::","video::prompts::json::","video::prompts::optimization::","optimize::patch::response::","optimize::agent_loop::request::","import_reverse::request::"],
+    "a4n-runtime":["dynamic_embedding::","dynamic_llm::","actions::image_generation::","actions::video_generation::","actions::config_records::llm::","sidecar_clients::embedding::"],
+    "a4n-agent-runtime":["engine::"],
+    "a4n-prompt":["blueprint_generation::","tera_engine::tests::"],
+    "a4n-chapter-analysis":["validation::"]
+  }
+}

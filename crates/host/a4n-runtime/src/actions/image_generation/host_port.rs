@@ -185,6 +185,7 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         input: PersistGeneratedImageFileInput<'_>,
         prepared: &PreparedGeneratedImageFile,
     ) -> Result<PersistedGeneratedImageFile, AppError> {
+        a4n_media::validated_image_format(input.bytes).map_err(host_error)?;
         persist_reserved_generated_image_file(self.state.data_dir(), input, prepared)
             .map_err(host_error)
     }
@@ -194,7 +195,11 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         relative_path: &str,
         label: &str,
     ) -> Result<(), AppError> {
-        canonicalize_data_file_path(self.state.data_dir(), relative_path, label)
+        let path = canonicalize_data_file_path(self.state.data_dir(), relative_path, label)
+            .map_err(host_error)?;
+        let bytes =
+            std::fs::read(path).map_err(|error| host_error(format!("读取{label}失败：{error}")))?;
+        a4n_media::validated_image_format(&bytes)
             .map(|_| ())
             .map_err(host_error)
     }

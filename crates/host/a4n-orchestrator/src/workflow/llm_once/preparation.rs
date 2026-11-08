@@ -20,7 +20,13 @@ pub(super) async fn prepare_workflow_llm_once(
             Some(input.project_id),
         )
         .await?;
+    let request = super::workflow_json_request(
+        system_prompt.clone(),
+        input.user_prompt.clone(),
+        input.prompt_name,
+    )?;
     let fingerprint_json = json!({
+        "request": request.snapshot_value()?,
         "workflow": input.workflow,
         "step_key": input.step_key.as_str(),
         "prompt_name": input.prompt_name,

@@ -475,3 +475,5 @@ mod tests {
         }
     }
 }
+mod model_output;
+pub use model_output::{chapter_outline_output_schema, part_outline_output_schema};

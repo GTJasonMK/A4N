@@ -600,7 +600,8 @@ jobs:
           retention-days: 14
 
   creation-e2e:
-    name: Full creation E2E matrix
+    name: Nightly model and creation acceptance
+    if: github.event_name != 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     env:
@@ -641,7 +642,7 @@ jobs:
           ./scripts/dev/setup-qdrant.sh
 
       - name: Run full creation acceptance
-        run: python3 scripts/tests/run_test_matrix.py --profile nightly --suite creation-e2e --report-dir artifacts/creation-e2e-matrix
+        run: python3 scripts/tests/run_test_matrix.py --profile model-full --report-dir data/creation-e2e-matrix
 
       - name: Upload creation E2E evidence
         if: always()
@@ -649,7 +650,7 @@ jobs:
         with:
           name: nightly-creation-e2e
           path: |
-            artifacts/creation-e2e-matrix
+            data/creation-e2e-matrix
             data/creation-e2e
           retention-days: 14
 

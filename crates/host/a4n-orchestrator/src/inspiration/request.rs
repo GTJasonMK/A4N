@@ -90,6 +90,11 @@ pub(super) async fn build_inspiration_request_from_context(
     );
 
     let mut request = context_aware_system_user_request(system_content, manifest, Some(0.8), None)?
+        .with_json_schema_response_format(
+            "inspiration",
+            a4n_domain::inspiration::inspiration_output_schema(),
+            false,
+        )?
         .with_prompt_assembly_key("OrchestratorContext.prepare_inspiration_request_validated")
         .with_stream_usage()
         .with_trace_context(LlmTraceContext {

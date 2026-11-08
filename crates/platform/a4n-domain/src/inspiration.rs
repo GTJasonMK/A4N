@@ -5,17 +5,18 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::project::{required_text, validate_blueprint_chapter_count};
+use serde_json::json;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct InspirationResponse {
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub ai_message: String,
     #[serde(deserialize_with = "Deserialize::deserialize")]
-    #[schemars(required, extend("type" = ["string", "null"]))]
+    #[schemars(with = "crate::json_contract::RequiredNullable<String>")]
     pub next_question: Option<String>,
     #[serde(deserialize_with = "Deserialize::deserialize")]
-    #[schemars(required, extend("type" = ["string", "null"]))]
+    #[schemars(with = "crate::json_contract::RequiredNullable<String>")]
     pub progress_summary: Option<String>,
     pub ui_control: InspirationUiControl,
     pub conversation_state: Map<String, Value>,
@@ -44,61 +45,37 @@ pub enum InspirationControlKind {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct InspirationOption {
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub id: String,
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub label: String,
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub description: String,
+    #[schemars(length(min = 2, max = 3))]
     pub key_elements: Vec<String>,
 }
 
+pub fn inspiration_output_schema() -> Value {
+    let mut schema = crate::json_contract::typed_output_schema::<InspirationResponse>();
+    schema["$defs"]["InspirationOption"]["properties"]["key_elements"]["items"] =
+        json!({"type":"string","minLength":1,"pattern":"\\S"});
+    schema["allOf"] = json!([
+        {"if":{"properties":{"is_complete":{"const":true}}},"then":{"properties":{"conversation_state":{"required":["chapter_count","genre"],"properties":{
+            "chapter_count":{"type":"integer","minimum":crate::project::BLUEPRINT_MIN_GENERATION_CHAPTERS,"maximum":crate::project::BLUEPRINT_MAX_TOTAL_CHAPTERS},
+            "genre":{"type":"string","minLength":1,"pattern":"\\S"}
+        }}}}},
+        {"if":{"properties":{"ui_control":{"properties":{"type":{"const":"inspired_options"}}}}},"then":{"properties":{"ui_control":{"required":["options"],"properties":{"options":{"minItems":1}}}}}}
+    ]);
+    schema
+}
+
 pub fn parse_inspiration_response(raw: &str) -> Result<InspirationResponse, String> {
-    let object: Map<String, Value> = serde_json::from_str(raw)
+    let value = crate::json_contract::parse_strict_json_value(raw)
         .map_err(|error| format!("灵感回复必须是严格 JSON 对象: {error}"))?;
-    let response: InspirationResponse = serde_json::from_value(Value::Object(object))
-        .map_err(|error| format!("灵感回复合同无效: {error}"))?;
-    required_text(&response.ai_message, "ai_message")?;
-    if response.is_complete {
-        let chapter_count = response
-            .conversation_state
-            .get("chapter_count")
-            .and_then(Value::as_f64)
-            .filter(|count| count.fract() == 0.0)
-            .ok_or("完成态 conversation_state.chapter_count 必须是整数")?;
-        validate_blueprint_chapter_count(
-            chapter_count as i32,
-            "完成态 conversation_state.chapter_count",
-        )?;
-        let genre = response
-            .conversation_state
-            .get("genre")
-            .and_then(Value::as_str)
-            .ok_or("完成态 conversation_state.genre 必须是非空字符串")?;
-        required_text(genre, "完成态 conversation_state.genre")?;
-    }
-    if response.ui_control.r#type == InspirationControlKind::InspiredOptions
-        && response.ui_control.options.is_empty()
-    {
-        return Err("ui_control.options 不能为空".into());
-    }
-    for (index, option) in response.ui_control.options.iter().enumerate() {
-        for (name, value) in [
-            ("id", &option.id),
-            ("label", &option.label),
-            ("description", &option.description),
-        ] {
-            required_text(value, &format!("ui_control.options[{index}].{name}"))?;
-        }
-        if !(2..=3).contains(&option.key_elements.len()) {
-            return Err(format!(
-                "ui_control.options[{index}].key_elements 必须包含 2-3 个元素"
-            ));
-        }
-        for element in &option.key_elements {
-            required_text(
-                element,
-                &format!("ui_control.options[{index}].key_elements"),
-            )?;
-        }
-    }
+    crate::json_contract::OutputSchemaValidator::new(&inspiration_output_schema())?
+        .validate(&value)?;
+    let response: InspirationResponse =
+        serde_json::from_value(value).map_err(|error| format!("灵感回复合同无效: {error}"))?;
     Ok(response)
 }
 
@@ -151,10 +128,10 @@ mod tests {
         let mut complete = response.clone();
         complete["is_complete"] = json!(true);
         complete["conversation_state"] = json!({"chapter_count": 6});
+        let error = parse_inspiration_response(&complete.to_string()).unwrap_err();
         assert!(
-            parse_inspiration_response(&complete.to_string())
-                .unwrap_err()
-                .contains("conversation_state.genre")
+            error.contains("conversation_state") && error.contains("genre"),
+            "{error}"
         );
         complete["conversation_state"]["genre"] = json!("都市悬疑");
         parse_inspiration_response(&complete.to_string()).unwrap();

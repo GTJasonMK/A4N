@@ -161,7 +161,13 @@ impl OrchestratorContext {
             None,
         )?
         .with_prompt_assembly_key("fact_feedback::prepare_consolidation")
-        .with_json_response_format()
+        .with_json_schema_response_format(
+            FACT_CONSOLIDATION_PROMPT,
+            a4n_domain::json_contract::typed_output_schema::<
+                a4n_domain::fact_feedback::FactConsolidationOutput,
+            >(),
+            false,
+        )?
         .with_trace_context(LlmTraceContext {
             project_id: Some(project_id),
             root_project_id: None,

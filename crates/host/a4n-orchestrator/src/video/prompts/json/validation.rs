@@ -57,19 +57,10 @@ pub(in crate::video) const API_PROMPT_UPLOAD_STATUS_TERMS: &[&str] = &[
 ];
 
 pub(super) fn validate_structured_value(value: &Value, field: &str) -> Result<(), AppError> {
-    match value {
-        Value::Null => Err(AppError::InvalidArgument(format!("{field} 不能为空"))),
-        Value::String(text) if text.trim().is_empty() => {
-            Err(AppError::InvalidArgument(format!("{field} 不能为空")))
-        }
-        Value::Array(items) if items.is_empty() => {
-            Err(AppError::InvalidArgument(format!("{field} 不能为空")))
-        }
-        Value::Object(map) if map.is_empty() => {
-            Err(AppError::InvalidArgument(format!("{field} 不能为空")))
-        }
-        _ => Ok(()),
+    if a4n_domain::json_contract::is_empty_json_value(value) {
+        return Err(AppError::InvalidArgument(format!("{field} 不能为空")));
     }
+    Ok(())
 }
 
 pub(super) fn validate_duration(duration_secs: i32, field: &str) -> Result<(), AppError> {

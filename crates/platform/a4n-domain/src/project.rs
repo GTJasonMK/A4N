@@ -4,6 +4,7 @@ mod cleanup;
 mod family_transfer;
 #[path = "optimization.rs"]
 mod optimization;
+mod output_contract;
 mod status;
 
 pub use asset_graph::*;
@@ -11,6 +12,7 @@ pub use blueprint::*;
 pub use cleanup::*;
 pub use family_transfer::*;
 pub use optimization::*;
+pub use output_contract::*;
 pub use status::*;
 
 use chrono::NaiveDateTime;

@@ -231,3 +231,10 @@ pub fn classify_finish_reason(
 pub fn validate_finish_reason(finish_reason: Option<&str>) -> Result<(), a4n_error::AppError> {
     a4n_domain::llm::validate_finish_reason(finish_reason).map_err(a4n_error::AppError::LlmError)
 }
+
+pub fn validate_text_content(content: &str) -> Result<(), a4n_error::AppError> {
+    if content.trim().is_empty() {
+        return Err(a4n_error::AppError::LlmError("模型未返回有效正文".into()));
+    }
+    Ok(())
+}

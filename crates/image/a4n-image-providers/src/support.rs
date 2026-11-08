@@ -7,17 +7,19 @@ mod reference;
 mod tests;
 
 pub(super) use errors::{image_provider_http_error, internal_error};
-pub(super) use format::{
-    decode_base64_image, detect_format_from_bytes, normalize_image_format, percent_encode_query,
-};
 #[cfg(test)]
-pub(super) use format::{image_format_hint, optional_format_from_response_item};
+pub(super) use format::optional_format_from_response_item;
+pub(super) use format::{
+    decode_base64_image, detect_format_from_bytes, image_format_hint, normalize_image_format,
+    percent_encode_query,
+};
 pub(super) use http::{
     build_image_http_client, download_image_url, response_bytes, response_text, send_image_request,
 };
 pub(super) use openai_payload::image_result_from_openai_payload;
 pub(super) use reference::{
-    prepare_reference_image_for_upload, prompt_with_reference_labels, reference_image_field_name,
+    decode_data_uri_image, prepare_reference_image_for_upload, prompt_with_reference_labels,
+    reference_image_field_name,
 };
 
 pub(super) fn required_non_empty<'a>(

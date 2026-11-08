@@ -131,6 +131,8 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), ProviderError> {
         let (config, provider) = self.resolve_default().await.map_err(from_app_error)?;
+        let expected_count = texts.len();
+        let expected_identity = model_identity_from_config(&config).map_err(from_app_error)?;
         let estimated_tokens = texts
             .iter()
             .map(|text| (text.chars().count() as u64 / 4).max(1))
@@ -175,6 +177,16 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
                 },
             )
             .await;
+        let result = result.and_then(|(embeddings, identity)| {
+            a4n_embedding_provider_contract::validate_embedding_output(
+                &embeddings,
+                &identity,
+                &expected_identity,
+                expected_count,
+            )
+            .map_err(AppError::from)?;
+            Ok((embeddings, identity))
+        });
         let status = if result.is_ok() {
             "completed"
         } else {

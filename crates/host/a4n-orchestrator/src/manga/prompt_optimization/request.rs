@@ -56,7 +56,11 @@ pub(super) async fn build_manga_prompt_optimization_request(
         .await?;
     let mut request = ChatRequest::system_user(system_prompt, user_prompt, Some(0.25), None)
         .with_prompt_assembly_key("manga_records::optimize_manga_prompt")
-        .with_json_response_format();
+        .with_json_schema_response_format(
+            MANGA_PROMPT_OPTIMIZATION_PROMPT_NAME,
+            manga_prompt_optimization_output_schema(),
+            false,
+        )?;
     let input_fingerprint_sha256 =
         source_text_hash(&serde_json::to_string(&request).map_err(AppError::Serialization)?);
     request = request.with_trace_context(LlmTraceContext {
@@ -72,4 +76,17 @@ pub(super) async fn build_manga_prompt_optimization_request(
         context_pack_refs_json: None,
     });
     Ok(request)
+}
+
+pub(super) fn manga_prompt_optimization_output_schema() -> serde_json::Value {
+    a4n_domain::json_contract::typed_output_schema::<super::execution::OptimizedMangaPromptFields>()
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema(
+        MANGA_PROMPT_OPTIMIZATION_PROMPT_NAME,
+        manga_prompt_optimization_output_schema(),
+    );
 }

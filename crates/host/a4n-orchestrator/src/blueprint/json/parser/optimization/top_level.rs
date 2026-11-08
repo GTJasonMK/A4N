@@ -5,7 +5,7 @@ use serde_json::Value;
 use super::super::super::fields::reject_unknown_keys;
 
 pub(super) fn parse_optimization_top_level(content: &str) -> Result<Value, AppError> {
-    let value: Value = serde_json::from_str(content.trim())
+    let value = a4n_domain::json_contract::parse_strict_json_value(content.trim())
         .map_err(|e| AppError::InvalidArgument(format!("模型返回无法解析为蓝图优化 JSON: {e}")))?;
     let Some(object) = value.as_object() else {
         return Err(AppError::InvalidArgument(

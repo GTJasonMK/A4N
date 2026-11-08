@@ -25,33 +25,25 @@ pub(crate) fn normalize_image_format(value: &str) -> Result<String, AppError> {
 }
 
 pub(crate) fn detect_format_from_bytes(bytes: &[u8]) -> Result<String, AppError> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Ok(ImageUploadFormat::PNG.extension.into())
-    } else if bytes.starts_with(b"\xff\xd8\xff") {
-        Ok(ImageUploadFormat::JPEG.extension.into())
-    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
-        Ok(ImageUploadFormat::WEBP.extension.into())
-    } else {
-        Err(internal_error("无法识别图片字节格式"))
-    }
+    a4n_media::validated_image_format(bytes)
+        .map(|format| format.extension.into())
+        .map_err(internal_error)
 }
 
 pub(crate) fn image_format_hint(
     declared_format: Option<&str>,
-    url: Option<&str>,
-    content_type: Option<&str>,
     bytes: &[u8],
 ) -> Result<String, AppError> {
+    let actual = detect_format_from_bytes(bytes)?;
     if let Some(format) = declared_format {
-        return normalize_image_format(format);
+        let declared = normalize_image_format(format)?;
+        if declared != actual {
+            return Err(internal_error(format!(
+                "图片声明格式 {declared} 与实际格式 {actual} 不一致"
+            )));
+        }
     }
-    if let Some(url) = url.and_then(format_from_url) {
-        return Ok(url);
-    }
-    if let Some(format) = content_type.and_then(format_from_content_type) {
-        return Ok(format);
-    }
-    detect_format_from_bytes(bytes)
+    Ok(actual)
 }
 
 pub(crate) fn optional_format_from_response_item(
@@ -77,16 +69,6 @@ pub(crate) fn optional_format_from_response_item(
         return Ok(Some(format));
     }
     Ok(None)
-}
-
-pub(super) fn format_from_url(url: &str) -> Option<String> {
-    let path = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url)
-        .trim_end_matches('/');
-    let ext = path.rsplit_once('.')?.1;
-    normalize_image_format(ext).ok()
 }
 
 pub(super) fn format_from_content_type(content_type: &str) -> Option<String> {

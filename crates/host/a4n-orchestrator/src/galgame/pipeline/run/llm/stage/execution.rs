@@ -24,7 +24,11 @@ where
 {
     let request = ChatRequest::new(prepared.request_messages, Some(0.25), None)
         .with_prompt_assembly_key("GalgamePipelineRunner.run")
-        .with_json_response_format()
+        .with_json_schema_response_format(
+            input.prompt_name,
+            crate::galgame::pipeline::json::output_schema(input.prompt_name)?,
+            false,
+        )?
         .with_trace_context(LlmTraceContext {
             project_id: Some(input.project_id),
             root_project_id: Some(input.root_project_id),

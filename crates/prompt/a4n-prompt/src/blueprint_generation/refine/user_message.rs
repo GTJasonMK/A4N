@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_domain::project::{
-    BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_USER_PROMPT, BLUEPRINT_RELATIONSHIP_TYPES,
+    BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_USER_PROMPT,
     normalized_blueprint_refinement_focus,
 };
 use a4n_error::AppError;
@@ -30,29 +30,7 @@ pub(super) async fn blueprint_refine_manifest_user_message(
         json!({
             "root_type": "object",
             "allowed_fields": BLUEPRINT_REFINEMENT_FIELDS,
-            "field_schemas": {
-                "relationships": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": [
-                            "relationship_type",
-                            "character_a",
-                            "character_b",
-                            "description",
-                            "strength",
-                            "evolution",
-                        ],
-                        "properties": {
-                            "relationship_type": {
-                                "type": "string",
-                                "enum": BLUEPRINT_RELATIONSHIP_TYPES,
-                            },
-                        },
-                        "additionalProperties": false,
-                    },
-                },
-            },
+            "schema": a4n_domain::project::blueprint_refinement_output_schema(),
         }),
     );
     let payload = serde_json::to_string(&Value::Object(payload))?;

@@ -253,7 +253,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
             "field_types": {
                 "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
                 "category":{"type":"string"}, "key":{"type":"string","minLength":1},
-                "operation":{"type":"string"}, "new_value":{},
+                "operation":{"type":"string"}, "new_value":{"not":{"type":"null"}},
                 "change_description":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
                 "event_cause":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
                 "assertion":{"type":"string","enum":["observed","inferred"]},
@@ -346,5 +346,19 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
                 "没有删除候选时输出 []"
             ]
         }),
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    for stage in CharacterProfileSyncStage::ALL {
+        a4n_test_support::model_contract::emit_schema(
+            stage.prompt_name(),
+            a4n_domain::json_contract::array_output_contract_schema(
+                &character_profile_sync_stage_contract(stage),
+            )
+            .unwrap(),
+        );
     }
 }

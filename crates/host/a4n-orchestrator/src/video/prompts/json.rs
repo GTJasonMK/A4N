@@ -14,6 +14,55 @@ mod segment_parser;
 mod shot_parser;
 mod validation;
 
+pub(in crate::video) fn output_schema(prompt_name: &str) -> Result<Value, AppError> {
+    use a4n_domain::json_contract::typed_output_schema;
+    Ok(match prompt_name {
+        "chapter_video_segment_plan" => {
+            typed_output_schema::<contracts::VideoSegmentPlanResponse>()
+        }
+        "chapter_video_frame_prompts" | "chapter_video_first_frame_prompts" => {
+            typed_output_schema::<contracts::StaticVideoFramePromptResponse>()
+        }
+        "chapter_video_storyboard_prompts" => {
+            typed_output_schema::<contracts::StoryboardVideoFramePromptResponse>()
+        }
+        "chapter_video_chat_prompt" => {
+            typed_output_schema::<chat_prompts::contracts::ChatVideoPromptResponse>()
+        }
+        "chapter_video_inserted_segment" => {
+            typed_output_schema::<contracts::InsertedSegmentDraft>()
+        }
+        "chapter_video_prompt"
+        | "chapter_video_first_frame_video_prompt"
+        | "chapter_video_storyboard_video_prompt" => {
+            typed_output_schema::<contracts::VideoPromptResponse>()
+        }
+        _ => {
+            return Err(AppError::InvalidArgument(format!(
+                "未知视频文本输出合同：{prompt_name}"
+            )));
+        }
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    for name in [
+        "chapter_video_segment_plan",
+        "chapter_video_frame_prompts",
+        "chapter_video_first_frame_prompts",
+        "chapter_video_storyboard_prompts",
+        "chapter_video_chat_prompt",
+        "chapter_video_inserted_segment",
+        "chapter_video_prompt",
+        "chapter_video_first_frame_video_prompt",
+        "chapter_video_storyboard_video_prompt",
+    ] {
+        a4n_test_support::model_contract::emit_schema(name, output_schema(name).unwrap());
+    }
+}
+
 pub(in crate::video) use self::contracts::*;
 
 pub(in crate::video) use self::chat_prompts::{

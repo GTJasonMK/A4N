@@ -6,7 +6,9 @@ use a4n_domain::chapter::ChapterAnalysisSource;
 use a4n_progress::FieldMilestone;
 
 mod extraction;
+mod model_output;
 mod validation;
+pub use model_output::chapter_analysis_output_schema;
 
 pub use extraction::{
     AnalysisRagItem, CharacterStateSnapshot, ForeshadowingEntry, analysis_rag_items,

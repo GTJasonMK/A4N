@@ -73,7 +73,7 @@ pub fn validate_video_image_artifact(artifact: &ArtifactRef) -> Result<&str, Str
     Ok(path)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VideoMediaInput<Source = String> {
     None,
@@ -198,15 +198,21 @@ impl VideoMediaInput<VideoMediaSource> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoGenerationRequest<Source = String> {
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub prompt: String,
     pub negative_prompt: Option<String>,
+    #[schemars(range(min = 1))]
     pub width: i32,
+    #[schemars(range(min = 1))]
     pub height: i32,
+    #[schemars(range(min = 1))]
     pub duration_secs: i32,
+    #[schemars(range(min = 1))]
     pub fps: i32,
+    #[schemars(length(min = 1), regex(pattern = r"\S"))]
     pub model: String,
     pub media: VideoMediaInput<Source>,
 }

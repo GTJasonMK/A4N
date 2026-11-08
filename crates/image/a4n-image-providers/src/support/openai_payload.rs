@@ -25,7 +25,7 @@ pub(crate) async fn image_result_from_openai_payload(
         .filter(|value| !value.is_empty())
     {
         let bytes = decode_base64_image(b64)?;
-        let format = image_format_hint(declared_format.as_deref(), None, None, &bytes)?;
+        let format = image_format_hint(declared_format.as_deref(), &bytes)?;
         return Ok(ImageGenerationResult {
             format,
             bytes,

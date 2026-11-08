@@ -38,6 +38,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_candidate
         json!({
             "format": "json_object",
             "required_root_field": "scenes",
+            "item_required_fields": ["scene_ref", "name", "aliases", "scene_type", "importance", "base_description", "visual_description", "spatial_layout", "atmosphere", "entry_points", "rules", "evidence_anchor_ids"],
             "field_types": {
                 "scene_ref": {"type":"string","minLength":1},
                 "scene_profile_id": {"anyOf":[a4n_domain::json_contract::positive_i64_schema(),{"type":"null"}]},

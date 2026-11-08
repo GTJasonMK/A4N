@@ -44,7 +44,11 @@ async fn build_video_prompt_request(
     Ok(
         context_aware_system_user_request(system, manifest, Some(temperature), None)?
             .with_prompt_assembly_key(VIDEO_PROMPT_ASSEMBLY_CALL_KEY)
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                prompt_name,
+                crate::video::prompts::json::output_schema(prompt_name)?,
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

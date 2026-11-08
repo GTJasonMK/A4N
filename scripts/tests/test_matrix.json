@@ -1,6 +1,14 @@
 {
   "schema_version": 2,
   "suites": {
+    "model-fast": {
+      "command": ["python3","scripts/tests/run_model_tests.py","--profile","model-fast","--report-dir","{report_dir}/model-fast"],
+      "timeout_seconds": 7200
+    },
+    "model-full": {
+      "command": ["python3","scripts/tests/run_model_tests.py","--profile","model-full","--report-dir","{report_dir}/model-full"],
+      "timeout_seconds": 28800
+    },
     "rust-format": {
       "command": ["cargo", "fmt", "--all", "--", "--check"],
       "timeout_seconds": 300
@@ -298,6 +306,8 @@
     ]
   },
   "profiles": {
+    "model-fast": {"suites":["model-fast"]},
+    "model-full": {"suites":["model-full"]},
     "fast": {
       "suites": [
         "rust-format",

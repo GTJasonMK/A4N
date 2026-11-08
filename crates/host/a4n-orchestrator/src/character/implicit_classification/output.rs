@@ -8,7 +8,7 @@ pub(super) fn parse_implicit_classification_output(
     content: &str,
     implicit_attributes: &Value,
 ) -> Result<Value, String> {
-    let value: Value = serde_json::from_str(content.trim())
+    let value = a4n_domain::json_contract::parse_strict_json_value(content.trim())
         .map_err(|error| format!("行为隐性属性分类结果必须是 JSON 对象: {error}"))?;
     if !value.is_object() {
         return Err("行为隐性属性分类结果必须是 JSON 对象".to_string());

@@ -161,6 +161,17 @@ fn character_discovery_payload(input: Value) -> Value {
     })
 }
 
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    let payload = character_discovery_payload(json!({}));
+    a4n_test_support::model_contract::emit_schema(
+        CHARACTER_DISCOVERY_KIND,
+        a4n_domain::json_contract::array_output_contract_schema(&payload["output_contract"])
+            .unwrap(),
+    );
+}
+
 fn build_character_discovery_prompt_from_payload(payload: Value) -> Result<String, AppError> {
     build_json_task_user_message(
         "执行角色发现",

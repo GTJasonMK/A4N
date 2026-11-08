@@ -4,6 +4,8 @@
 
 mod anthropic;
 mod cache;
+#[cfg(test)]
+mod contract_matrix;
 mod errors;
 mod native;
 mod output_format;

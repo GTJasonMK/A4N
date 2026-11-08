@@ -9,3 +9,5 @@ a4n-domain = { workspace = true }
 a4n-error = { workspace = true, default-features = false }
 a4n-progress = { workspace = true }
 serde_json = { workspace = true }
+serde = { workspace = true }
+schemars = { workspace = true }

@@ -9,11 +9,21 @@ use crate::structured_llm::parse_strict_json_response;
 use super::contracts::{OptimizationPatch, OptimizationPatchProposal};
 use super::validation::{normalize_optimization_patch, validate_optimization_patches};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct OptimizationPatchLlmResponse {
     summary: String,
     patches: Vec<OptimizationPatch>,
+}
+
+pub(super) fn output_schema() -> Value {
+    a4n_domain::json_contract::typed_output_schema::<OptimizationPatchLlmResponse>()
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema("content_optimization_patch", output_schema());
 }
 
 pub(in crate::optimize) fn parse_content_optimization_patch_response(

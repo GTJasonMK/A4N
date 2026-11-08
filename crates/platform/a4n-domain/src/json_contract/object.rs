@@ -24,7 +24,7 @@ pub fn reject_unknown_fields(value: &Value, path: &str, allowed: &[&str]) -> Res
 }
 
 pub fn parse_llm_json_object(raw: &str, context: &str) -> Result<Value, String> {
-    let value: Value = serde_json::from_str(raw.trim())
+    let value = super::parse_strict_json_value(raw.trim())
         .map_err(|error| format!("{context} 不是合法 JSON 对象: {error}"))?;
     if !value.is_object() {
         return Err(format!("{context} 必须是 JSON 对象"));

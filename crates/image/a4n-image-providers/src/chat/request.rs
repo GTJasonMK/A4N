@@ -1,8 +1,12 @@
+use a4n_domain::ProviderError;
 use a4n_image_contract::ImageGenerationRequest;
 use serde_json::{Value, json};
 
-pub(super) fn chat_request_body(req: &ImageGenerationRequest) -> Value {
-    json!({
+pub(super) fn chat_request_body(req: &ImageGenerationRequest) -> Result<Value, ProviderError> {
+    for reference in &req.reference_images {
+        crate::support::decode_data_uri_image(&reference.data_uri)?;
+    }
+    Ok(json!({
         "model": req.model,
         "stream": false,
         "modalities": ["image", "text"],
@@ -11,7 +15,7 @@ pub(super) fn chat_request_body(req: &ImageGenerationRequest) -> Value {
         "messages": [
             { "role": "user", "content": image_user_content(req) }
         ],
-    })
+    }))
 }
 
 fn image_user_content(req: &ImageGenerationRequest) -> Value {

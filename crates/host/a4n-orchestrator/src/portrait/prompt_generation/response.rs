@@ -32,3 +32,24 @@ fn portrait_response_preview(raw: &str) -> String {
     }
     trimmed.chars().take(180).collect()
 }
+
+#[test]
+fn model_contract_matrix_portrait_plain_text_boundary() {
+    for (scenario, raw, expected) in [
+        ("valid", "同一角色的正面、侧面、背面。", true),
+        ("empty", " \n\t", false),
+        ("structured", "{\"prompt\":\"立绘\"}", false),
+        ("fenced", "```\n立绘\n```", false),
+        ("thinking", "<think>推理</think>立绘", false),
+    ] {
+        a4n_test_support::model_contract::assert_case(
+            "portrait_prompt",
+            "runtime-text",
+            "output",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(normalize_portrait_prompt_response(raw).is_ok()),
+            serde_json::json!({"validator":"normalize_portrait_prompt_response"}),
+        );
+    }
+}

@@ -29,7 +29,11 @@ async fn build_manga_chat_request(
     Ok(
         context_aware_system_user_request(sys, user_content, Some(temperature), None)?
             .with_prompt_assembly_key(call_key)
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                prompt_name,
+                super::super::super::json::output_schema(prompt_name)?,
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

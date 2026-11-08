@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 a4n-progress = { workspace = true }
 schemars = { workspace = true }
+jsonschema = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_json_canonicalizer = { workspace = true }

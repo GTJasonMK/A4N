@@ -1,0 +1,67 @@
+import json
+import tempfile
+import threading
+import unittest
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+from mock_openai.protocol import MP4_1S_BASE64, PNG_1X1_BASE64
+from mock_openai.transport import ProviderServer
+
+
+class ModelMockBoundaryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.directory = tempfile.TemporaryDirectory()
+        cls.server = ProviderServer(("127.0.0.1", 0), Path(cls.directory.name) / "requests.jsonl", PNG_1X1_BASE64, MP4_1S_BASE64, 8)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.url = "http://127.0.0.1:" + str(cls.server.server_address[1]) + "/v1/chat/completions"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join(2)
+        cls.directory.cleanup()
+
+    def body(self):
+        schema = {"type": "object", "required": ["ai_message", "conversation_state"], "properties": {"conversation_state": {"type": "object", "required": ["genre"]}}}
+        contract = {"name": "inspiration", "schema": schema}
+        return {"model": "a4n-virtual-text", "messages": [
+            {"role": "system", "content": "小说概念大师·文思\n[A4N_OUTPUT_CONTRACT]\n" + json.dumps(contract) + "\n[/A4N_OUTPUT_CONTRACT]"},
+            {"role": "user", "content": "开始创作"},
+        ], "response_format": {"type": "json_schema", "json_schema": contract}}
+
+    def post(self, body):
+        request = Request(self.url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        with urlopen(request, timeout=10) as response:
+            return json.load(response)
+
+    def test_real_http_rejects_missing_conflicting_contract_and_missing_input(self):
+        self.assertIn("conversation_state", json.loads(self.post(self.body())["choices"][0]["message"]["content"]))
+        for mutation in ("missing", "conflict", "input", "model"):
+            body = self.body()
+            if mutation == "missing":
+                body["messages"][0]["content"] = "小说概念大师·文思"
+            elif mutation == "conflict":
+                body["response_format"]["json_schema"]["schema"] = {"type": "string"}
+            elif mutation == "input":
+                body["messages"][1]["content"] = " "
+            else:
+                body["model"] = " "
+            with self.subTest(mutation=mutation), self.assertRaises(HTTPError) as caught:
+                self.post(body)
+            self.assertEqual(caught.exception.code, 422)
+            caught.exception.close()
+
+    def test_fault_output_reaches_recovery_instead_of_http_gate(self):
+        body = self.body()
+        body["model"] = "a4n-checkpoint-fail-inspiration"
+        output = json.loads(self.post(body)["choices"][0]["message"]["content"])
+        self.assertNotIn("genre", output["conversation_state"])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -59,7 +59,7 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
         None,
     )?
     .with_prompt_assembly_key(prompt_assembly_call_key)
-    .with_json_response_format()
+    .with_json_schema_response_format("part_outline_single", a4n_domain::chapter::part_outline_output_schema(), false)?
     .with_trace_context(LlmTraceContext {
         project_id: Some(project_id),
         root_project_id: None,

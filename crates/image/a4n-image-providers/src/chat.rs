@@ -32,7 +32,7 @@ impl ChatCompletionsImageProvider {
         })
     }
 
-    pub(crate) fn request_body_preview(req: &ImageGenerationRequest) -> Value {
+    pub(crate) fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
         chat_request_body(req)
     }
 }
@@ -44,7 +44,7 @@ impl ImageProvider for ChatCompletionsImageProvider {
         req: ImageGenerationRequest,
     ) -> Result<ImageGenerationResult, AppError> {
         let url = format!("{}/chat/completions", self.base_url);
-        let body = chat_request_body(&req);
+        let body = chat_request_body(&req)?;
 
         tracing::debug!(
             "chat-completions image POST {url} model={} {}x{}",
@@ -89,6 +89,7 @@ impl ImageProvider for ChatCompletionsImageProvider {
             }
         };
 
+        crate::support::image_format_hint(Some(&format), &bytes)?;
         Ok(ImageGenerationResult {
             bytes,
             format,

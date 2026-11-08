@@ -87,6 +87,11 @@ pub(super) async fn build_implicit_update_request(
     )
     .map_err(AppError::InvalidArgument)?
     .with_prompt_assembly_key("character::implicit_review::request::build_implicit_update_request");
+    let request = request.with_json_schema_response_format(
+        IMPLICIT_UPDATE_PROMPT_NAME,
+        implicit_review_schema(),
+        false,
+    )?;
     let request_json = context_aware_chat_request_trace_json(&request)?;
     Ok(PreparedImplicitUpdateRequest {
         call_key,
@@ -170,4 +175,22 @@ fn implicit_update_payload(profile_name: &str, attribute_key: &str, input: Value
             ],
         },
     })
+}
+
+fn implicit_review_schema() -> Value {
+    json!({"type":"object","required":["decision","reasoning","new_value","supporting_behavior_ids"],"additionalProperties":false,"properties":{
+        "decision":{"type":"string","enum":["keep","modify","delete"]},
+        "reasoning":{"type":"string","minLength":1,"pattern":"\\S"},
+        "new_value":{},
+        "supporting_behavior_ids":{"type":"array","uniqueItems":true,"items":a4n_domain::json_contract::positive_i64_schema()}
+    },"allOf":[{"if":{"properties":{"decision":{"enum":["keep","delete"]}}},"then":{"properties":{"new_value":{"type":"null"}}},"else":{"properties":{"new_value":{"not":{"type":"null"}}}}}]})
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema(
+        IMPLICIT_UPDATE_PROMPT_NAME,
+        implicit_review_schema(),
+    );
 }

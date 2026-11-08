@@ -123,20 +123,17 @@ mod tests {
         let declared_format = optional_format_from_response_item(&item).unwrap();
         let bytes = decode_base64_image(item["b64_json"].as_str().unwrap()).unwrap();
 
-        let format = image_format_hint(declared_format.as_deref(), None, None, &bytes).unwrap();
+        let format = image_format_hint(declared_format.as_deref(), &bytes).unwrap();
 
         assert_eq!(format, "png");
     }
 
     #[test]
-    fn openai_compatible_url_result_can_infer_format_from_url() {
+    fn url_extension_cannot_validate_an_empty_artifact() {
         let item = json!({ "url": "https://example.com/generated.jpeg" });
         let declared_format = optional_format_from_response_item(&item).unwrap();
 
-        let format =
-            image_format_hint(declared_format.as_deref(), item["url"].as_str(), None, &[]).unwrap();
-
-        assert_eq!(format, "jpg");
+        assert!(image_format_hint(declared_format.as_deref(), &[]).is_err());
     }
 
     #[test]

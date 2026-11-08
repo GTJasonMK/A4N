@@ -253,6 +253,7 @@ def parse_args(profiles: list[str]) -> argparse.Namespace:
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--verify-model-report",type=Path)
     return parser.parse_args()
 
 
@@ -261,6 +262,12 @@ def main() -> int:
     try:
         matrix = load_matrix()
         args = parse_args(list(matrix["profiles"]))
+        if args.verify_model_report:
+            from model_evidence import verify_report
+            try:result=verify_report(args.verify_model_report)
+            except (OSError,ValueError,KeyError,TypeError) as error:raise MatrixError("模型验收报告无效："+str(error)) from error
+            print(json.dumps(result,ensure_ascii=False,indent=2))
+            return 0
         names = selected_suites(matrix, args.profile, args.suite)
         if args.list:
             print(json.dumps({"profile": args.profile, "suites": names}, ensure_ascii=False, indent=2))

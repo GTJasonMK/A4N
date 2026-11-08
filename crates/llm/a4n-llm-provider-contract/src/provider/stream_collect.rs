@@ -51,6 +51,20 @@ pub struct ChatStreamAccumulator {
 
 impl ChatStreamAccumulator {
     pub fn push(&mut self, chunk: ChatChunk) -> Result<(), AppError> {
+        if self.finish_reason.is_some()
+            && (chunk
+                .content
+                .as_deref()
+                .is_some_and(|text| !text.is_empty())
+                || chunk
+                    .tool_calls
+                    .as_ref()
+                    .is_some_and(|calls| !calls.is_empty()))
+        {
+            return Err(AppError::LlmError(
+                "模型在结束标记之后继续返回正文或工具调用".into(),
+            ));
+        }
         if let Some(delta) = chunk.content.filter(|text| !text.is_empty()) {
             self.content.push_str(&delta);
         }
@@ -101,6 +115,13 @@ impl ChatStreamAccumulator {
         super::validate_finish_reason(self.finish_reason.as_deref())?;
         let mut message = super::ChatMessage::assistant(self.content);
         message.tool_calls = self.tool_calls.finish()?;
+        if message
+            .tool_calls
+            .as_ref()
+            .is_none_or(|calls| calls.is_empty())
+        {
+            super::validate_text_content(&message.content)?;
+        }
         message.preserve_tool_reasoning(self.reasoning_content.as_deref())?;
         Ok(ChatResponse {
             message,
@@ -208,9 +229,9 @@ impl ToolCallAccumulator {
         let arguments = if self.arguments.trim().is_empty() {
             serde_json::json!({})
         } else {
-            serde_json::from_str(&self.arguments).map_err(|error| {
-                AppError::LlmError(format!("模型 tool call 参数不是合法 JSON: {error}"))
-            })?
+            a4n_domain::json_contract::parse_strict_json_value(&self.arguments).map_err(
+                |error| AppError::LlmError(format!("模型 tool call 参数不是合法 JSON: {error}")),
+            )?
         };
         if self.name.trim().is_empty() {
             return Err(AppError::LlmError(format!(

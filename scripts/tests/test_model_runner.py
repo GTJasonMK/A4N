@@ -1,0 +1,38 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+from run_model_tests import ModelTestError, observations, partitions, run, rust_result
+
+
+class ModelRunnerTests(unittest.TestCase):
+    def test_only_complete_nonempty_rust_execution_passes(self):
+        self.assertEqual(rust_result("test result: ok. 2 passed; 0 failed; 0 ignored;"), 2)
+        for text in ("", "test result: ok. 0 passed; 0 failed; 0 ignored;",
+                     "test result: ok. 1 passed; 0 failed; 1 ignored;",
+                     "test result: FAILED. 1 passed; 1 failed; 0 ignored;",
+                     "test result: ok. 1 passed; 0 failed; 0 ignored;\n" * 2):
+            with self.subTest(text=text), self.assertRaises(ModelTestError):
+                rust_result(text)
+
+    def test_partition_keeps_every_test_once_and_bounds_group_size(self):
+        names = [f"owner::group{i // 10}::case{i}" for i in range(81)]
+        groups = partitions("owner::", names)
+        self.assertEqual(sorted(name for _, rows, _ in groups for name in rows), sorted(names))
+        self.assertTrue(all(0 < len(rows) <= 25 for _, rows, _ in groups))
+        for prefix, rows, exact in groups:
+            self.assertEqual([name for name in names if name == prefix] if exact else [name for name in names if name.startswith(prefix)], rows)
+
+    def test_failure_timeout_and_malformed_observation_cannot_be_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "failed.log"
+            with self.assertRaises(ModelTestError):
+                run(["python3", "-c", "raise SystemExit(2)"], path, 2)
+            with self.assertRaises(ModelTestError):
+                run(["python3", "-c", "import time; time.sleep(2)"], path, 0.05)
+        with self.assertRaises(ValueError):
+            observations("test: A4N_MODEL_CASE:{broken}", "A4N_MODEL_CASE:")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::ResponseFormat;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
@@ -174,7 +173,18 @@ async fn request_sends_one_payload_without_context_manifest() {
         build_manga_prompt_optimization_request(&TestPromptRenderer, &page_prompt, "增强构图")
             .await
             .expect("request should build");
-    assert_eq!(request.response_format, Some(ResponseFormat::json_object()));
+    let format = request.response_format.as_ref().unwrap();
+    assert_eq!(format.r#type, "json_schema");
+    assert_eq!(
+        format.json_schema.as_ref().unwrap().schema,
+        a4n_domain::json_contract::typed_output_schema::<OptimizedMangaPromptFields>()
+    );
+    assert!(
+        request
+            .messages
+            .iter()
+            .any(|message| message.content.contains("[A4N_OUTPUT_CONTRACT]"))
+    );
     assert!(request.context_manifest_json.is_none());
     let payload: Value =
         serde_json::from_str(&request.messages[1].content).expect("payload should be JSON");

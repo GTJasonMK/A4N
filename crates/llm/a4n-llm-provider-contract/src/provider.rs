@@ -20,7 +20,7 @@ pub use contracts::{
     ChatChunk, ChatImage, ChatMessage, ChatResponse, LLM_PROVIDER_CAPABILITIES, LlmFinishReason,
     LlmProtocolKind, LlmProviderCapabilities, LlmTraceContext, MessageRole, ModelCapabilities,
     ToolCall, UsageInfo, classify_finish_reason, is_truncated_finish_reason,
-    validate_finish_reason, validated_model_output_tokens,
+    validate_finish_reason, validate_text_content, validated_model_output_tokens,
 };
 pub use interface::LlmProvider;
 pub use options::{normalize_extra_body, normalize_extra_body_json};

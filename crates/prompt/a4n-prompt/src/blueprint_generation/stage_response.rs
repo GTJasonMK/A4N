@@ -6,9 +6,10 @@ pub fn parse_blueprint_stage_json_object(
     context: &str,
     output_schema: &str,
 ) -> Result<Value, AppError> {
-    let value: Value = serde_json::from_str(content.trim()).map_err(|error| {
-        AppError::InvalidArgument(format!("{context} 输出无法解析为严格 JSON 对象: {error}"))
-    })?;
+    let value =
+        a4n_domain::json_contract::parse_strict_json_value(content.trim()).map_err(|error| {
+            AppError::InvalidArgument(format!("{context} 输出无法解析为严格 JSON 对象: {error}"))
+        })?;
     let output_schema = parse_blueprint_stage_output_schema(output_schema, context)?;
     validate_stage_json_object(value, context, &output_schema)
 }

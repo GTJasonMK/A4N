@@ -16,6 +16,7 @@ pub use upload::{
     ImageDimensionsError, MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data,
     decode_uploaded_bytes, decode_uploaded_bytes_to_writer, decode_uploaded_image_data,
     image_dimensions_from_bytes, image_upload_format_from_image_format, required_upload_file_name,
+    validated_image_format,
 };
 
 pub fn video_file_properties(

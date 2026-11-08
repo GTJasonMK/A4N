@@ -3,47 +3,58 @@ name: Model call contracts
 on:
   push:
     branches: [debug, master, main]
-    paths: ["crates/**", "prompts/**", "scripts/**", ".github/workflows/model-contracts.yml", "Cargo.*"]
   pull_request:
-    paths: ["crates/**", "prompts/**", "scripts/**", ".github/workflows/model-contracts.yml", "Cargo.*"]
+  merge_group:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  model-contracts:
+  model-acceptance:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 360
     env:
       CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
       CARGO_INCREMENTAL: 0
       CARGO_PROFILE_DEV_DEBUG: 0
       CARGO_PROFILE_TEST_DEBUG: 0
+      MODEL_PROFILE: ${{ (github.event_name != 'push' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && 'model-full' || 'model-fast' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
-      - name: Install native test dependencies
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install offline acceptance dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-      - name: Check every registered model call boundary
-        run: python3 scripts/tests/check_test_catalog.py
-      - name: Test fixtures, budget limits and inventory mutations
-        run: |
-          python3 -m unittest discover -s scripts/tests -p 'test_mock_openai_provider.py'
-          python3 -m unittest discover -s scripts/tests -p 'test_model_call_coverage.py'
-          python3 -m unittest discover -s scripts/tests -p 'test_live_model_eval.py'
-      - name: Compile model contract and correction tests
-        run: ./scripts/cargo.sh test --locked -p a4n-domain -p a4n-llm-provider-contract -p a4n-llm-http -p a4n-orchestrator --lib --no-run
-      - name: Verify contracts and bounded correction without live-model charges
-        run: |
-          timeout 60s ./scripts/cargo.sh test --locked -p a4n-domain --lib json_contract
-          timeout 60s ./scripts/cargo.sh test --locked -p a4n-llm-provider-contract --lib
-          timeout 60s ./scripts/cargo.sh test --locked -p a4n-llm-http --lib
-          timeout 60s ./scripts/cargo.sh test --locked -p a4n-orchestrator --lib structured_llm::recovery
-          timeout 60s ./scripts/cargo.sh test --locked -p a4n-orchestrator --lib generation::stream::tests
+          sudo apt-get install -y chromium chromium-driver ffmpeg libssl-dev libayatana-appindicator3-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config xvfb
+          npm --prefix frontend ci
+          ./scripts/dev/setup-onnxruntime.sh
+          ./scripts/dev/setup-qdrant.sh
+      - name: Run contracts, real local adapters and required workflows
+        run: python3 scripts/tests/run_test_matrix.py --profile "$MODEL_PROFILE" --report-dir data/model-ci
+      - name: Recheck the complete same-version receipt
+        if: env.MODEL_PROFILE == 'model-full'
+        run: python3 scripts/tests/verify_model_report.py --report data/model-ci/model-full/report.json --candidate "$(git rev-parse HEAD)"
       - name: Check formatting and whitespace
         run: |
           cargo fmt --all -- --check
           git diff --check
+      - name: Upload actual execution evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: model-acceptance-${{ github.sha }}
+          path: |
+            data/model-ci/matrix.json
+            data/model-ci/model-*/report.json
+            data/model-ci/model-*/contracts.json
+            data/model-ci/model-*/inventory.json
+            data/model-ci/model-*/logs
+            data/model-ci/model-*/creation/report.json
+          retention-days: 14

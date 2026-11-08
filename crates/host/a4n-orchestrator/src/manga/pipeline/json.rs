@@ -13,3 +13,38 @@ pub(crate) use page_prompts::page_drawing_prompt_from_response;
 
 #[cfg(test)]
 mod tests;
+pub(in crate::manga) fn output_schema(
+    prompt_name: &str,
+) -> Result<serde_json::Value, a4n_error::AppError> {
+    use a4n_domain::{json_contract::typed_output_schema, manga::*};
+    Ok(match prompt_name {
+        "manga_preprocessing" => typed_output_schema::<MangaPreprocessingV3>(),
+        "manga_page_slots" => typed_output_schema::<MangaPageSlotsV1>(),
+        "manga_page_adaptation_plan" => typed_output_schema::<MangaPageAdaptationV1>(),
+        "manga_page_storyboard" => page_pipeline::storyboard_output_schema(),
+        "manga_page_reference_discovery" => {
+            crate::manga::reference_assets::manga_reference_discovery_output_schema()
+        }
+        "manga_page_drawing_prompt" => typed_output_schema::<MangaPageDrawingPromptV2>(),
+        _ => {
+            return Err(a4n_error::AppError::InvalidArgument(format!(
+                "未知漫画输出合同：{prompt_name}"
+            )));
+        }
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    for name in [
+        "manga_preprocessing",
+        "manga_page_slots",
+        "manga_page_adaptation_plan",
+        "manga_page_storyboard",
+        "manga_page_reference_discovery",
+        "manga_page_drawing_prompt",
+    ] {
+        a4n_test_support::model_contract::emit_schema(name, output_schema(name).unwrap());
+    }
+}

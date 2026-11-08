@@ -251,7 +251,7 @@ impl OrchestratorContext {
         } else {
             let response = crate::generation::stream::execute_llm_chat_response(
                 self.llm_backend(),
-                prepared.request,
+                prepared.request.clone(),
                 progress.cancel_token.cloned().unwrap_or_default(),
             )
             .await?;
@@ -262,12 +262,23 @@ impl OrchestratorContext {
                     "正文事实归纳输出被截断，请提高输出预算或减小归纳周期".into(),
                 ));
             }
-            let value: Value = crate::structured_llm::parse_strict_json_response(
-                &response.message.content,
-                FACT_CONSOLIDATION_PROMPT,
-            )?;
-            let value = prepared.source_markers.decode_output(&value)?;
-            let output = parse_output(value.clone())?;
+            let (response, (value, output)) = self
+                .validate_llm_response(
+                    &prepared.request,
+                    response,
+                    FACT_CONSOLIDATION_PROMPT,
+                    progress.cancel_token,
+                    |raw| {
+                        let value: Value = crate::structured_llm::parse_strict_json_response(
+                            raw,
+                            FACT_CONSOLIDATION_PROMPT,
+                        )?;
+                        let value = prepared.source_markers.decode_output(&value)?;
+                        let output = parse_output(value.clone())?;
+                        Ok((value, output))
+                    },
+                )
+                .await?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id: run.id,
                 call_key: FACT_CONSOLIDATION_PROMPT.into(),

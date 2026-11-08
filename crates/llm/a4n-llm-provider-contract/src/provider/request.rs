@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod output_contract;
+
 use super::contracts::{ChatImage, ChatMessage, LlmTraceContext};
 use super::{PromptCacheBreakpoint, PromptCacheMode};
 
@@ -118,6 +120,7 @@ impl ChatRequest {
             ResponseFormat::json_schema(name, schema, strict)
                 .map_err(a4n_error::AppError::InvalidArgument)?,
         );
+        self.protect_output_contract()?;
         Ok(self)
     }
 

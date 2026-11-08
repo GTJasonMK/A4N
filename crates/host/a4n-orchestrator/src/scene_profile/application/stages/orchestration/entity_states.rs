@@ -33,28 +33,7 @@ pub(super) async fn run(
         SCENE_ENTITY_STATE_PROMPT,
         "基于场景与出场链抽取场景内实体状态，只输出 entity_states",
         json!({ "scenes": scenes, "occurrences": occurrences }),
-        json!({
-            "format": "json_object",
-            "required_root_field": "entity_states",
-            "field_types": {
-                "scene_ref":{"type":"string","minLength":1}, "occurrence_ref":{"type":"string","minLength":1},
-                "entity_type":{"type":"string","enum":crate::scene_profile::SCENE_ENTITY_TYPES},
-                "entity_id":{"anyOf":[a4n_domain::json_contract::positive_i64_schema(),{"type":"null"}]},
-                "state_key":{"type":"string","enum":crate::scene_profile::SCENE_ENTITY_STATE_KEYS},
-                "state_before":{"type":"object"}, "state_after":{"type":"object"},
-                "position_description":{"type":["string","null"]}, "action_description":{"type":"string","minLength":1},
-                "source_anchor_ids": positive_i64_array_schema(true)
-            },
-            "strict_rules": [
-                "只返回 entity_states 数组，不要输出 scenes、occurrences 或 transitions",
-                "scene_ref 必须来自 input.previous_stages.scenes[].scene_ref",
-                "occurrence_ref 必须来自 input.previous_stages.occurrences[].occurrence_ref",
-                SCENE_ENTITY_TYPE_RULE,
-                SCENE_ENTITY_STATE_KEY_RULE,
-                "实体显示名称由系统根据 entity_id 或动作描述生成，模型只需输出实体类型、ID 和状态变化",
-                "source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"
-            ]
-        }),
+        output_contract(),
     )
     .await?;
     let step_key = scene_profile_stage_step_key(request_context, "entity_states");
@@ -76,4 +55,23 @@ pub(super) async fn run(
     )
     .await?;
     Ok((request, parsed))
+}
+
+fn output_contract() -> Value {
+    json!({"format":"json_object","required_root_field":"entity_states",
+        "item_required_fields":["scene_ref","occurrence_ref","entity_type","state_key","state_before","state_after","action_description","source_anchor_ids"],
+        "field_types":{
+            "scene_ref":{"type":"string","minLength":1},"occurrence_ref":{"type":"string","minLength":1},"entity_type":{"type":"string","enum":crate::scene_profile::SCENE_ENTITY_TYPES},
+            "entity_id":{"anyOf":[a4n_domain::json_contract::positive_i64_schema(),{"type":"null"}]},"state_key":{"type":"string","enum":crate::scene_profile::SCENE_ENTITY_STATE_KEYS},
+            "state_before":{"type":"object"},"state_after":{"type":"object"},"position_description":{"type":["string","null"]},"action_description":{"type":"string","minLength":1},"source_anchor_ids":positive_i64_array_schema(true)
+        },"strict_rules":["只返回 entity_states 数组，不要输出 scenes、occurrences 或 transitions","scene_ref 必须来自 input.previous_stages.scenes[].scene_ref","occurrence_ref 必须来自 input.previous_stages.occurrences[].occurrence_ref",SCENE_ENTITY_TYPE_RULE,SCENE_ENTITY_STATE_KEY_RULE,"实体显示名称由系统根据 entity_id 或动作描述生成，模型只需输出实体类型、ID 和状态变化","source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"]})
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema(
+        SCENE_ENTITY_STATE_PROMPT,
+        a4n_domain::json_contract::array_output_contract_schema(&output_contract()).unwrap(),
+    );
 }

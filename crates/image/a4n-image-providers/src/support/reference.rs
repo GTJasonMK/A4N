@@ -32,7 +32,7 @@ pub(crate) struct DecodedInputImage {
     pub format: String,
     pub bytes: Vec<u8>,
 }
-pub(super) fn decode_data_uri_image(data_uri: &str) -> Result<DecodedInputImage, AppError> {
+pub(crate) fn decode_data_uri_image(data_uri: &str) -> Result<DecodedInputImage, AppError> {
     let (header, body) = data_uri
         .split_once(',')
         .ok_or_else(|| internal_error("参考图 data URI 缺少 base64 数据"))?;

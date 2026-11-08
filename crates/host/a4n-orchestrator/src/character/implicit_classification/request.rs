@@ -80,6 +80,11 @@ pub(super) async fn prepare_implicit_classification_call(
         },
     )
     .map_err(AppError::InvalidArgument)?
+    .with_json_schema_response_format(
+        IMPLICIT_CLASSIFICATION_KIND,
+        classification_schema(implicit_attributes)?,
+        false,
+    )?
     .with_prompt_assembly_key(
         "character::implicit_classification::request::prepare_implicit_classification_call",
     );
@@ -101,6 +106,37 @@ pub(super) async fn prepare_implicit_classification_call(
         workflow_run_id,
         input_fingerprint_json,
     })
+}
+
+fn classification_schema(attributes: &Value) -> Result<Value, AppError> {
+    let attributes = attributes
+        .as_object()
+        .ok_or_else(|| AppError::InvalidArgument("当前隐性属性必须是对象".into()))?;
+    let properties = attributes
+        .keys()
+        .map(|key| {
+            (
+                key.clone(),
+                json!({"type":"string","enum":["conform","non-conform"]}),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    Ok(
+        json!({"type":"object","required":["classifications","reasoning","suggested_new_attributes"],"additionalProperties":false,"properties":{
+            "classifications":{"type":"object","properties":properties,"additionalProperties":false},
+            "reasoning":{"type":"string","minLength":1,"pattern":"\\S"},
+            "suggested_new_attributes":{"type":"array","items":{"type":"object","required":["key","value"],"additionalProperties":false,"properties":{"key":{"type":"string","minLength":1,"pattern":"\\S"},"value":{"not":{"type":"null"}}}}}
+        }}),
+    )
+}
+
+#[cfg(test)]
+#[test]
+fn model_contract_matrix() {
+    a4n_test_support::model_contract::emit_schema(
+        IMPLICIT_CLASSIFICATION_KIND,
+        classification_schema(&json!({"勇敢":true})).unwrap(),
+    );
 }
 
 fn build_implicit_classification_manifest_user_prompt(

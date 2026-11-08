@@ -245,7 +245,7 @@ async fn scene_stages_share_one_chapter_prefix_without_merging_stage_instruction
 }
 
 #[tokio::test]
-async fn scene_candidates_request_declares_integer_evidence_ids() {
+async fn model_contract_matrix_scene_candidates_request_declares_integer_evidence_ids() {
     let request = build_scene_profile_candidates_request(
         &SceneSessionPromptRenderer,
         &context_for_test(),
@@ -253,6 +253,18 @@ async fn scene_candidates_request_declares_integer_evidence_ids() {
     )
     .await
     .expect("candidate request");
+    a4n_test_support::model_contract::emit_schema(
+        SCENE_PROFILE_CANDIDATES_PROMPT,
+        request
+            .response_format
+            .as_ref()
+            .unwrap()
+            .json_schema
+            .as_ref()
+            .unwrap()
+            .schema
+            .clone(),
+    );
     let manifest = request.context_manifest_json.as_ref().expect("manifest");
     let task = manifest["dynamic_user_content"].as_str().expect("task");
     let payload = a4n_prompt::request::json_user_message_payload(task)
@@ -276,7 +288,7 @@ async fn scene_task_and_native_schema_share_all_required_fields() {
         json!({"scenes": []}),
         json!({
             "required_root_field": "occurrences",
-            "item_required_fields": ["summary"],
+            "item_required_fields": ["summary", "entry_state", "exit_state"],
             "field_types": {
                 "summary": {"type": "string"},
                 "entry_state": {"type": "object"},

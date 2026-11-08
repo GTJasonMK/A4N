@@ -1,58 +1,49 @@
+import copy
 import tempfile
 import unittest
 from pathlib import Path
-
-from check_model_call_coverage import inspect
+from check_model_call_coverage import inspect,structured_ids
 
 
 class ModelCallCoverageTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        (self.root / "src").mkdir()
-        (self.root / "src/call.rs").write_text("fn run() { service.stream_complete_llm(request); }\n")
-        (self.root / "scripts/tests").mkdir(parents=True)
-        (self.root / "scripts/tests/flow.py").write_text("# actual suite path\n")
-        self.ledger = {"schema_version":1,"scope":"registration only","roots":{"app":"src"},
-                       "owners":{"app:call.rs":{"calls":{"stream_complete_llm":1},"kind":"json","recovery":"bounded_once","suites":["flow"]}}}
+        self.temporary=tempfile.TemporaryDirectory();self.addCleanup(self.temporary.cleanup)
+        self.root=Path(self.temporary.name)
+        source=self.root/"crates/host/a4n-orchestrator/src/run.rs"
+        source.parent.mkdir(parents=True);source.write_text("fn run() {}")
+        self.ast={"schema_version":2,"scanner":"syn-workspace","calls":[{"file":"crates/host/a4n-orchestrator/src/run.rs","function":"run","callee":"chat_stream"}],"implementations":[{"trait":"LlmProvider"}],"catalogs":{key:[{"id":key}] for key in ("text","image","video")}}
+        self.baseline=copy.deepcopy(self.ast)
+        self.ledger={"schema_version":2,"scope":"registration only","structured":[{"calls":["task"],"owners":["run.rs"],"validators":["run.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/run.rs","branches":["run"]}],"shared_scenarios":{key:["normal","invalid"] for key in ("text","image","video")}}
 
-    def check(self):
-        return inspect(self.root, self.ledger, {"flow":"flow.py"})
+    def check(self):return inspect(self.root,self.ledger,self.ast,self.baseline)
 
-    def test_registered_inventory_passes_without_claiming_measured_runtime_coverage(self):
-        result = self.check()
-        self.assertEqual(result["static_calls"], 1)
-        self.assertFalse(result["runtime_coverage_measured"])
+    def test_static_inventory_does_not_claim_runtime_execution(self):
+        self.assertEqual(self.check()["business_json_calls"],1)
+        self.assertFalse(self.check()["runtime_coverage_measured"])
 
-    def test_added_file_and_additional_call_in_existing_file_require_registration(self):
-        (self.root / "src/new.rs").write_text("fn run() { llm.chat_stream(request); }")
-        with self.assertRaisesRegex(ValueError, "新增"):
-            self.check()
-        (self.root / "src/new.rs").unlink()
-        (self.root / "src/call.rs").write_text("fn run() { service.stream_complete_llm(one); service.stream_complete_llm(two); }")
-        with self.assertRaisesRegex(ValueError, "调用次数"):
-            self.check()
+    def test_new_call_and_provider_outside_old_scan_roots_cannot_pass(self):
+        self.ast["calls"].append({"file":"crates/new-provider/src/run.rs","function":"run","callee":"embed"})
+        with self.assertRaisesRegex(ValueError,"新增调用"):self.check()
+        self.ast["calls"].pop()
+        self.ast["implementations"].append({"trait":"ImageProvider"})
+        with self.assertRaisesRegex(ValueError,"implementations"):self.check()
 
-    def test_removed_call_missing_suite_and_unknown_recovery_cannot_pass(self):
-        source = self.root / "src/call.rs"
-        previous = source.read_text()
-        source.write_text("fn run() {}")
-        with self.assertRaisesRegex(ValueError, "失效"):
-            self.check()
-        source.write_text(previous)
-        self.ledger["owners"]["app:call.rs"]["suites"] = ["unregistered"]
-        with self.assertRaisesRegex(ValueError, "未注册"):
-            self.check()
-        self.ledger["owners"]["app:call.rs"]["suites"] = ["flow"]
-        self.ledger["owners"]["app:call.rs"]["recovery"] = "pretend_success"
-        with self.assertRaisesRegex(ValueError, "恢复策略"):
-            self.check()
+    def test_suite_assignment_cannot_replace_business_contracts(self):
+        self.ledger["structured"][0]["suites"]=["authoring"]
+        with self.assertRaisesRegex(ValueError,"执行证据"):self.check()
+        del self.ledger["structured"][0]["suites"]
+        self.ledger["structured"][0]["validators"]=["missing.rs"]
+        with self.assertRaisesRegex(ValueError,"不存在"):self.check()
 
-    def test_test_modules_and_declarations_do_not_count_as_production_calls(self):
-        (self.root / "src/call.rs").write_text('fn stream_complete_llm(x: Request) {}\nfn run() { service.stream_complete_llm(request); }\n#[cfg(test)]\nmod tests { fn case() { llm.chat_stream(request); } }')
-        self.assertEqual(self.check()["static_calls"], 1)
+    def test_missing_owner_duplicate_id_and_catalog_drift_fail(self):
+        self.ledger["structured"][0]["owners"]=["other.rs"]
+        with self.assertRaisesRegex(ValueError,"实际模型调用"):self.check()
+        self.ledger["structured"][0]["owners"]=["run.rs"]
+        self.ledger["structured"][0]["calls"].append("task")
+        with self.assertRaisesRegex(ValueError,"重复业务"):structured_ids(self.ledger)
+        self.ledger["structured"][0]["calls"].pop()
+        self.ast["catalogs"]["image"].append({"id":"new-backend"})
+        with self.assertRaisesRegex(ValueError,"catalogs"):self.check()
 
 
-if __name__ == "__main__":
-    unittest.main()
+if __name__=="__main__":unittest.main()
