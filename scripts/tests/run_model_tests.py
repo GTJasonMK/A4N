@@ -211,6 +211,20 @@ def rust_phase(config:Path)->int:
     return 1 if failures else 0
 
 
+def creation_binary_hashes(creation:dict)->dict[str,str]:
+    from run_creation_e2e import BINARIES
+    directory=Path(creation["binaries"])
+    receipt=json.loads((directory/"source.json").read_text())
+    if receipt["source_sha256"]!=creation["source"]["sha256"]:raise ModelTestError("完整创作二进制与被测源码不一致")
+    if set(receipt["binaries"])!=set(BINARIES):raise ModelTestError("完整创作二进制清单不完整")
+    result={}
+    for name,expected in receipt["binaries"].items():
+        binary=directory/name
+        if digest_file(binary)!=expected:raise ModelTestError("完整创作二进制在运行后改变："+name)
+        result[str(binary.resolve())]=expected
+    return result
+
+
 def main()->int:
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile",choices=("model-fast","model-full"),default="model-fast")
@@ -254,6 +268,7 @@ def main()->int:
             run([sys.executable,"scripts/tests/run_creation_e2e.py","--report-dir",str(report_dir/"creation"),"--stage","all","--browser-feature-flows"],report_dir/"logs/creation.log",14100)
             creation_path=report_dir/"creation/report.json";creation=json.loads(creation_path.read_text())
             if not creation.get("success") or not creation.get("source",{}).get("matches_current_worktree"):raise ModelTestError("完整创作验收没有在当前版本通过")
+            report["binaries"].update(creation_binary_hashes(creation))
             report["creation"]=seal_artifact(creation_path,report_dir)
             report["cases"].append(case_record("creation/full-cli-browser",creation_path,report_dir,len(creation["stages"])));report["suites"]["creation/full-cli-browser"]={"status":"passed","executed":len(creation["stages"])}
         required=required_case_ids(ledger,inventory,corpus,args.profile)

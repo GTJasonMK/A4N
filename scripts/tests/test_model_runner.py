@@ -1,8 +1,9 @@
 import tempfile
+import json
 import unittest
 from pathlib import Path
 
-from run_model_tests import ModelTestError, observations, partitions, run, rust_result
+from run_model_tests import ModelTestError, creation_binary_hashes, observations, partitions, run, rust_result
 
 
 class ModelRunnerTests(unittest.TestCase):
@@ -32,6 +33,22 @@ class ModelRunnerTests(unittest.TestCase):
                 run(["python3", "-c", "import time; time.sleep(2)"], path, 0.05)
         with self.assertRaises(ValueError):
             observations("test: A4N_MODEL_CASE:{broken}", "A4N_MODEL_CASE:")
+
+    def test_creation_executables_must_match_the_source_and_build_receipt(self):
+        from run_creation_e2e import BINARIES
+        from model_evidence import digest_file
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for name in BINARIES:(root/name).write_bytes(b"actual test executable")
+            receipt={"source_sha256":"source","binaries":{name:digest_file(root/name) for name in BINARIES}}
+            path=root/"source.json";path.write_text(json.dumps(receipt))
+            creation={"binaries":str(root),"source":{"sha256":"source"}}
+            self.assertEqual(len(creation_binary_hashes(creation)),len(BINARIES))
+            creation["source"]["sha256"]="changed"
+            with self.assertRaisesRegex(ModelTestError,"源码"):creation_binary_hashes(creation)
+            creation["source"]["sha256"]="source"
+            (root/BINARIES[0]).write_bytes(b"different executable")
+            with self.assertRaisesRegex(ModelTestError,"运行后改变"):creation_binary_hashes(creation)
 
 
 if __name__ == "__main__":
