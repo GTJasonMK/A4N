@@ -58,6 +58,8 @@ git config core.hooksPath /absolute/path/to/work/debug/.githooks
 
 数组任务合同统一使用 `item_required_fields` 和 `field_types`，枚举直接写入字段 Schema；必填字段缺少类型声明时拒绝构造请求。保护合同块与原生 Schema 使用同一解析与冲突检查，恢复快照和仅提示词协议也不能绕过检查。工具流使用上游真实 ID 和流索引，不生成占位 ID；结束后的正文、推理、工具调用及冲突的结束原因均拒绝采用。
 
+LLM sidecar 协议为 `llm-chat-v10`；Host 与 sidecar 必须同步更新。旧版占位工具 ID 协议会在健康检查或请求入口以版本不匹配拒绝，不能等到付费模型响应后才发现混用。
+
 合同保护块使用 `[A4N_OUTPUT_CONTRACT]`。自定义创作指令保持可编辑；旧的冲突字段声明需要修正，不会被静默覆盖。程序只检查机器可读声明及明确标注的 JSON 输出示例，不声称能机械理解任意自然语言。图片、视频的创意提示词不插入文本 JSON 输出要求，其请求、任务和媒体各自校验。
 
 ## 执行证据

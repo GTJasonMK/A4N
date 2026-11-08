@@ -289,6 +289,18 @@ fn health_validation_rejects_expected_capability_mismatch() {
 }
 
 #[test]
+fn health_validation_rejects_the_legacy_synthetic_tool_id_protocol() {
+    let error = validate_service_health(
+        &health(LLM_SERVICE_NAME, PROTOCOL_VERSION, "llm-chat-v9"),
+        LLM_SERVICE_NAME,
+        capability_version_for(LLM_SERVICE_NAME),
+    )
+    .expect_err("old sidecars must not be selected by the new Host");
+    assert_eq!(error.code, ServiceErrorCode::VersionMismatch);
+    assert_eq!(error.retryable, Some(false));
+}
+
+#[test]
 fn health_validation_rejects_expected_service_identity_mismatch() {
     let prompt_capability_version = capability_version_for(PROMPT_SERVICE_NAME);
     let err = validate_service_health(

@@ -26,6 +26,7 @@ from run_browser_full_project_e2e import (
 )
 from run_cli_contract_e2e import Cli, checked, secure_json
 from run_all_workflows_e2e import FIXTURE_PATHS
+from runner_support import raise_interrupted
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGES = ("inspiration", "blueprint", "outline", "chapter", "analysis", "director", "shooting", "segments", "media")
@@ -797,4 +798,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, raise_interrupted)
     raise SystemExit(main())

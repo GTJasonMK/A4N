@@ -302,6 +302,34 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
 }
 
 #[tokio::test]
+async fn legacy_tool_id_protocol_is_rejected_before_provider_request() {
+    let observation = Arc::new(Mutex::new(None));
+    let provider = TestHttpServer::start(fake_provider_router(observation.clone())).await;
+    let gateway = TestHttpServer::start(build_router()).await;
+    let mut request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
+            base_url: provider.base_url(),
+            ..test_provider_config()
+        },
+        request: ChatRequest::system_user("system", "ping", None, Some(16)).into(),
+    });
+    request.capability_version = "llm-chat-v9".into();
+    let events = collect_stream_events(&gateway.client(), request).await;
+    gateway.stop().await;
+    provider.stop().await;
+
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Failed);
+    let error = events[0].error.as_ref().unwrap();
+    assert_eq!(error.code, ServiceErrorCode::VersionMismatch);
+    assert_eq!(error.retryable, Some(false));
+    assert!(
+        observation.lock().unwrap().is_none(),
+        "version rejection must not call a model provider"
+    );
+}
+
+#[tokio::test]
 async fn typed_stream_client_roundtrips_fake_provider_chunks() {
     let provider_observation = Arc::new(Mutex::new(None));
     let provider = TestHttpServer::start(fake_provider_router(provider_observation.clone())).await;
