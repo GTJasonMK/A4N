@@ -1051,6 +1051,15 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     character_sync_behaviors_response(prompt),
                 ]
             )
+        scene_body = {"messages": [{"role": "user", "content": common + json.dumps({"task": {"name": "scene_occurrence_extraction"}})}]}
+        feedback = {"role": "user", "content": json.dumps({"kind": "model_output_correction"})}
+        for model, field in (("missing-entry", "entry_state"), ("missing-exit", "exit_state"), ("recover-exit", "exit_state")):
+            body = {**scene_body, "model": "a4n-scene-sync-" + model}
+            self.assertNotIn(field, json.loads(response_for(body))["occurrences"][0])
+            corrected = json.loads(response_for({**body, "messages": [*body["messages"], feedback]}))["occurrences"][0]
+            self.assertEqual(field in corrected, model == "recover-exit")
+            if field in corrected:
+                self.assertEqual(corrected[field], {})
         with self.assertRaisesRegex(ValueError, "unknown anchor failure fixture"):
             response_for({"model": "a4n-anchor-fail-typo", "messages": [{"role": "user", "content": common + json.dumps({"task": {"name": "character_discovery"}})}]})
         encoded = json.dumps(responses, ensure_ascii=False)

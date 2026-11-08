@@ -331,6 +331,13 @@ def response_for(body: dict[str, Any]) -> str:
 
     if prompt_name == "scene_occurrence_extraction":
         result = scene_occurrence_response(combined)
+        missing_state = {
+            "a4n-scene-sync-missing-entry": "entry_state",
+            "a4n-scene-sync-missing-exit": "exit_state",
+            "a4n-scene-sync-recover-exit": "exit_state",
+        }.get(model)
+        if missing_state and not (model == "a4n-scene-sync-recover-exit" and body.get("_a4n_correction")):
+            del result["occurrences"][0][missing_state]
         timeline_fixtures = {
             "a4n-scene-sync-number": 1,
             "a4n-scene-sync-object": {"order": 1},

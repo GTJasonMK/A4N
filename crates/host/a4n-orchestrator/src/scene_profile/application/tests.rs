@@ -265,6 +265,49 @@ async fn scene_candidates_request_declares_integer_evidence_ids() {
     assert_eq!(evidence_type["minItems"], 1);
 }
 
+#[tokio::test]
+async fn scene_task_and_native_schema_share_all_required_fields() {
+    let request = build_scene_profile_stage_request(
+        &SceneSessionPromptRenderer,
+        &context_for_test(),
+        None,
+        SCENE_OCCURRENCE_PROMPT,
+        "抽取出场",
+        json!({"scenes": []}),
+        json!({
+            "required_root_field": "occurrences",
+            "item_required_fields": ["summary"],
+            "field_types": {
+                "summary": {"type": "string"},
+                "entry_state": {"type": "object"},
+                "exit_state": {"type": "object"}
+            }
+        }),
+    )
+    .await
+    .unwrap();
+    let manifest = request.context_manifest_json.as_ref().unwrap();
+    let task = manifest["dynamic_user_content"].as_str().unwrap();
+    let payload: Value =
+        serde_json::from_str(a4n_prompt::request::json_user_message_payload(task).unwrap())
+            .unwrap();
+    let schema = &request
+        .response_format
+        .as_ref()
+        .unwrap()
+        .json_schema
+        .as_ref()
+        .unwrap()
+        .schema;
+    let required = &schema["properties"]["occurrences"]["items"]["required"];
+    assert_eq!(
+        payload["output_contract"]["item_required_fields"],
+        *required
+    );
+    assert_eq!(required, &json!(["summary", "entry_state", "exit_state"]));
+    assert!(task.contains("空对象或空数组也不得省略"));
+}
+
 #[test]
 fn parses_valid_scene_profile_sync_content() {
     let context = context_for_test();
@@ -290,6 +333,40 @@ fn parses_valid_scene_profile_sync_content() {
             .image_prompt_seed
             .contains("安静、旧物感强")
     );
+}
+
+#[test]
+fn occurrence_states_are_required_objects_and_preserve_nested_facts() {
+    let context = context_for_test();
+    let content = valid_scene_sync_content(&context);
+    let profiles = parse_scene_profiles(&content, &context).unwrap();
+    for field in ["entry_state", "exit_state"] {
+        let mut missing = json!({"occurrences": content["occurrences"].clone()});
+        missing["occurrences"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        let error = parse_scene_occurrences(&missing, &context, &profiles.drafts).unwrap_err();
+        assert_eq!(error, format!("occurrences[0].{field} 缺少字段"));
+        for invalid in [
+            Value::Null,
+            json!("未知"),
+            json!([]),
+            json!(false),
+            json!(1),
+        ] {
+            missing["occurrences"][0][field] = invalid;
+            let error = parse_scene_occurrences(&missing, &context, &profiles.drafts).unwrap_err();
+            assert_eq!(error, format!("occurrences[0].{field} 必须是 JSON 对象"));
+        }
+    }
+    let mut valid = json!({"occurrences": content["occurrences"].clone()});
+    let exit = json!({"door": {"locked": true}, "remaining_objects": ["青铜钥匙"]});
+    valid["occurrences"][0]["entry_state"] = json!({});
+    valid["occurrences"][0]["exit_state"] = exit.clone();
+    let parsed = parse_scene_occurrences(&valid, &context, &profiles.drafts).unwrap();
+    assert_eq!(parsed[0].entry_state, json!({}));
+    assert_eq!(parsed[0].exit_state, exit);
 }
 
 #[test]

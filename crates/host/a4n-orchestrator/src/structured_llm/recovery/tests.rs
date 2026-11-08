@@ -90,6 +90,58 @@ async fn valid_output_does_not_call_model_again() {
 }
 
 #[tokio::test]
+async fn correction_repeats_schema_for_missing_state_without_filling_it() {
+    let schema = json!({
+        "type":"object", "required":["occurrences"],
+        "properties":{"occurrences":{"type":"array","items":{
+            "type":"object", "required":["entry_state","exit_state"],
+            "properties":{"entry_state":{"type":"object"},"exit_state":{"type":"object"}}
+        }}}
+    });
+    let request = request()
+        .with_json_schema_response_format("scene_states", schema.clone(), false)
+        .unwrap();
+    let initial = json!({"occurrences":[{"entry_state":{"door":"open"}}]}).to_string();
+    let expected = json!({"occurrences":[{
+        "entry_state":{"door":"open"}, "exit_state":{"door":{"locked":true}}
+    }]});
+    let (_, parsed) = correct_llm_response(
+        &request,
+        response(&initial),
+        "scene_occurrence_extraction",
+        None,
+        |raw| {
+            let value: Value = super::super::parse_strict_json_response(raw, "states")?;
+            a4n_domain::json_contract::required_object_value(
+                &value["occurrences"][0],
+                "exit_state",
+                "occurrences[0]",
+            )
+            .map_err(AppError::LlmError)?;
+            Ok(value)
+        },
+        |corrected| {
+            let feedback: Value =
+                serde_json::from_str(&corrected.messages.last().unwrap().content).unwrap();
+            assert_eq!(feedback["output_schema"], schema);
+            assert_eq!(feedback["previous_response_excerpt"], initial);
+            assert!(
+                feedback["validation_error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("exit_state 缺少字段")
+            );
+            assert_eq!(corrected.response_format, request.response_format);
+            assert_eq!(corrected.max_tokens, request.max_tokens);
+            std::future::ready(Ok(response(&expected.to_string())))
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(parsed, expected);
+}
+
+#[tokio::test]
 async fn invalid_output_gets_one_feedback_call_and_usage_is_accumulated() {
     let request = request().with_context_manifest_json(json!({"test": "original source"}));
     let expected = &request;

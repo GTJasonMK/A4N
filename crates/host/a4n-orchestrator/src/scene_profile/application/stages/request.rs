@@ -73,10 +73,16 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     prompt_name: &str,
     instruction: &str,
     previous_stages: Value,
-    output_contract: Value,
+    mut output_contract: Value,
 ) -> Result<ChatRequest, AppError> {
     let response_schema = a4n_domain::json_contract::array_output_contract_schema(&output_contract)
         .map_err(AppError::InvalidArgument)?;
+    let root_field = output_contract["required_root_field"]
+        .as_str()
+        .expect("schema projection validated the root field");
+    // Non-strict providers must also see the required fields in the task text.
+    output_contract["item_required_fields"] =
+        response_schema["properties"][root_field]["items"]["required"].clone();
     let stage_prompt = prompt_renderer
         .render_prompt_for_call(
             prompt_name,
@@ -111,7 +117,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     });
     let user_prompt = build_json_task_user_message(
         "执行场景档案同步阶段",
-        "只返回 output_contract 要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段",
+        "只返回 output_contract 要求的严格 JSON 对象；每条记录必须包含 item_required_fields 的全部字段，空对象或空数组也不得省略；不要输出 Markdown、代码块、解释文字或额外字段",
         &payload,
     )?;
     let user_prompt = format!("[阶段指令]\n{}\n\n{user_prompt}", stage_prompt.trim());

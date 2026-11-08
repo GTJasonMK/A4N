@@ -7,6 +7,7 @@
 - Host 和 LLM sidecar 共用 `LlmResponseFormat`，支持 `json_object` 及包含 `name/schema/strict` 的 `json_schema`，持久快照和 sidecar 转换保留全部字段。
 - 蓝图四阶段从既有输出形状合同投影 JSON Schema；角色、物品、场景及角色同步从同一份 `field_types` 和必需字段合同投影 Schema。正整数、来源 ID 数组、重要性和物品/场景枚举复用已有领域规则。
 - 角色属性和场景状态中的动态字典保留业务允许的结构，因此这些任务不强制 `strict=true`。来源候选、章节范围、身份冲突、引用顺序、长度与跨字段规则仍由领域 validator 检查，Schema 不替代这些规则。
+- `strict=false` 不能保证模型遵循 `required`。场景任务的文字合同会从同一份 Schema 派生 `item_required_fields`；进入/离开状态即使为空也须由模型显式输出对象，缺字段、`null` 或其他类型继续拒绝，不由应用自动补值。
 - 原生 Schema 也计入运行时和预览的上下文预算；使用提示词 Schema 时，适配发生在预算选取之前。
 
 | Provider 预设 | Schema 的传递方式 |
@@ -24,6 +25,8 @@ LLM capability 已升级为 **`llm-chat-v9`**，Host 和 LLM gateway 必须同�
 ## 有上限的输出纠正
 
 结构化业务入口复用既有完整 validator。首次输出不合约时，最多进行 **一次额外调用**：保留原任务、来源及配置，追加明确校验错误与受限的上次响应摘录，要求重新生成完整结果，再执行同一个 validator。
+
+存在字段 Schema 的请求会在纠正反馈中再次附带原始 `output_schema`，让模型直接检查 `required` 和字段类型；它与原生协议使用同一个合同，也参与新增消息的上下文预算。纠正仍可能失败，Mock 通过不能证明外部模型必然遵循合同。
 
 - 纠正总时限为 90 秒；不提高既有输出 token 上限，不切换模型或供应商。
 - 错误说明最多 2,000 字符，响应摘录最多 8,000 字符；它们作为不可信数据传递，调用诊断按已有日志和 trace 配置保留。
@@ -45,6 +48,7 @@ LLM capability 已升级为 **`llm-chat-v9`**，Host 和 LLM gateway 必须同�
 | generation 流测试 | 尝试内容与采用内容分离，最终文本与哈希一致 |
 | Schema/协议测试 | 输出合同不会在持久快照、Host/sidecar 或原生协议中丢失；不支持的严格请求显式失败 |
 | `run_analysis_anchor_cli_e2e.py` | 原生 Responses 下九类非法证据 ID 的有限失败、拒绝无效写入、有效断点复用；字符串 ID、缺少来源字段和整数但未知来源三类输出可在一次纠正后完成 |
+| `run_scene_sync_cli_e2e.py` | Chat Completions/Responses 下状态字段持续缺失时有限失败、不运行下游或写入无效结果；模型在一次纠正中补齐 `exit_state` 后才采用结果和保存断点 |
 | `run_checkpoint_call_cli_e2e.py` 等既有业务套件 | 蓝图、剧本、漫画、Galgame、优化等错误与阶段恢复；完整创作入口继续运行这些套件 |
 | `check_model_call_coverage.py` | 新增/删除已知聊天 driver 调用、调用次数变化、未登记恢复策略和失效测试入口使门禁失败 |
 

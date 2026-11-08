@@ -9,7 +9,8 @@ use crate::scene_profile::{SceneOccurrenceDraft, SceneSyncInput};
 
 use super::super::super::progress::{SCENE_OCCURRENCE_PROGRESS_FIELDS, scene_stage_progress_spec};
 use super::super::super::types::{
-    SCENE_OCCURRENCE_COVERAGE_RULE, SCENE_OCCURRENCE_PROMPT, SCENE_OCCURRENCE_TIMELINE_RULE,
+    SCENE_OCCURRENCE_COVERAGE_RULE, SCENE_OCCURRENCE_PROMPT, SCENE_OCCURRENCE_STATE_RULE,
+    SCENE_OCCURRENCE_TIMELINE_RULE,
 };
 use super::super::SceneProfileStageContext;
 use super::super::execution::run_scene_profile_stage_with_checkpoint;
@@ -40,7 +41,9 @@ pub(super) async fn run(
                 "mood":{"type":["string","null"]}, "weather_or_lighting":{"type":["string","null"]},
                 "characters":{"type":"array","items":{"type":"object","properties":{"profile_id":a4n_domain::json_contract::positive_i64_schema(),"role":{"type":"string","minLength":1}},"required":["profile_id","role"]}},
                 "objects":{"type":"array","items":{"type":"object","properties":{"object_profile_id":a4n_domain::json_contract::positive_i64_schema(),"role":{"type":"string","minLength":1}},"required":["object_profile_id","role"]}},
-                "key_events":{"type":"array","items":{"type":"string"}}, "entry_state":{"type":"object"}, "exit_state":{"type":"object"},
+                "key_events":{"type":"array","items":{"type":"string"}},
+                "entry_state":{"type":"object","description":SCENE_OCCURRENCE_STATE_RULE},
+                "exit_state":{"type":"object","description":SCENE_OCCURRENCE_STATE_RULE},
                 "source_anchor_ids": positive_i64_array_schema(true)
             },
             "strict_rules": [
@@ -48,6 +51,7 @@ pub(super) async fn run(
                 "scene_ref 必须来自 input.previous_stages.scenes[].scene_ref",
                 SCENE_OCCURRENCE_COVERAGE_RULE,
                 SCENE_OCCURRENCE_TIMELINE_RULE,
+                SCENE_OCCURRENCE_STATE_RULE,
                 "source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"
             ]
         }),

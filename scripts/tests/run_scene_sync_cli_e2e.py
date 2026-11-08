@@ -16,6 +16,7 @@ from run_cli_contract_e2e import (
 def main():
     parser = cli_e2e_parser(__doc__)
     parser.add_argument("--embedding-dimension", type=int, default=384)
+    parser.add_argument("--llm-provider", choices=("openai", "openai-responses"), default="openai")
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": []}
@@ -29,7 +30,7 @@ def main():
                 return checked(cli, parts, name)[0]["data"]
 
             def model(kind):
-                snapshot = runtime_snapshot(args.provider_url, embedding_dimension=args.embedding_dimension)
+                snapshot = runtime_snapshot(args.provider_url, embedding_dimension=args.embedding_dimension, llm_provider=args.llm_provider)
                 snapshot["llm"]["model"] = "a4n-scene-sync-" + kind
                 secure_json(work / "runtime.json", snapshot)
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "runtime")
@@ -37,7 +38,10 @@ def main():
             def scene_calls(offset):
                 names = []
                 for entry in provider_log_entries(args.provider_log)[offset:]:
-                    messages = entry.get("body", {}).get("messages", [])
+                    if entry["path"].rstrip("/") not in {"/v1/chat/completions", "/v1/responses"}:
+                        continue
+                    body = entry.get("body", {})
+                    messages = body.get("messages", body.get("input", []))
                     combined = "\n".join(message_text(item.get("content", "")) for item in messages)
                     if "[阶段指令]" not in combined:
                         continue
@@ -47,12 +51,24 @@ def main():
                         names.append(name)
                         if name == "scene_occurrence_extraction":
                             assert "occurrences[].timeline_position 只能是 string|null" in combined
-                            response_format = entry["body"]["response_format"]
+                            response_format = body["text"]["format"] if args.llm_provider == "openai-responses" else body["response_format"]
                             assert response_format["type"] == "json_schema", response_format
-                            fields = response_format["json_schema"]["schema"]["properties"]["occurrences"]["items"]["properties"]
-                            for field, schema in payload["output_contract"]["field_types"].items():
-                                assert fields[field] == schema, (field, fields[field], schema)
+                            output_schema = response_format["schema"] if args.llm_provider == "openai-responses" else response_format["json_schema"]["schema"]
+                            item_schema = output_schema["properties"]["occurrences"]["items"]
+                            fields = item_schema["properties"]
+                            assert payload["output_contract"]["item_required_fields"] == item_schema["required"]
+                            assert {"entry_state", "exit_state"}.issubset(item_schema["required"])
+                            for field, field_schema in payload["output_contract"]["field_types"].items():
+                                assert fields[field] == field_schema, (field, fields[field], field_schema)
                             assert fields["timeline_position"] == {"type": ["string", "null"]}, fields
+                            assert "不得省略" in fields["exit_state"]["description"]
+                            for item in messages:
+                                try:
+                                    feedback = json.loads(message_text(item.get("content", "")))
+                                except ValueError:
+                                    continue
+                                if isinstance(feedback, dict) and feedback.get("kind") == "model_output_correction":
+                                    assert feedback["output_schema"] == output_schema, feedback.keys()
                 return names
 
             project = checked(cli, ["project", "create", "--title", "场景合同回归", "--project-type", "novel_long", "--use-context"], "project")[0]["data"]
@@ -73,6 +89,8 @@ def main():
                 ("object", "resume_chapter_analysis_sync", "occurrences[0].timeline_position"),
                 ("reference", "resume_chapter_analysis_sync", "没有对应 occurrences"),
                 ("coverage", "resume_chapter_analysis_sync", "没有对应 occurrences"),
+                ("missing-entry", "resume_chapter_analysis_sync", "occurrences[0].entry_state 缺少字段"),
+                ("missing-exit", "resume_chapter_analysis_sync", "occurrences[0].exit_state 缺少字段"),
             ]:
                 model(kind)
                 before = len(provider_log_entries(args.provider_log))
@@ -124,6 +142,25 @@ def main():
             assert calls and all(call["finish_reason"] == "stop" for call in calls), calls
             assert all(isinstance(call["usage"], dict) and call["usage"]["total_tokens"] > 0 for call in calls), calls
             report["checks"].append("completed analysis and discovery calls retain the provider finish reason and usage")
+
+            model("recover-exit")
+            project = checked(cli, ["project", "create", "--title", "出场状态有限纠正", "--project-type", "novel_long", "--use-context"], "correction project")[0]["data"]
+            chapter = checked(cli, ["chapter", "import", "--number", "1", "--title", "雨夜来信", "--content", chapter_body_response()], "correction chapter")[0]["data"]
+            before = len(provider_log_entries(args.provider_log))
+            mutation = call("generate_chapter_analysis", {"chapter_id": chapter["id"]})
+            assert not mutation["warnings"], mutation["warnings"]
+            assert not mutation["chapter"]["analysis_sync_can_resume"]
+            assert mutation["chapter"]["content"] == chapter["content"]
+            names = scene_calls(before)
+            assert names.count("scene_occurrence_extraction") == 2, names
+            assert names.count("scene_transition_extraction") == names.count("scene_entity_state_extraction") == 1, names
+            completed = [item for detail in workflow_details() for item in detail["checkpoints"]
+                         if item["step_key"].endswith(".occurrences") and item["status"] == "completed"]
+            assert len(completed) == 1, completed
+            accepted = completed[0]["checkpoint_json"]["parsed_output"]["occurrences"]
+            assert accepted and all(isinstance(item["entry_state"], dict) and isinstance(item["exit_state"], dict) for item in accepted)
+            assert len(call("list_scene_profiles", {"project_id": project["id"]})) == 2
+            report["checks"].append("missing exit_state is supplied by one corrective model call before validated checkpoint and scene writes")
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError) as error:
         report["error"] = f"{type(error).__name__}: {error}"

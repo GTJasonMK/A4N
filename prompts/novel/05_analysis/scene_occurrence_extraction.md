@@ -43,7 +43,7 @@ name: scene_occurrence_extraction
 - `occurrence_ref`、`scene_ref`、`summary` 必须是非空字符串；`mood`、`weather_or_lighting` 只能是字符串或 `null`。
 - `source_anchor_ids` 必须是非空正整数数组；`characters`、`objects` 必须是对象数组；`key_events` 必须是字符串数组；没有内容的数组使用 `[]`。
 - `characters[].profile_id`、`objects[].object_profile_id` 必须是正整数，`role` 必须是非空字符串。
-- `entry_state`、`exit_state` 必须是 JSON 对象，没有明确状态时使用 `{}`。
+- 每条记录必须显式包含 `entry_state` 和 `exit_state` 两个 JSON 对象；只有进入状态或没有明确离开状态时，仍须输出 `"exit_state": {}`，反之同理。不要省略空对象、输出 `null`，或把离开状态嵌入 `entry_state`；有依据的状态信息应完整保留。
 - `scene_ref` 必须来自输入 `scenes[].scene_ref`。
 - 必须覆盖输入 `scenes[]` 中的每一个 `scene_ref`；不得因为场景不重要、重复出现或只需概括而省略。
 - 每个 `scene_ref` 至少输出一条 `occurrences`；同一场景多次出场时可按时间顺序输出多条。
