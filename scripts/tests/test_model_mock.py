@@ -159,6 +159,25 @@ class ModelMockBoundaryTests(unittest.TestCase):
                 self.assertIn("shot-2",output)
                 with self.assertRaises(json.JSONDecodeError):json.loads(output)
 
+    def test_json_agent_context_fixture_replays_runtime_call_ids_and_arguments(self):
+        from specialized_agent_fixture import optimization_fixture
+        messages=[{"role":"user","content":"A4N_OPTIMIZATION_CONTEXT 搜索第二段并读取"}]
+        results=[
+            {"matches":[{"source":"current_chapter","resource":{"hash":"version"}}]},
+            {"content":{"paragraphs":[{"content":"第二段。"}]}},
+            {"content":{"paragraphs":[{"content":"第二段。","source_span_ids":["#1"]}]}},
+        ]
+        names=[]
+        for index,data in enumerate(results):
+            fixture=optimization_fixture({},messages)
+            call=fixture["tool_call"];names.append(call["name"])
+            call_id=f"compat-tool-{index}"
+            decision={"action":"run_tool","arguments":{"tool":call["name"],"arguments":call["arguments"]}}
+            messages.append({"role":"assistant","content":json.dumps(decision),"tool_calls":[{"id":call_id,"function":{"name":call["name"],"arguments":json.dumps(call["arguments"])}}]})
+            messages.append({"role":"tool","tool_call_id":call_id,"content":json.dumps({"observation_version":1,"status":"success","data":data})})
+        self.assertEqual(names,["search_project_context","read_project_context","read_project_context"])
+        self.assertNotIn("tool_call",optimization_fixture({},messages))
+
 
 if __name__ == "__main__":
     unittest.main()

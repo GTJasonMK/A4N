@@ -149,7 +149,16 @@ def optimization_fixture(body, messages):
         if isinstance(result, dict) and "error" in result:
             raise ValueError("optimization fixture tool failed: " + str(result["error"]))
     if "A4N_OPTIMIZATION_CONTEXT" in user_text:
-        aliases = logical_call_ids(messages)
+        # JSON Agent decisions receive runtime-generated call IDs and do not
+        # carry native fixture labels. Identify these reads by their real inputs.
+        calls={call["id"]:call.get("function",call) for message in messages for call in message.get("tool_calls") or []}
+        aliases={}
+        for call_id,call in calls.items():
+            arguments=call.get("arguments",{})
+            if isinstance(arguments,str):arguments=json.loads(arguments)
+            if call["name"]=="search_project_context":aliases[call_id]="find"
+            elif call["name"]=="read_project_context":aliases[call_id]="read_match" if "expected_hash" in arguments else "read_second"
+            else:raise ValueError("unexpected tool in context fixture: "+call["name"])
         results = {aliases[message["tool_call_id"]]: observation_data(message)
                    for message in messages if message.get("role") == "tool"}
         if "find" not in results:
