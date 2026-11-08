@@ -1,9 +1,6 @@
 <p align="center">
   <img src="frontend/src/assets/afn-logo.svg" alt="A4N" width="72" height="72">
 </p>
-
-<h1 align="center">A4N</h1>
-
 <p align="center"><strong>从小说创作到漫画、视频与互动故事</strong></p>
 
 <p align="center">中文 · <a href="README.en.md">English</a></p>
