@@ -39,5 +39,14 @@ pub(in crate::portrait) async fn execute_portrait_llm_call(
                 "人物立绘 LLM 调用 {call_key} 必须在 generation stream 上下文中执行"
             ),
         })?;
-    execute_task_llm_chat_response(context, &stream, request, call_key, "portrait_generation").await
+    execute_task_llm_chat_response(
+        context,
+        &stream,
+        request,
+        call_key,
+        "portrait_generation",
+        super::normalize_portrait_prompt_response,
+    )
+    .await
+    .map(|(response, _)| response)
 }

@@ -11,13 +11,11 @@ use super::fields::{
     optional_limited_string_or_null, reject_legacy_anchor_field, required_limited_string,
     required_limited_string_array, required_positive_i64,
 };
-use crate::character::profile_sync::stages::contracts::CharacterProfileSyncChapterStateDraft;
-
-const CHARACTER_SYNC_DESCRIPTION_MAX_CHARS: usize = 120;
-const CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS: usize = 160;
-const CHARACTER_SYNC_STATE_SUMMARY_MAX_CHARS: usize = 160;
-const CHARACTER_SYNC_BEHAVIOR_TAGS_MAX_ITEMS: usize = 5;
-const CHARACTER_SYNC_RELATED_CHARACTERS_MAX_ITEMS: usize = 6;
+use crate::character::profile_sync::stages::contracts::{
+    CHARACTER_SYNC_BEHAVIOR_TAGS_MAX_ITEMS, CHARACTER_SYNC_DESCRIPTION_MAX_CHARS,
+    CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS, CHARACTER_SYNC_RELATED_CHARACTERS_MAX_ITEMS,
+    CHARACTER_SYNC_STATE_SUMMARY_MAX_CHARS, CharacterProfileSyncChapterStateDraft,
+};
 
 pub(super) fn validate_attribute_change(index: usize, change: &Value) -> Result<(), String> {
     if !change.is_object() {

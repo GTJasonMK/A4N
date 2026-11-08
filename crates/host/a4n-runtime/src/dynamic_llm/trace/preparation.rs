@@ -21,12 +21,13 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
 ) -> Result<Option<LlmTraceContext>, AppError> {
     let caps = provider.capabilities();
     let output_reserve = request.max_tokens.unwrap_or(caps.max_output_tokens);
-    let tools_tokens = request
+    let protocol_tokens = request
         .tools
         .as_ref()
         .map(|tools| serde_json::to_string(tools).map(|text| provider.count_tokens(&text)))
         .transpose()?
-        .unwrap_or(0);
+        .unwrap_or(0)
+        .saturating_add(request.output_schema_tokens(|text| provider.count_tokens(text)));
     let Some(mut trace_context) = request.trace_context.clone() else {
         ContextBudgetPlanner::default().plan_requirements_adaptive(
             caps.max_context_tokens,
@@ -34,7 +35,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             Vec::new(),
             provider
                 .count_messages_tokens(&request.messages)
-                .saturating_add(tools_tokens),
+                .saturating_add(protocol_tokens),
         )?;
         return Ok(None);
     };
@@ -75,7 +76,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             all_requirements.append(&mut requirements);
             let dynamic_delta_tokens = provider
                 .count_messages_tokens(&context_manifest_dynamic_messages(request, &manifest)?)
-                .saturating_add(tools_tokens)
+                .saturating_add(protocol_tokens)
                 .saturating_add(if can_record_system_pack {
                     0
                 } else {
@@ -95,7 +96,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             let non_system_messages = non_system_messages(&request.messages);
             let task_delta_tokens = provider
                 .count_messages_tokens(&non_system_messages)
-                .saturating_add(tools_tokens)
+                .saturating_add(protocol_tokens)
                 .saturating_add(if can_record_system_pack {
                     0
                 } else {

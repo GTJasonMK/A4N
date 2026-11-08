@@ -126,43 +126,66 @@ impl OrchestratorContext {
         } = prepared;
         self.mark_workflow_current_step(workflow_run_id, &call_key)
             .await?;
-        let (response_text, usage, finish_reason, restored_parsed_output) = if let Some(
-            checkpoint,
-        ) = self
-            .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &input_fingerprint_json)
-            .await?
-        {
-            (
-                checkpoint.response_content,
-                checkpoint.usage,
-                checkpoint.finish_reason,
-                Some(checkpoint.parsed_output),
-            )
-        } else {
-            let response = self.stream_complete_llm(request).await?;
-            if is_truncated_finish_reason(response.finish_reason.as_deref()) {
-                return Err(AppError::InvalidArgument(
+        let (mut response_text, mut usage, mut finish_reason, restored_parsed_output) =
+            if let Some(checkpoint) = self
+                .load_completed_llm_call_checkpoint(
+                    workflow_run_id,
+                    &call_key,
+                    &input_fingerprint_json,
+                )
+                .await?
+            {
+                (
+                    checkpoint.response_content,
+                    checkpoint.usage,
+                    checkpoint.finish_reason,
+                    Some(checkpoint.parsed_output),
+                )
+            } else {
+                let response = self.stream_complete_llm(request.clone()).await?;
+                if is_truncated_finish_reason(response.finish_reason.as_deref()) {
+                    return Err(AppError::InvalidArgument(
                         "行为隐性属性分类输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次分类上下文后重试"
                             .to_string(),
                     ));
-            }
-            let usage = response
-                .usage
-                .as_ref()
-                .map(serde_json::to_value)
-                .transpose()?;
-            (
-                response.message.content,
-                usage,
-                response.finish_reason,
-                None,
-            )
-        };
+                }
+                let usage = response
+                    .usage
+                    .as_ref()
+                    .map(serde_json::to_value)
+                    .transpose()?;
+                (
+                    response.message.content,
+                    usage,
+                    response.finish_reason,
+                    None,
+                )
+            };
 
-        let parsed = parse_implicit_classification_output(&response_text, implicit_attributes)
-            .map_err(|error| {
-                AppError::InvalidArgument(format!("行为隐性属性分类输出不符合契约：{error}"))
-            })?;
+        let validate = |raw: &str| {
+            parse_implicit_classification_output(raw, implicit_attributes).map_err(|error| {
+                AppError::LlmError(format!("行为隐性属性分类输出不符合契约：{error}"))
+            })
+        };
+        let parsed = if restored_parsed_output.is_some() {
+            validate(&response_text)?
+        } else {
+            let initial = a4n_llm_provider_contract::provider::ChatResponse {
+                message: a4n_llm_provider_contract::provider::ChatMessage::assistant(
+                    &response_text,
+                ),
+                usage: usage.clone().map(serde_json::from_value).transpose()?,
+                finish_reason: finish_reason.clone(),
+                reasoning_content: None,
+            };
+            let (response, parsed) = self
+                .validate_llm_response(&request, initial, &call_key, None, validate)
+                .await?;
+            response_text = response.message.content;
+            usage = response.usage.map(serde_json::to_value).transpose()?;
+            finish_reason = response.finish_reason;
+            parsed
+        };
         if let Some(parsed_output) = restored_parsed_output {
             ensure_checkpoint_parsed_output_matches(
                 &parsed_output,

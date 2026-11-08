@@ -1560,6 +1560,7 @@ dependencies = [
 name = "a4n-llm-sidecar-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-service-protocol",
  "serde",
  "serde_json",
 ]

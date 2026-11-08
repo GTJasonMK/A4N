@@ -5,6 +5,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::source_markers::SourceMarkerMap;
 
+mod recovery;
+pub(crate) use recovery::{correct_llm_response, structured_chat_response};
+
 pub(crate) use a4n_llm_structured_stream::StructuredLlmProgress;
 pub(crate) use a4n_llm_structured_stream::StructuredLlmStreamResult;
 

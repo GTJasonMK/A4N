@@ -1,6 +1,12 @@
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
+pub(super) const CHARACTER_SYNC_DESCRIPTION_MAX_CHARS: usize = 120;
+pub(super) const CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS: usize = 160;
+pub(super) const CHARACTER_SYNC_STATE_SUMMARY_MAX_CHARS: usize = 160;
+pub(super) const CHARACTER_SYNC_BEHAVIOR_TAGS_MAX_ITEMS: usize = 5;
+pub(super) const CHARACTER_SYNC_RELATED_CHARACTERS_MAX_ITEMS: usize = 6;
+
 pub use a4n_character_host_contract::{
     CharacterProfileSyncPreviewStep, CharacterProfileSyncStageTraceInput,
     CharacterProfileSyncStageTracePort,

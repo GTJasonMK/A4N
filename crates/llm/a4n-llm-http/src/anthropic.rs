@@ -99,6 +99,16 @@ impl AnthropicLlmProvider {
             let separator = if system.is_empty() { "" } else { "\n\n" };
             system.push(json!({"type": "text", "text": format!("{separator}Return only one valid JSON value. Do not wrap it in Markdown fences or add explanatory text.")}));
         }
+        if let Some(schema) = request
+            .response_format
+            .as_ref()
+            .and_then(|format| format.json_schema.as_ref())
+        {
+            body.insert(
+                "output_config".into(),
+                json!({"format": {"type": "json_schema", "schema": schema.schema}}),
+            );
+        }
         if !system.is_empty() {
             body.insert("system".into(), Value::Array(system));
         }

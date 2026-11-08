@@ -100,6 +100,27 @@ impl ChatRequest {
         self
     }
 
+    pub fn output_schema_tokens(&self, count: impl FnOnce(&str) -> usize) -> usize {
+        self.response_format
+            .as_ref()
+            .and_then(|format| format.json_schema.as_ref())
+            .map(|schema| count(&schema.schema.to_string()))
+            .unwrap_or(0)
+    }
+
+    pub fn with_json_schema_response_format(
+        mut self,
+        name: impl Into<String>,
+        schema: Value,
+        strict: bool,
+    ) -> Result<Self, a4n_error::AppError> {
+        self.response_format = Some(
+            ResponseFormat::json_schema(name, schema, strict)
+                .map_err(a4n_error::AppError::InvalidArgument)?,
+        );
+        Ok(self)
+    }
+
     /// Preserve internal context that the provider wire serializer omits.
     pub fn snapshot_value(&self) -> Result<Value, a4n_error::AppError> {
         let mut value = serde_json::to_value(self)?;
@@ -155,20 +176,7 @@ impl ChatRequest {
     }
 }
 
-/// OpenAI-compatible response format.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct ResponseFormat {
-    pub r#type: String,
-}
-
-impl ResponseFormat {
-    pub fn json_object() -> Self {
-        Self {
-            r#type: "json_object".to_string(),
-        }
-    }
-}
+pub use a4n_llm_sidecar_contract::LlmResponseFormat as ResponseFormat;
 
 fn is_false(value: &bool) -> bool {
     !*value

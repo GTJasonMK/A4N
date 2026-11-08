@@ -298,7 +298,8 @@ fn all_evidence_bearing_stages_declare_integer_ids() {
         let field = if stage == CharacterProfileSyncStage::BehaviorRecords {
             "original_text_anchor_id"
         } else if stage == CharacterProfileSyncStage::ChapterStates {
-            assert!(contract.get("field_types").is_none());
+            assert_eq!(contract["field_types"]["chapter_number"]["type"], "integer");
+            assert!(contract["field_types"].get("evidence_anchor_id").is_none());
             continue;
         } else {
             "evidence_anchor_id"
@@ -657,6 +658,7 @@ async fn invalid_stage_stops_calls_and_retry_reuses_completed_calls() {
         let mut invalid: Value = serde_json::from_str(&responses[stage_index]).unwrap();
         invalid[root_field][0][invalid_field] = invalid_value;
         responses[stage_index] = invalid.to_string();
+        responses.push(invalid.to_string());
         responses.extend_from_slice(&canonical[stage_index..]);
         let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(responses));
         let (database, context) = setup_context(provider.clone()).await;
@@ -672,7 +674,19 @@ async fn invalid_stage_stops_calls_and_retry_reuses_completed_calls() {
             )
             .await
             .expect_err("invalid call must stop the pipeline");
-        assert_eq!(provider.captured_user_messages().len(), stage_index + 1);
+        let captured = provider.captured_user_messages();
+        assert_eq!(
+            captured.len(),
+            stage_index + 3,
+            "failed call plus its correction both retain the original task; correction adds one feedback message"
+        );
+        assert_eq!(
+            captured
+                .iter()
+                .filter(|message| message.contains("model_output_correction"))
+                .count(),
+            1
+        );
         let checkpoints = workflow_checkpoint::Entity::find()
             .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
             .all(database.as_ref())
@@ -684,8 +698,81 @@ async fn invalid_stage_stops_calls_and_retry_reuses_completed_calls() {
             .run_character_profile_sync_stages_validated(input, &TestPromptRenderer, None, None)
             .await
             .expect("retry must reuse valid calls and regenerate the failed call");
-        assert_eq!(provider.captured_user_messages().len(), 6);
+        assert_eq!(
+            provider.captured_user_messages().len(),
+            8,
+            "seven model calls and one correction feedback, without repeating valid stages"
+        );
     }
+}
+
+#[tokio::test]
+async fn one_corrected_response_finishes_sync_and_saves_only_valid_checkpoints() {
+    let canonical = canonical_stage_responses();
+    let mut responses = canonical[..1].to_vec();
+    let mut invalid: Value = serde_json::from_str(&canonical[1]).unwrap();
+    invalid["attribute_changes"][0]["evidence_anchor_id"] = json!("11");
+    responses.push(invalid.to_string());
+    responses.extend_from_slice(&canonical[1..]);
+    let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(responses));
+    let (database, context) = setup_context(provider.clone()).await;
+    let id = create_workflow(&database).await;
+    let output = context
+        .run_character_profile_sync_stages_validated(
+            stage_input(Some(id)),
+            &TestPromptRenderer,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(output.extraction.changes.len(), 1);
+    let captured = provider.captured_user_messages();
+    assert_eq!(
+        captured.len(),
+        7,
+        "six model calls and one correction feedback"
+    );
+    assert_eq!(
+        captured
+            .iter()
+            .filter(|message| message.contains("model_output_correction"))
+            .count(),
+        1
+    );
+    let checkpoints = workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(id))
+        .all(database.as_ref())
+        .await
+        .unwrap();
+    assert_eq!(checkpoints.len(), 5);
+    assert!(
+        checkpoints
+            .iter()
+            .all(|checkpoint| checkpoint.status == "completed")
+    );
+}
+
+#[test]
+fn rejected_stage_does_not_mutate_previously_validated_outputs() {
+    let input = stage_input(None);
+    let mut outputs = super::contracts::CharacterProfileSyncStageOutputs::default();
+    outputs.evidence_events = vec![json!({"saved_event":true})];
+    outputs.changes = vec![json!({"saved_change":true})];
+    let mut invalid = canonical_attribute_change();
+    invalid["evidence_anchor_id"] = json!("11");
+    let raw = json!({"attribute_changes":[canonical_attribute_change(), invalid]}).to_string();
+    assert!(
+        parse_character_profile_sync_stage_output(
+            CharacterProfileSyncStage::AttributeChanges,
+            &raw,
+            &input,
+            &mut outputs
+        )
+        .is_err()
+    );
+    assert_eq!(outputs.evidence_events, vec![json!({"saved_event":true})]);
+    assert_eq!(outputs.changes, vec![json!({"saved_change":true})]);
 }
 
 #[test]

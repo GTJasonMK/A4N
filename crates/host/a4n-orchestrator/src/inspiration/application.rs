@@ -19,7 +19,7 @@ use crate::{
         generation_public_error, generation_session_error, generation_terminal_error,
         stream::{
             LlmGenerationCheckpoint, LlmGenerationOutput, LlmGenerationRequest,
-            execute_llm_generation,
+            execute_validated_llm_generation,
         },
         terminal::CompletionDescriptor,
     },
@@ -210,7 +210,7 @@ impl OrchestratorContext {
                 finish_reason: GenerationFinishReason::Stop,
             }
         } else {
-            match execute_llm_generation(
+            match execute_validated_llm_generation(
                 self.llm_backend(),
                 &publisher,
                 LlmGenerationRequest {
@@ -224,10 +224,12 @@ impl OrchestratorContext {
                     }),
                     usage_base: None,
                 },
+                "灵感对话",
+                validate_inspiration_response_json,
             )
             .await
             {
-                Ok(output) => output,
+                Ok((output, _)) => output,
                 Err(error) => {
                     return fail_generation_workflow_execution(
                         self,

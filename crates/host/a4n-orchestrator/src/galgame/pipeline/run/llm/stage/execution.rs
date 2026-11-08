@@ -37,7 +37,7 @@ where
             context_plan_json: None,
             context_pack_refs_json: None,
         });
-    let response = service.stream_complete_llm(request).await?;
+    let response = service.stream_complete_llm(request.clone()).await?;
     ensure_galgame_pipeline_not_cancelled(service, input.workflow_run_id).await?;
     if is_truncated_finish_reason(response.finish_reason.as_deref()) {
         return Err(AppError::InvalidState {
@@ -45,8 +45,12 @@ where
             operation: "执行 Galgame 管线 LLM 阶段".to_string(),
         });
     }
+    let (response, parsed_output) = service
+        .validate_llm_response(&request, response, input.prompt_name, None, |raw| {
+            validate(parse_strict_json_response(raw, input.prompt_name)?)
+        })
+        .await?;
     let raw_output = response.message.content;
-    let parsed_output = validate(parse_strict_json_response(&raw_output, input.prompt_name)?)?;
     let parsed_json = serde_json::to_value(&parsed_output)?;
     ensure_galgame_pipeline_not_cancelled(service, input.workflow_run_id).await?;
     let usage_json = response

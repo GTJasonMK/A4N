@@ -295,14 +295,24 @@ impl OrchestratorContext {
                         progress.and_then(|progress| progress.cancel_token),
                     )
                 })?;
-            let response_content = response.response_content;
             report_character_discovery_progress(progress, 80, "模型已返回，正在解析发现结果")?;
-            let discovered = parse_and_validate_character_discovery_content(
-                &response_content,
-                &analyzed_chapters,
-                chapters,
-                text_anchors,
-            )?;
+            let (response, discovered) = self
+                .validate_llm_response(
+                    &llm_request,
+                    crate::structured_llm::structured_chat_response(response),
+                    super::CHARACTER_DISCOVERY_KIND,
+                    progress.and_then(|progress| progress.cancel_token),
+                    |raw| {
+                        parse_and_validate_character_discovery_content(
+                            raw,
+                            &analyzed_chapters,
+                            chapters,
+                            text_anchors,
+                        )
+                    },
+                )
+                .await?;
+            let response_content = response.message.content;
             let parsed_output = character_discovery_parsed_output_json(&discovered);
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,

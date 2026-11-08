@@ -28,6 +28,7 @@ impl DynamicLlmProvider {
         model: ResolvedLlmModel,
         mut request: ChatRequest,
     ) -> Result<(ResolvedLlmModel, ChatRequest, Option<LlmTraceContext>), AppError> {
+        request = a4n_llm_http::prepare_output_format(&model.model.provider, request)?;
         request.max_tokens = Some(requested_max_tokens(
             request.max_tokens,
             model.capabilities.max_output_tokens,

@@ -6,6 +6,7 @@ mod anthropic;
 mod cache;
 mod errors;
 mod native;
+mod output_format;
 mod provider;
 mod response;
 mod sse;
@@ -20,6 +21,7 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::{
     ChatRequest, LlmProtocolKind, LlmProvider, ModelCapabilities, validate_prompt_cache_options,
 };
+pub use output_format::prepare_output_format;
 use serde_json::Value;
 
 pub fn pick_llm_provider(
@@ -32,35 +34,40 @@ pub fn pick_llm_provider(
     capabilities: ModelCapabilities,
 ) -> Result<Box<dyn LlmProvider>, AppError> {
     validate_prompt_cache_options(provider, extra_body_json.as_ref())?;
-    match LlmProtocolKind::for_provider(provider) {
-        Some(
-            protocol @ (LlmProtocolKind::OpenAiChatCompletions
-            | LlmProtocolKind::OpenAiResponses
-            | LlmProtocolKind::GeminiGenerateContent),
-        ) => Ok(Box::new(
-            HttpLlmProvider::new_with_timeout_options_and_capabilities(
+    let result: Result<Box<dyn LlmProvider>, AppError> =
+        match LlmProtocolKind::for_provider(provider) {
+            Some(
+                protocol @ (LlmProtocolKind::OpenAiChatCompletions
+                | LlmProtocolKind::OpenAiResponses
+                | LlmProtocolKind::GeminiGenerateContent),
+            ) => Ok(Box::new(
+                HttpLlmProvider::new_with_timeout_options_and_capabilities(
+                    base_url,
+                    model,
+                    api_key,
+                    timeout_secs,
+                    extra_body_json,
+                    capabilities,
+                )?
+                .with_protocol(protocol)
+                .with_reasoning_replay(provider == "deepseek"),
+            )),
+            Some(LlmProtocolKind::AnthropicMessages) => Ok(Box::new(AnthropicLlmProvider::new(
                 base_url,
                 model,
                 api_key,
                 timeout_secs,
                 extra_body_json,
                 capabilities,
-            )?
-            .with_protocol(protocol)
-            .with_reasoning_replay(provider == "deepseek"),
-        )),
-        Some(LlmProtocolKind::AnthropicMessages) => Ok(Box::new(AnthropicLlmProvider::new(
-            base_url,
-            model,
-            api_key,
-            timeout_secs,
-            extra_body_json,
-            capabilities,
-        )?)),
-        None => Err(AppError::ConfigError(format!(
-            "不支持的 LLM provider: {provider}"
-        ))),
-    }
+            )?)),
+            None => Err(AppError::ConfigError(format!(
+                "不支持的 LLM provider: {provider}"
+            ))),
+        };
+    Ok(Box::new(output_format::OutputFormatProvider {
+        provider: provider.to_string(),
+        inner: result?,
+    }))
 }
 
 pub fn request_body_preview(
@@ -71,6 +78,7 @@ pub fn request_body_preview(
     request: &ChatRequest,
 ) -> Result<Value, AppError> {
     validate_prompt_cache_options(provider_kind, extra_body_json.as_ref())?;
+    let request = output_format::prepare_output_format(provider_kind, request.clone())?;
     match LlmProtocolKind::for_provider(provider_kind) {
         Some(
             protocol @ (LlmProtocolKind::OpenAiChatCompletions
@@ -83,14 +91,14 @@ pub fn request_body_preview(
                     extra_body_json,
                     capabilities,
                     provider_kind == "deepseek",
-                    request,
+                    &request,
                 )
             } else {
                 HttpLlmProvider::native_request_body_preview(
                     protocol,
                     model,
                     extra_body_json,
-                    request,
+                    &request,
                 )
             }
         }
@@ -98,7 +106,7 @@ pub fn request_body_preview(
             model,
             extra_body_json,
             capabilities,
-            request,
+            &request,
         ),
         None => Err(AppError::ConfigError(format!(
             "不支持的 LLM provider: {provider_kind}"

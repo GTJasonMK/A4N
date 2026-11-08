@@ -132,10 +132,16 @@ pub(crate) fn request_body(
         config.insert("stopSequences".into(), json!(value));
     }
     if let Some(format) = &request.response_format {
-        if format.r#type != "json_object" {
-            return Err(AppError::InvalidArgument(
-                "Gemini 请求只支持 json_object 格式".into(),
-            ));
+        match (&*format.r#type, &format.json_schema) {
+            ("json_object", None) => {}
+            ("json_schema", Some(schema)) => {
+                config.insert("responseJsonSchema".into(), schema.schema.clone());
+            }
+            _ => {
+                return Err(AppError::InvalidArgument(
+                    "Gemini 输出格式与 schema 不一致".into(),
+                ));
+            }
         }
         config.insert("responseMimeType".into(), json!("application/json"));
     }

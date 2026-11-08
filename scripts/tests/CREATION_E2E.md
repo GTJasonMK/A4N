@@ -42,6 +42,7 @@ Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flow
 - `run_checkpoint_call_cli_e2e.py`：各模型调用的非法输出、有效断点复用及重试调用次数。
 - `run_fact_feedback_cli_e2e.py`：正文事实撤回、周期反馈、来源覆盖及项目族往返。
 - `run_analysis_anchor_cli_e2e.py`：通过 OpenAI Responses 协议依次注入物品、角色、场景及角色同步的字符串证据 ID，验证明确失败、拒绝无效落库、有效断点复用及最终续跑完成；随 `analysis` 阶段运行，也可连接隔离 Server 单独执行。
+- 该套件同时检查实际发送的 JSON Schema，并验证字符串 ID、缺少来源字段和整数但未知来源三类错误经一次有限纠正后可以完成。持续错误最多调用两次，错误不被吞掉；其他故障套件的调用次数断言也应包含这一次明确的纠正。
 - `run_director_timeline_cli_e2e.py`：导演、镜头、片段、图片/视频、局部失效与媒体导出。
 - `run_shooting_async_cli_e2e.py`：后台任务、观察者断线、取消、部分结果、恢复与来源同步。
 - 全量生成矩阵额外运行 `run_media_authoring_cli_e2e.py`、`run_character_sync_resume_cli_e2e.py`、`run_scene_sync_cli_e2e.py`、`run_agent_cli_e2e.py`、`run_agent_domains_cli_e2e.py`、`run_specialized_agent_cli_e2e.py`、`run_llm_lifecycle_cli_e2e.py`、`run_llm_cache_cli_e2e.py`、`run_image_publication_cli_e2e.py`、`run_image_checkpoint_recovery_cli_e2e.py` 和 `run_portrait_generation_cli_e2e.py`。立绘套件覆盖新增、重绘、年龄变体及缺失批量生成，并检查 LLM/图片 Provider、任务终态、结果引用和正式记录。
@@ -80,6 +81,8 @@ Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flow
 `browser-ui-functional` 和 `browser-fact-feedback` 在 nightly 与 nightly-quick 执行；Tauri 用例需要设置 `A4N_WDIO_APP_BINARY`、隔离数据库 `A4N_DATABASE_URL`、`A4N_QDRANT_URL` 和 `A4N_JWT_SECRET`，运行命令为 `python3 scripts/tests/run_test_matrix.py --profile tauri-functional`。这些流程只验证用户功能行为，不扩展性能、安全或视觉质量门禁。
 
 原 `resume-existing.e2e.mjs` 的独有断言已并入非线性测试，旧文件退役。现在由同一次运行创建项目、导入第 7 章、完成同步，再验证分部归纳保留稀疏章纲和蓝图正式写入；不再依赖人工留下的项目 ID，也不以自动重试掩盖生成或同步失败。
+
+模型调用登记门禁及显式启用、有预算的真实模型验收入口见 [模型调用可靠性](../../docs/model-call-reliability.zh.md)。完整 Mock 流程继续采用确定性 Provider，真实模型验收单独报告，不混算成功率。
 
 非线性测试可用 `cd frontend && npm run test:browser-full-project -- --spec ./e2e/nonlinear-material-sync/nonlinear-material-sync.e2e.mjs` 运行。需要已启动的隔离 Server，通过 `A4N_BROWSER_E2E_BASE_URL`、`A4N_BROWSER_E2E_USERNAME`、`A4N_BROWSER_E2E_PASSWORD` 指定页面与登录信息，并提供 `A4N_NONLINEAR_LLM_API_KEY`。使用自定义模型时同时指定 `A4N_NONLINEAR_LLM_PROVIDER`、`A4N_NONLINEAR_LLM_BASE_URL`、`A4N_NONLINEAR_LLM_MODEL`，否则使用该 Server 的系统 LLM 配置。它使用独立的本地哈希嵌入配置，模型的故事内容必须遵循测试输入；不能把固定返回另一组人物和情节的 Mock 当作真实模型评测。
 

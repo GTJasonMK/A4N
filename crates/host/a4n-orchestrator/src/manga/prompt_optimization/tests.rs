@@ -25,6 +25,7 @@ async fn prompt_call_validates_and_checkpoints_before_application_writes() {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
     let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(vec![
         json!({"image_prompt": " "}).to_string(),
+        json!({"image_prompt": " "}).to_string(),
         json!({"image_prompt": "完整的单页漫画提示词"}).to_string(),
     ]));
     let context = crate::test_support::TestOrchestratorBuilder::new(database.clone())
@@ -68,7 +69,19 @@ async fn prompt_call_validates_and_checkpoints_before_application_writes() {
         .await
         .unwrap();
     assert_eq!(restored, output);
-    assert_eq!(provider.captured_user_messages().len(), 2);
+    let captured = provider.captured_user_messages();
+    assert_eq!(
+        captured.len(),
+        4,
+        "failed call, one correction feedback call, and one successful resume"
+    );
+    assert_eq!(
+        captured
+            .iter()
+            .filter(|message| message.contains("model_output_correction"))
+            .count(),
+        1
+    );
 }
 
 struct TestPromptRenderer;

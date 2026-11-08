@@ -16,7 +16,12 @@ use crate::{
     workflow::{self, workflow_checkpoint_contract_app_error},
 };
 
-use super::contracts::{CharacterProfileSyncStage, CharacterProfileSyncStageInput};
+use super::contracts::{
+    CHARACTER_SYNC_BEHAVIOR_TAGS_MAX_ITEMS, CHARACTER_SYNC_DESCRIPTION_MAX_CHARS,
+    CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS, CHARACTER_SYNC_RELATED_CHARACTERS_MAX_ITEMS,
+    CHARACTER_SYNC_STATE_SUMMARY_MAX_CHARS, CharacterProfileSyncStage,
+    CharacterProfileSyncStageInput,
+};
 
 pub(super) const CHARACTER_PROFILE_SYNC_SESSION_PROMPT: &str = "character_sync_session";
 const CHARACTER_PROFILE_SYNC_ASSEMBLY_CALL_KEY: &str =
@@ -102,7 +107,14 @@ pub(super) async fn build_character_profile_sync_stage_request(
             None,
         )?
         .with_prompt_assembly_key(CHARACTER_PROFILE_SYNC_ASSEMBLY_CALL_KEY)
-        .with_json_response_format()
+        .with_json_schema_response_format(
+            stage.prompt_name(),
+            a4n_domain::json_contract::array_output_contract_schema(
+                &character_profile_sync_stage_contract(stage),
+            )
+            .map_err(AppError::InvalidArgument)?,
+            false,
+        )?
         .with_trace_context(LlmTraceContext {
             project_id: Some(input.project_id),
             root_project_id: None,
@@ -221,7 +233,12 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::EvidenceEvents => json!({
             "format": "json_object",
             "required_root_field": "events",
-            "field_types": { "evidence_anchor_id": positive_i64_schema() },
+            "field_types": {
+                "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
+                "event_type":{"type":"string","minLength":1}, "summary":{"type":"string","minLength":1},
+                "related_characters":{"type":"array","items":{"type":"string"}},
+                "evidence_anchor_id": positive_i64_schema()
+            },
             "item_required_fields": ["chapter_number", "event_type", "summary", "evidence_anchor_id", "related_characters"],
             "rules": [
                 "只抽取当前角色在本次章节中的事实事件、状态变化线索、关键行为线索和可能失效线索",
@@ -233,7 +250,15 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::AttributeChanges => json!({
             "format": "json_object",
             "required_root_field": "attribute_changes",
-            "field_types": { "evidence_anchor_id": positive_i64_schema() },
+            "field_types": {
+                "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
+                "category":{"type":"string"}, "key":{"type":"string","minLength":1},
+                "operation":{"type":"string"}, "new_value":{},
+                "change_description":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
+                "event_cause":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
+                "assertion":{"type":"string","enum":["observed","inferred"]},
+                "evidence_anchor_id": positive_i64_schema()
+            },
             "item_required_fields": ["chapter_number", "category", "key", "operation", "new_value", "change_description", "event_cause", "evidence_anchor_id", "assertion"],
             "field_value_rules": {
                 "category": {
@@ -261,6 +286,12 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::ChapterStates => json!({
             "format": "json_object",
             "required_root_field": "chapter_states",
+            "field_types": {
+                "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
+                "state_summary":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_STATE_SUMMARY_MAX_CHARS},
+                "current_location":{"type":["string","null"]}, "current_goal":{"type":["string","null"]},
+                "emotional_state":{"type":["string","null"]}
+            },
             "item_required_fields": ["chapter_number", "state_summary", "current_location", "current_goal", "emotional_state"],
             "rules": [
                 "chapter_states 必须覆盖 input_chapter_numbers 中每个章节且不能重复",
@@ -271,7 +302,15 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::BehaviorRecords => json!({
             "format": "json_object",
             "required_root_field": "behaviors",
-            "field_types": { "original_text_anchor_id": positive_i64_schema() },
+            "field_types": {
+                "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
+                "behavior_type":{"type":"string","minLength":1},
+                "behavior_description":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
+                "behavior_tags":{"type":"array","items":{"type":"string"},"maxItems":CHARACTER_SYNC_BEHAVIOR_TAGS_MAX_ITEMS},
+                "related_characters":{"type":"array","items":{"type":"string"},"maxItems":CHARACTER_SYNC_RELATED_CHARACTERS_MAX_ITEMS},
+                "impact_analysis":{"type":"string","maxLength":CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS},
+                "original_text_anchor_id": positive_i64_schema()
+            },
             "item_required_fields": ["chapter_number", "behavior_type", "behavior_description", "original_text_anchor_id", "behavior_tags", "related_characters", "impact_analysis"],
             "rules": [
                 "只记录推动剧情、暴露性格、改变关系或影响目标的关键行为",
@@ -282,7 +321,12 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::DeletionCandidates => json!({
             "format": "json_object",
             "required_root_field": "deletion_candidates",
-            "field_types": { "evidence_anchor_id": positive_i64_schema() },
+            "field_types": {
+                "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
+                "category":{"type":"string"}, "key":{"type":"string","minLength":1},
+                "reason":{"type":"string","minLength":1},
+                "evidence_anchor_id": positive_i64_schema()
+            },
             "item_required_fields": ["chapter_number", "category", "key", "reason", "evidence_anchor_id"],
             "field_value_rules": {
                 "category": {

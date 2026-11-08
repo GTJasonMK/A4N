@@ -1,11 +1,10 @@
 use a4n_llm_sidecar_contract::{
     LlmChatImage, LlmChatMessage, LlmChatRequest, LlmMessageRole, LlmPromptCacheBreakpoint,
-    LlmPromptCacheMode, LlmResponseFormat, LlmToolCall,
+    LlmPromptCacheMode, LlmToolCall,
 };
 
 use super::{
-    ChatMessage, ChatRequest, MessageRole, PromptCacheBreakpoint, PromptCacheMode, ResponseFormat,
-    ToolCall,
+    ChatMessage, ChatRequest, MessageRole, PromptCacheBreakpoint, PromptCacheMode, ToolCall,
 };
 
 impl From<ChatRequest> for LlmChatRequest {
@@ -15,7 +14,7 @@ impl From<ChatRequest> for LlmChatRequest {
             vision_images: request.vision_images.into_iter().map(Into::into).collect(),
             temperature: request.temperature,
             max_tokens: request.max_tokens,
-            response_format: request.response_format.map(Into::into),
+            response_format: request.response_format,
             stream_include_usage: request.stream_include_usage,
             cache_scope_key: request.cache_scope_key,
             cache_breakpoints: request
@@ -38,7 +37,7 @@ impl From<LlmChatRequest> for ChatRequest {
             vision_images: request.vision_images.into_iter().map(Into::into).collect(),
             temperature: request.temperature,
             max_tokens: request.max_tokens,
-            response_format: request.response_format.map(Into::into),
+            response_format: request.response_format,
             stream_include_usage: request.stream_include_usage,
             cache_scope_key: request.cache_scope_key,
             cache_breakpoints: request
@@ -183,28 +182,30 @@ impl From<LlmPromptCacheMode> for PromptCacheMode {
     }
 }
 
-impl From<ResponseFormat> for LlmResponseFormat {
-    fn from(format: ResponseFormat) -> Self {
-        Self {
-            r#type: format.r#type,
-        }
-    }
-}
-
-impl From<LlmResponseFormat> for ResponseFormat {
-    fn from(format: LlmResponseFormat) -> Self {
-        Self {
-            r#type: format.r#type,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
 
-    use crate::provider::LlmTraceContext;
+    use crate::provider::{LlmTraceContext, ResponseFormat};
+
+    #[test]
+    fn schema_contract_round_trips_through_sidecar_and_durable_snapshot() {
+        let request = ChatRequest::system_user("system", "task", None, Some(100))
+            .with_json_schema_response_format(
+                "test",
+                json!({"type":"object","properties":{"id":{"type":"integer"}}}),
+                false,
+            )
+            .unwrap();
+        let snapshot = request.snapshot_value().unwrap();
+        let restored = ChatRequest::from_snapshot_value(snapshot).unwrap();
+        let wire: LlmChatRequest = restored.into();
+        let wire: LlmChatRequest =
+            serde_json::from_value(serde_json::to_value(wire).unwrap()).unwrap();
+        let restored: ChatRequest = wire.into();
+        assert_eq!(restored.response_format, request.response_format);
+    }
 
     #[test]
     fn chat_request_conversion_preserves_wire_fields_and_drops_internal_context() {

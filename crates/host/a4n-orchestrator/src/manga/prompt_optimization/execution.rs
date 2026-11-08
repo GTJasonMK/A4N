@@ -144,7 +144,7 @@ impl OrchestratorContext {
                 .await;
         }
         let response = self
-            .stream_complete_llm(request)
+            .stream_complete_llm(request.clone())
             .await
             .map_err(manga_prompt_optimization_llm_error)?;
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
@@ -152,7 +152,15 @@ impl OrchestratorContext {
                 "优化漫画提示词输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或缩短本次提示词后重试".to_string(),
             ));
         }
-        let prompt = parse_optimized_manga_prompt(&response.message.content)?;
+        let (response, prompt) = self
+            .validate_llm_response(
+                &request,
+                response,
+                call_key,
+                None,
+                parse_optimized_manga_prompt,
+            )
+            .await?;
         self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
             workflow_run_id,
             call_key: call_key.to_string(),

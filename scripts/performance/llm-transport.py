@@ -19,6 +19,11 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+LLM_CAPABILITY_VERSION = next(
+    entry["capability_version"] for entry in json.loads(
+        (ROOT / "crates/process/a4n-process-catalog/service-catalog.json").read_text()
+    ) if entry["name"] == "llm"
+)
 sys.path.insert(0, str(ROOT / "scripts/tests"))
 from run_export_worker_runtime_e2e import service_request, start_process, stop_process
 
@@ -177,7 +182,7 @@ def main():
                     "request": {"messages": [{"role": "user", "content": "ping"}], "temperature": None,
                                 "max_tokens": 16, "tools": None, "tool_choice": None, "stop_sequences": None},
                 }, request_id=f"tls-{index}")
-                request["capability_version"] = "llm-chat-v8"
+                request["capability_version"] = LLM_CAPABILITY_VERSION
                 endpoint = "/llm/probe"
                 if args.kind == "embedding":
                     request["capability_version"] = "embedding-v5"

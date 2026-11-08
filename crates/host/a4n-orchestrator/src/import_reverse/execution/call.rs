@@ -41,14 +41,19 @@ pub(super) async fn execute_import_reverse_call(
         );
     }
 
-    let response = context.stream_complete_llm(request).await?;
+    let response = context.stream_complete_llm(request.clone()).await?;
     if is_truncated_finish_reason(response.finish_reason.as_deref()) {
         return Err(AppError::InvalidArgument(format!(
             "{prompt_name} 输出达到当前导入反推 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或缩短导入样本后重试"
         )));
     }
-    let output: Value = parse_strict_json_response(&response.message.content, prompt_name)?;
-    crate::import_reverse::application::validate_reverse_engineer_output(target, &output)?;
+    let (response, output) = context
+        .validate_llm_response(&request, response, prompt_name, None, |raw| {
+            let output: Value = parse_strict_json_response(raw, prompt_name)?;
+            crate::import_reverse::application::validate_reverse_engineer_output(target, &output)?;
+            Ok(output)
+        })
+        .await?;
     let output_fingerprint_sha256 =
         a4n_db::generation::generation_checkpoint_fingerprint_sha256(&output)
             .map_err(AppError::Serialization)?;

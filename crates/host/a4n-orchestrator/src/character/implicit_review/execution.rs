@@ -339,15 +339,22 @@ impl OrchestratorContext {
             )
             .map_err(AppError::InvalidArgument)?
         } else {
-            let response = self.stream_complete_llm(request).await?;
+            let response = self.stream_complete_llm(request.clone()).await?;
             if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                 return Err(AppError::InvalidArgument(
                     IMPLICIT_UPDATE_TRUNCATED_MESSAGE.to_string(),
                 ));
             }
+            let (response, parsed) = self
+                .validate_llm_response(
+                    &request,
+                    response,
+                    "implicit_attribute_review",
+                    None,
+                    |raw| parse_implicit_update_decision(raw, &stats).map_err(AppError::LlmError),
+                )
+                .await?;
             let response_content = response.message.content;
-            let parsed = parse_implicit_update_decision(&response_content, &stats)
-                .map_err(AppError::InvalidArgument)?;
             let parsed_output = implicit_update_decision_output_json(&parsed);
             let usage = response
                 .usage

@@ -19,6 +19,33 @@ use super::{
     video_llm_call_trace_context, video_llm_validation_error_with_diagnostic,
 };
 
+async fn validate_video_trace<T>(
+    service: &OrchestratorContext,
+    trace: &mut RenderedVideoPromptTrace,
+    cancel_token: Option<&CancellationToken>,
+    validate: impl Fn(&str) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let initial = a4n_llm_provider_contract::provider::ChatResponse {
+        message: a4n_llm_provider_contract::provider::ChatMessage::assistant(&trace.response_text),
+        usage: trace.usage.clone(),
+        finish_reason: trace.finish_reason.clone(),
+        reasoning_content: None,
+    };
+    let (response, parsed) = service
+        .validate_llm_response(
+            &trace.request,
+            initial,
+            &trace.prompt_name,
+            cancel_token,
+            validate,
+        )
+        .await?;
+    trace.response_text = response.message.content;
+    trace.usage = response.usage;
+    trace.finish_reason = response.finish_reason;
+    Ok(parsed)
+}
+
 pub(super) fn attach_generation_trace_to_draft(
     drafts: Vec<NewChapterVideoPrompt>,
     workflow_mode: PromptWorkflowMode,
@@ -87,7 +114,7 @@ where
         structured_progress,
         checkpoint_context: _,
     } = input;
-    let trace = render_and_chat_trace_with_context(VideoPromptRenderInput {
+    let mut trace = render_and_chat_trace_with_context(VideoPromptRenderInput {
         service,
         prompt_renderer,
         prompt_name,
@@ -108,27 +135,28 @@ where
     })
     .await?;
     report_video_prompt_progress(progress, step.current, step.total, "正在校验结构化视频输出")?;
-    let parsed = match parse_and_validate(&trace.response_text) {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            let diagnostic = save_failed_video_llm_checkpoint(
-                service,
-                FailedVideoLlmCheckpointInput {
-                    workflow_run_id,
-                    call_key,
-                    call_order,
-                    input_fingerprint_json,
-                    prompt_name,
-                    request: &trace.request,
-                    response_content: Some(trace.response_text.as_str()),
-                    error_message: err.to_string(),
-                    source: "llm_response_validation",
-                },
-            )
-            .await;
-            return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
-        }
-    };
+    let parsed =
+        match validate_video_trace(service, &mut trace, cancel_token, parse_and_validate).await {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                let diagnostic = save_failed_video_llm_checkpoint(
+                    service,
+                    FailedVideoLlmCheckpointInput {
+                        workflow_run_id,
+                        call_key,
+                        call_order,
+                        input_fingerprint_json,
+                        prompt_name,
+                        request: &trace.request,
+                        response_content: Some(trace.response_text.as_str()),
+                        error_message: err.to_string(),
+                        source: "llm_response_validation",
+                    },
+                )
+                .await;
+                return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
+            }
+        };
     Ok((trace, parsed))
 }
 
@@ -267,7 +295,7 @@ where
         ));
     }
 
-    let trace = render_and_chat_trace_with_context(VideoPromptRenderInput {
+    let mut trace = render_and_chat_trace_with_context(VideoPromptRenderInput {
         service,
         prompt_renderer,
         prompt_name,
@@ -284,27 +312,28 @@ where
     })
     .await?;
     report_video_prompt_progress(progress, step.current, step.total, "正在校验结构化视频输出")?;
-    let parsed = match parse_and_validate(&trace.response_text) {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            let diagnostic = save_failed_video_llm_checkpoint(
-                service,
-                FailedVideoLlmCheckpointInput {
-                    workflow_run_id,
-                    call_key,
-                    call_order,
-                    input_fingerprint_json,
-                    prompt_name,
-                    request: &trace.request,
-                    response_content: Some(trace.response_text.as_str()),
-                    error_message: err.to_string(),
-                    source: "llm_response_validation",
-                },
-            )
-            .await;
-            return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
-        }
-    };
+    let parsed =
+        match validate_video_trace(service, &mut trace, cancel_token, parse_and_validate).await {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                let diagnostic = save_failed_video_llm_checkpoint(
+                    service,
+                    FailedVideoLlmCheckpointInput {
+                        workflow_run_id,
+                        call_key,
+                        call_order,
+                        input_fingerprint_json,
+                        prompt_name,
+                        request: &trace.request,
+                        response_content: Some(trace.response_text.as_str()),
+                        error_message: err.to_string(),
+                        source: "llm_response_validation",
+                    },
+                )
+                .await;
+                return Err(video_llm_validation_error_with_diagnostic(err, diagnostic));
+            }
+        };
     let parsed_output = checkpoint_parsed_output(&parsed)?;
     save_completed_video_llm_checkpoint(CompletedVideoLlmCheckpointInput {
         service,

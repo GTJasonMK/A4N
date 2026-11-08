@@ -1,6 +1,8 @@
 mod arrays;
 mod fields;
 mod object;
+mod schema;
+pub use schema::{array_output_contract_schema, json_schema_from_output_shape};
 
 pub fn is_empty_json_value(value: &serde_json::Value) -> bool {
     match value {

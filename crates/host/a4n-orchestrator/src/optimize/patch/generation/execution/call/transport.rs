@@ -4,7 +4,8 @@ use crate::{
     generation::{
         generation_finish_reason_text,
         stream::{
-            LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation, provider_usage,
+            LlmGenerationCheckpoint, LlmGenerationRequest, execute_validated_llm_generation,
+            provider_usage,
         },
     },
     optimize::{
@@ -24,9 +25,12 @@ pub(super) async fn call_patch_generation_llm(
     let PatchGenerationCallInput {
         request,
         generation,
+        session,
+        chapter,
+        base_content_hash,
         ..
     } = input;
-    let output = match execute_llm_generation(
+    let output = match execute_validated_llm_generation(
         service.llm_backend(),
         generation.publisher,
         LlmGenerationRequest {
@@ -44,10 +48,21 @@ pub(super) async fn call_patch_generation_llm(
             }),
             usage_base: generation.session.snapshot().usage.clone(),
         },
+        "正文局部补丁",
+        |raw| {
+            crate::optimize::patch::parse_content_optimization_patch_response(
+                session.id,
+                chapter.project_id,
+                chapter.id,
+                base_content_hash,
+                &chapter.content,
+                raw,
+            )
+        },
     )
     .await
     {
-        Ok(output) => output,
+        Ok((output, _)) => output,
         Err(error) => {
             let public_message = error.message.clone();
             service

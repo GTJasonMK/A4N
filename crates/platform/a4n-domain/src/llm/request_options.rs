@@ -6,6 +6,7 @@ pub const LLM_RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
     "max_tokens",
     "max_completion_tokens",
     "response_format",
+    "output_config",
     "prompt_cache_key",
     "tools",
     "tool_choice",

@@ -234,7 +234,7 @@ impl OrchestratorContext {
             );
         }
 
-        let response = self.stream_complete_llm(prepared.request).await?;
+        let response = self.stream_complete_llm(prepared.request.clone()).await?;
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
             return Err(AppError::InvalidArgument(
                 "角色冲突检查输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次检查上下文后重试".to_string(),
@@ -245,8 +245,15 @@ impl OrchestratorContext {
             CHARACTER_CONFLICT_PROGRESS_TOTAL,
             "模型已返回，正在解析矛盾项",
         )?;
-        let conflicts =
-            parse_conflict_output_with_source_ids(&response.message.content, &prepared.source_ids)?;
+        let (response, conflicts) = self
+            .validate_llm_response(
+                &prepared.request,
+                response,
+                &prepared.call_key,
+                None,
+                |raw| parse_conflict_output_with_source_ids(raw, &prepared.source_ids),
+            )
+            .await?;
         let response_usage_json = response
             .usage
             .as_ref()

@@ -29,16 +29,25 @@ where
 }
 
 /// 在大纲 generation 任务上下文中执行统一 stream driver。
-pub(in crate::outline) async fn execute_outline_llm_call(
+pub(in crate::outline) async fn execute_outline_llm_call<T>(
     context: &OrchestratorContext,
     request: ChatRequest,
     call_key: &str,
-) -> Result<ChatResponse, AppError> {
+    validate: impl FnMut(&str) -> Result<T, AppError>,
+) -> Result<(ChatResponse, T), AppError> {
     let stream = OUTLINE_LLM_STREAM
         .try_with(|value| value.clone())
         .map_err(|_| AppError::InvalidState {
             current: "outline_llm_stream_missing".to_string(),
             operation: format!("大纲 LLM 调用 {call_key} 必须在 generation stream 上下文中执行"),
         })?;
-    execute_task_llm_chat_response(context, &stream, request, call_key, "outline_generation").await
+    execute_task_llm_chat_response(
+        context,
+        &stream,
+        request,
+        call_key,
+        "outline_generation",
+        validate,
+    )
+    .await
 }

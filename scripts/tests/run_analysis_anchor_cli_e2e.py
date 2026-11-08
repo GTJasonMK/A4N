@@ -6,12 +6,23 @@ import tempfile
 from pathlib import Path
 
 from mock_openai.fixtures.reverse import message_text
+from mock_openai.fixtures.entities import character_sync_profile_name
 from mock_openai.fixtures.story import chapter_body_response
 from mock_openai.prompt_parsing import json_task_payload
 from run_cli_contract_e2e import (
     RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli,
     provider_log_entries, runtime_snapshot, secure_json,
 )
+
+
+def assert_single_correction_per_subject(details, prompt):
+    attempts = {}
+    for task, subject, correction in details:
+        if task == prompt:
+            attempts.setdefault(subject, []).append(correction)
+    assert attempts, ("no failed task calls observed", prompt)
+    for subject, corrections in attempts.items():
+        assert corrections == [False, True], ("each logical call must get exactly one correction", prompt, subject, corrections)
 
 
 def main():
@@ -46,6 +57,7 @@ def main():
 
             def llm_calls(offset):
                 found = []
+                details = []
                 for entry in provider_log_entries(args.provider_log)[offset:]:
                     if entry["path"].rstrip("/") not in {"/v1/responses", "/v1/chat/completions"}:
                         continue
@@ -67,10 +79,18 @@ def main():
                         assert contract.get("field_types") or name == "character_sync_chapter_states", name
                         if args.llm_provider == "openai-responses":
                             assert entry["path"].endswith("/responses"), entry["path"]
-                            assert body["text"]["format"]["type"] == "json_object"
+                            native = body["text"]["format"]
+                            assert native["type"] == "json_schema", native
+                            root = contract["required_root_field"]
+                            fields = native["schema"]["properties"][root]["items"]["properties"]
+                            for key, schema in contract.get("field_types", {}).items():
+                                assert fields[key] == schema, (name, key, fields)
                         found.append(name)
+                        subject = character_sync_profile_name(combined) if name.startswith("character_sync_") else None
+                        correction = any("model_output_correction" in message_text(item.get("content", "")) for item in messages)
+                        details.append((name, subject, correction))
                 calls.extend(found)
-                return found
+                return found, details
 
             configure("a4n-anchor-fail-objects")
             project = checked(cli, ["project", "create", "--title", "证据ID恢复回归", "--project-type", "novel_long", "--use-context"], "project")[0]["data"]
@@ -109,8 +129,9 @@ def main():
                     message = error["message"]
                 assert f"{root}[0].{field}" in message and "JSON 整数数字" in message, message
                 assert "LLM 调用失败" in message and "参数无效" not in message, message
-                names = llm_calls(offset)
+                names, details = llm_calls(offset)
                 assert prompt in names, names
+                assert_single_correction_per_subject(details, prompt)
                 for earlier in completed:
                     assert earlier not in names, ("completed work repeated", earlier, names)
                 for _, _, later in failures[index + 1:]:
@@ -139,7 +160,7 @@ def main():
             configure("a4n-virtual-text")
             offset = len(provider_log_entries(args.provider_log))
             call("resume_chapter_analysis_sync", {"chapter_id": chapter["id"]})
-            resumed = llm_calls(offset)
+            resumed, _ = llm_calls(offset)
             assert "character_sync_behavior_records" in resumed
             assert not any(prompt in resumed for _, _, prompt in failures[:6]), resumed
             chapters = checked(cli, ["chapter", "list"], "chapters")[0]["data"]
@@ -150,7 +171,35 @@ def main():
             assert len(call("list_profiles", {"project_id": project["id"]})) == 2
             assert len(call("list_scene_profiles", {"project_id": project["id"]})) == 2
             report["checks"].append("valid integer IDs finish from checkpoints, preserve text and avoid duplicate profiles")
-            report.update(success=True, resume_calls=resumed)
+            report.update(resume_calls=resumed, correction_cases=[])
+            for fault in ("string_ids", "missing_anchor", "unknown_anchor"):
+                configure("a4n-output-recover-" + fault)
+                project = checked(cli, ["project", "create", "--title", "有限纠正-" + fault, "--project-type", "novel_long", "--use-context"], "correction project")[0]["data"]
+                chapter = checked(cli, ["chapter", "import", "--number", "1", "--title", "雨夜来信", "--content", chapter_body_response()], "correction chapter")[0]["data"]
+                offset = len(provider_log_entries(args.provider_log))
+                result = call("generate_chapter_analysis", {"chapter_id": chapter["id"]})
+                assert not result["warnings"], result["warnings"]
+                assert not result["chapter"]["analysis_sync_can_resume"], result["chapter"]
+                assert result["chapter"]["content"] == chapter["content"]
+                entries = provider_log_entries(args.provider_log)[offset:]
+                corrections = [entry for entry in entries if "model_output_correction" in json.dumps(entry.get("body", {}))]
+                assert corrections, (fault, "no correction calls observed")
+                corrected_tasks = set()
+                for entry in corrections:
+                    body = entry["body"]
+                    messages = body.get("messages", body.get("input", []))
+                    combined = "\n".join(message_text(item.get("content", "")) for item in messages)
+                    corrected_tasks.add(json_task_payload(combined)["task"]["name"])
+                assert {row[2] for row in failures}.issubset(corrected_tasks), (fault, corrected_tasks)
+                names, _ = llm_calls(offset)
+                for _, _, prompt in failures:
+                    assert prompt in names, (fault, prompt, names)
+                assert len(call("list_object_profiles", {"project_id": project["id"]})) == 2
+                assert len(call("list_profiles", {"project_id": project["id"]})) == 2
+                assert len(call("list_scene_profiles", {"project_id": project["id"]})) == 2
+                report["checks"].append(fault + ": one correction per failing call completes analysis without duplicate profiles or text changes")
+                report["correction_cases"].append({"fault": fault, "project_id": project["id"], "chapter_id": chapter["id"], "correction_calls": len(corrections), "corrected_tasks": sorted(corrected_tasks)})
+            report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration) as error:
         report["error"] = f"{type(error).__name__}: {error}"
     finally:

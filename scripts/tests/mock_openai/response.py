@@ -69,30 +69,69 @@ from mock_openai.fixtures.story import (
 )
 from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
 from mock_openai.protocol import UnhandledPromptError
-def response_for(body: dict[str, Any]) -> str:
-    model = str(body.get("model", ""))
-    if model.startswith("a4n-anchor-fail-"):
-        value = json.loads(response_for({**body, "model": "a4n-virtual-text"}))
-        root = model.removeprefix("a4n-anchor-fail-")
-        fields = {
-            "objects": "evidence_anchor_ids",
-            "characters": "evidence_anchor_id",
-            "scenes": "evidence_anchor_ids",
-            "occurrences": "source_anchor_ids",
-            "transitions": "source_anchor_ids",
-            "entity_states": "source_anchor_ids",
-            "events": "evidence_anchor_id",
-            "attribute_changes": "evidence_anchor_id",
-            "behaviors": "original_text_anchor_id",
-        }
-        if root not in fields:
-            raise ValueError(f"unknown anchor failure fixture: {root}")
-        if root in value:
-            field = fields[root]
-            item = value[root][0]
+
+ANCHOR_OUTPUT_FIELDS = {
+    "object_discovery": ("objects", "evidence_anchor_ids"),
+    "character_discovery": ("characters", "evidence_anchor_id"),
+    "scene_profile_candidates": ("scenes", "evidence_anchor_ids"),
+    "scene_occurrence_extraction": ("occurrences", "source_anchor_ids"),
+    "scene_transition_extraction": ("transitions", "source_anchor_ids"),
+    "scene_entity_state_extraction": ("entity_states", "source_anchor_ids"),
+    "character_sync_evidence_events": ("events", "evidence_anchor_id"),
+    "character_sync_attribute_changes": ("attribute_changes", "evidence_anchor_id"),
+    "character_sync_behavior_records": ("behaviors", "original_text_anchor_id"),
+    "character_sync_deletion_candidates": ("deletion_candidates", "evidence_anchor_id"),
+}
+
+
+def anchor_fault_response(body, fault, expected_root=None):
+    combined = "\n".join(message_text(message.get("content", "")) for message in body.get("messages", []))
+    selected = ANCHOR_OUTPUT_FIELDS.get(current_task_prompt_name(combined))
+    raw = response_for({**body, "model": "a4n-virtual-text"})
+    # Root names can overlap across unrelated contracts (facts also contain
+    # characters). Inject only into the intended task, never into its upstream.
+    if selected is None or (expected_root is not None and selected[0] != expected_root):
+        return raw
+    root, field = selected
+    value = json.loads(raw)
+    if value[root]:
+        item = value[root][0]
+        if fault == "missing_anchor":
+            del item[field]
+        elif fault == "string_ids":
             ids = item[field]
             item[field] = [str(anchor) for anchor in ids] if isinstance(ids, list) else str(ids)
-        return json.dumps(value, ensure_ascii=False)
+        else:
+            item[field] = [9223372036854775807] if isinstance(item[field], list) else 9223372036854775807
+    return json.dumps(value, ensure_ascii=False)
+
+
+def response_for(body: dict[str, Any]) -> str:
+    messages = body.get("messages", [])
+    original_messages = []
+    for message in messages:
+        content = message.get("content")
+        try:
+            value = json.loads(content) if isinstance(content, str) else None
+        except ValueError:
+            value = None
+        if not isinstance(value, dict) or value.get("kind") != "model_output_correction":
+            original_messages.append(message)
+    if len(original_messages) != len(messages):
+        return response_for({**body, "messages": original_messages, "_a4n_correction": True})
+    model = str(body.get("model", ""))
+    if model.startswith("a4n-output-recover-"):
+        fault = model.removeprefix("a4n-output-recover-")
+        if fault not in {"string_ids", "missing_anchor", "unknown_anchor"}:
+            raise ValueError(f"unknown recovery fixture: {fault}")
+        if body.get("_a4n_correction"):
+            return response_for({**body, "model": "a4n-virtual-text"})
+        return anchor_fault_response(body, fault)
+    if model.startswith("a4n-anchor-fail-"):
+        root = model.removeprefix("a4n-anchor-fail-")
+        if root not in {pair[0] for pair in ANCHOR_OUTPUT_FIELDS.values()}:
+            raise ValueError(f"unknown anchor failure fixture: {root}")
+        return anchor_fault_response(body, "string_ids", expected_root=root)
     if model.startswith("a4n-checkpoint-"):
         raw = response_for({**body, "model": "a4n-virtual-text"})
         value = json.loads(raw)

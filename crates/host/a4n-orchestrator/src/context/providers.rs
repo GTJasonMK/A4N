@@ -11,6 +11,46 @@ use crate::{
 };
 
 impl OrchestratorContext {
+    pub(crate) async fn validate_llm_response<T>(
+        &self,
+        request: &ChatRequest,
+        response: ChatResponse,
+        context: &str,
+        cancel_token: Option<&CancellationToken>,
+        validate: impl FnMut(&str) -> Result<T, AppError>,
+    ) -> Result<(ChatResponse, T), AppError> {
+        crate::structured_llm::correct_llm_response(
+            request,
+            response,
+            context,
+            cancel_token,
+            validate,
+            |corrective_request| async move {
+                let workflow_run_id = corrective_request
+                    .trace_context
+                    .as_ref()
+                    .and_then(|trace| trace.workflow_run_id);
+                if let Some(id) = workflow_run_id
+                    && self.workflow_run_status_record_by_id(id).await?.status
+                        == a4n_domain::workflow::WORKFLOW_STATUS_CANCELLED
+                {
+                    return Err(AppError::Cancelled);
+                }
+                let response = self
+                    .stream_complete_llm_with_sink(corrective_request, None, cancel_token)
+                    .await?;
+                if let Some(id) = workflow_run_id
+                    && self.workflow_run_status_record_by_id(id).await?.status
+                        == a4n_domain::workflow::WORKFLOW_STATUS_CANCELLED
+                {
+                    return Err(AppError::Cancelled);
+                }
+                Ok(response)
+            },
+        )
+        .await
+    }
+
     /// 生产 LLM 完整结果入口：只走统一 stream driver，禁止 provider `chat()`。
     pub(crate) async fn stream_complete_llm(
         &self,

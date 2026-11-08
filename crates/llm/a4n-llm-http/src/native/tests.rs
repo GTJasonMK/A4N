@@ -9,6 +9,35 @@ use serde_json::{Value, json};
 
 use super::{chunk_stream, gemini, responses};
 
+#[test]
+fn structured_output_schemas_survive_each_protocol() {
+    let schema = json!({"type":"object","properties":{"id":{"type":"integer","minimum":1}},"required":["id"],"additionalProperties":false});
+    let request = ChatRequest::system_user("Return JSON", "choose id 1", None, Some(100))
+        .with_json_schema_response_format("integer_contract", schema.clone(), true)
+        .unwrap();
+    assert!(request.output_schema_tokens(|text| text.len()) > 0);
+    for provider in ["openai", "openai-responses", "gemini", "anthropic"] {
+        let body = crate::request_body_preview(
+            provider,
+            "model",
+            None,
+            a4n_llm_provider_contract::ModelCapabilities {
+                max_context_tokens: 4096,
+                max_output_tokens: 100,
+            },
+            &request,
+        )
+        .unwrap();
+        let actual = match provider {
+            "openai" => &body["response_format"]["json_schema"]["schema"],
+            "openai-responses" => &body["text"]["format"]["schema"],
+            "gemini" => &body["generationConfig"]["responseJsonSchema"],
+            _ => &body["output_config"]["format"]["schema"],
+        };
+        assert_eq!(actual, &schema, "{provider} must not drop the schema");
+    }
+}
+
 fn collect(
     protocol: LlmProtocolKind,
     events: &[Value],

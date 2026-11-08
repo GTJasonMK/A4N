@@ -84,8 +84,11 @@ impl OrchestratorContext {
                 end_ch,
             )?
         } else {
-            let response =
-                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
+            let (response, data) =
+                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key, |raw| {
+                    parse_part_outline_single_response(raw, part_num, start_ch, end_ch)
+                })
+                .await?;
 
             let response_usage_json = response
                 .usage
@@ -98,7 +101,6 @@ impl OrchestratorContext {
                 finish_reason.as_deref(),
                 &format!("第 {part_num} 部分部大纲"),
             )?;
-            let data = parse_part_outline_single_response(&content, part_num, start_ch, end_ch)?;
             let generated = GeneratedPartOutline {
                 data,
                 request,

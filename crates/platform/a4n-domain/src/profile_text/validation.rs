@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+pub const PROFILE_IMPORTANCE_VALUES: &[&str] = &["primary", "secondary", "minor"];
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ProfileTextError {
     #[error("{field}不能为空")]
@@ -32,7 +34,7 @@ pub fn validate_importance(value: &str, field_name: &str) -> Result<String, Prof
 
 pub fn normalize_importance_value(value: &str) -> Result<String, ProfileTextError> {
     let value = required_text(value, "重要性")?;
-    if matches!(value.as_str(), "primary" | "secondary" | "minor") {
+    if PROFILE_IMPORTANCE_VALUES.contains(&value.as_str()) {
         return Ok(value);
     }
     Err(ProfileTextError::InvalidImportance {

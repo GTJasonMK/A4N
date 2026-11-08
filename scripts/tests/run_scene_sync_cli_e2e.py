@@ -41,12 +41,18 @@ def main():
                     combined = "\n".join(message_text(item.get("content", "")) for item in messages)
                     if "[阶段指令]" not in combined:
                         continue
-                    name = json_task_payload(combined)["task"]["name"]
+                    payload = json_task_payload(combined)
+                    name = payload["task"]["name"]
                     if name and name.startswith("scene_"):
                         names.append(name)
                         if name == "scene_occurrence_extraction":
                             assert "occurrences[].timeline_position 只能是 string|null" in combined
-                            assert entry["body"].get("response_format") == {"type": "json_object"}
+                            response_format = entry["body"]["response_format"]
+                            assert response_format["type"] == "json_schema", response_format
+                            fields = response_format["json_schema"]["schema"]["properties"]["occurrences"]["items"]["properties"]
+                            for field, schema in payload["output_contract"]["field_types"].items():
+                                assert fields[field] == schema, (field, fields[field], schema)
+                            assert fields["timeline_position"] == {"type": ["string", "null"]}, fields
                 return names
 
             project = checked(cli, ["project", "create", "--title", "场景合同回归", "--project-type", "novel_long", "--use-context"], "project")[0]["data"]
@@ -86,7 +92,7 @@ def main():
                 assert "LLM 调用失败" in message, message
                 assert "状态无效" not in message and "参数无效" not in message, message
                 names = scene_calls(before)
-                assert "scene_occurrence_extraction" in names, names
+                assert names.count("scene_occurrence_extraction") == 2, names
                 assert "scene_transition_extraction" not in names, names
                 assert "scene_entity_state_extraction" not in names, names
                 details = workflow_details()

@@ -28,16 +28,17 @@ pub fn preview_context_aware_chat_request(
         .cloned()
         .collect::<Vec<_>>();
     let requirement_inputs = preview_requirement_inputs(&system_messages, &manifest)?;
-    let tools_tokens = request
+    let protocol_tokens = request
         .tools
         .as_ref()
         .map(|tools| serde_json::to_string(tools).map(|text| estimate_context_tokens(&text)))
         .transpose()?
-        .unwrap_or(0);
+        .unwrap_or(0)
+        .saturating_add(request.output_schema_tokens(estimate_context_tokens));
     let dynamic_delta_tokens = estimate_context_tokens(&serde_json::to_string(
         &context_manifest_dynamic_messages(request, &manifest)?,
     )?)
-    .saturating_add(tools_tokens);
+    .saturating_add(protocol_tokens);
     let mut plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
         model_context_tokens,
         output_token_reserve,

@@ -70,8 +70,11 @@ impl OrchestratorContext {
                 chapter_number,
             )?
         } else {
-            let response =
-                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
+            let (response, mut chapters) =
+                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key, |raw| {
+                    parse_chapter_outline_batch(raw, chapter_number, 1)
+                })
+                .await?;
 
             let response_usage_json = response
                 .usage
@@ -84,7 +87,6 @@ impl OrchestratorContext {
                 finish_reason.as_deref(),
                 &format!("第 {chapter_number} 章章纲"),
             )?;
-            let mut chapters = parse_chapter_outline_batch(&content, chapter_number, 1)?;
             let chapter_json = chapters.pop().ok_or_else(|| {
                 AppError::InvalidArgument("outline.chapters 不能为空".to_string())
             })?;

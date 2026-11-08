@@ -398,7 +398,7 @@ impl OrchestratorContext {
             )
         } else {
             let response = self
-                .stream_complete_llm(request)
+                .stream_complete_llm(request.clone())
                 .await
                 .map_err(|err| super::super::video_llm_step_error(OPTIMIZATION_PROMPT_NAME, err))?;
             if is_truncated_finish_reason(response.finish_reason.as_deref()) {
@@ -406,6 +406,20 @@ impl OrchestratorContext {
                     "优化视频提示词输出达到模型 max_output_tokens 上限，返回 JSON 被截断；请提高模型输出上限，或缩短本次提示词后重试".to_string(),
                 ));
             }
+            let (response, validated) = self
+                .validate_llm_response(&request, response, OPTIMIZATION_PROMPT_NAME, None, |raw| {
+                    let optimized = parse_strict_json_response::<OptimizedVideoPromptFields>(
+                        raw,
+                        "视频提示词优化",
+                    )?;
+                    validate_video_prompt_optimization(
+                        prompt,
+                        prompt_kind,
+                        optimized,
+                        prompt_output_language,
+                    )
+                })
+                .await?;
             let response_usage_json = response
                 .usage
                 .as_ref()
@@ -413,16 +427,6 @@ impl OrchestratorContext {
                 .transpose()?;
             let response_finish_reason = response.finish_reason.clone();
             let response_text = response.message.content;
-            let optimized = parse_strict_json_response::<OptimizedVideoPromptFields>(
-                &response_text,
-                "视频提示词优化",
-            )?;
-            let validated = validate_video_prompt_optimization(
-                prompt,
-                prompt_kind,
-                optimized,
-                prompt_output_language,
-            )?;
             (
                 validated,
                 response_text,

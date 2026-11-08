@@ -22,7 +22,7 @@
 | `vision_images` | `Vec<ChatImage>` | 默认空数组；非空时每项为 `media_type`、`data_base64`。 |
 | `temperature` | `Option<f32>` | 可选采样温度。 |
 | `max_tokens` | `Option<usize>` | 可选输出上限。 |
-| `response_format` | `Option<ResponseFormat>` | 可选；`ResponseFormat` 只有 `type` 字段，JSON 模式值为 `json_object`。 |
+| `response_format` | `Option<ResponseFormat>` | 可选；共用 sidecar DTO，`type=json_object` 或 `json_schema`；后者含 `json_schema:{name,schema,strict}`。合同与协议适配见[模型调用可靠性](model-call-reliability.zh.md)。 |
 | `stream_include_usage` | `bool` | 默认 `false`；请求流尾部 usage。 |
 | `cache_scope_key` | `Option<String>` | Prompt cache 的请求范围键。 |
 | `cache_breakpoints` | `Vec<PromptCacheBreakpoint>` | 默认空；每项字段为 `message_index`、`byte_offset`。 |
@@ -100,6 +100,8 @@ Sidecar 每个 chunk 外包 `CapabilityTaskEvent {task_id, event_kind, sequence,
 | [Gemini GenerateContent](../crates/llm/a4n-llm-http/src/native/gemini.rs#L10) | 使用 `systemInstruction,contents[].parts,generationConfig`；assistant 角色映射为 `model`，工具为 `functionCall/functionResponse`，图片为 `inlineData`。输出上限、停止序列和 JSON 模式分别映射到 `maxOutputTokens,stopSequences,responseMimeType`；工具定义为 `tools[].functionDeclarations`，调用策略为 `toolConfig.functionCallingConfig`。 |
 
 `extra_body_json` 经校验后由各适配器合并；不允许覆盖的字段由对应实现拒绝。工具的 `provider_metadata` 也不是通用 HTTP 字段，适配器只按协议回放其需要的推理/签名数据。
+
+结构化任务现在还可发送字段 Schema：Chat Completions 使用 `response_format.json_schema`，Responses 使用 `text.format`，Gemini 使用 `responseJsonSchema`，显式严格 Anthropic 使用 `output_config.format`。其他预设明确采用提示词 Schema 模式。完整业务校验及最多一次输出纠正独立于这些协议编码；具体能力和验收边界见[可靠性说明](model-call-reliability.zh.md)。
 
 ## 2. LLM driver 家族清单（原 31 项）
 

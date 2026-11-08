@@ -160,7 +160,7 @@ def main():
                 model(fault)
                 before = len(calls())
                 error = shooting(source, expected)
-                assert len(calls()) - before == prefix + 1, (fault, len(calls()) - before)
+                assert len(calls()) - before == prefix + 2, (fault, len(calls()) - before)
                 failed = detail(source["project_id"], "chapter_shooting_script")
                 assert sum(item["status"] == "completed" for item in failed["checkpoints"]) == prefix, failed
                 model()
@@ -174,7 +174,7 @@ def main():
             model("shooting-design-second-shot")
             before = len(calls())
             shooting(source, "lens_intent")
-            assert len(calls()) - before == 4, len(calls()) - before
+            assert len(calls()) - before == 5, len(calls()) - before
             failed = detail(source["project_id"], "chapter_shooting_script")
             assert {item["step_key"] for item in failed["checkpoints"] if item["status"] == "completed"} == {
                 "screenplay_layout_unit:1", "screenplay_unit_adaptation:1", "shooting_design_shot:1:shot-1",
@@ -198,7 +198,7 @@ def main():
             before = len(calls())
             first = call("start_video_generation", {**video_request, "meta": {"start_request_id": str(uuid.uuid4())}})
             task(first, "JSON")
-            assert len(calls()) - before == 2, len(calls()) - before
+            assert len(calls()) - before == 3, len(calls()) - before
             model()
             before = len(calls())
             task(call("start_video_generation", {**video_request, "meta": {
@@ -214,7 +214,7 @@ def main():
             before = len(calls())
             first = call("start_blueprint_generation", {**blueprint, "meta": {"start_request_id": str(uuid.uuid4())}})
             task(first, "角色重复")
-            assert len(calls()) - before == 3, len(calls()) - before
+            assert len(calls()) - before == 4, len(calls()) - before
             model()
             before = len(calls())
             task(call("start_blueprint_generation", {**blueprint, "meta": {"start_request_id": str(uuid.uuid4()), "retry_of_task_id": first["task_id"]}}))
@@ -236,7 +236,7 @@ def main():
                 model(fault)
                 before = len(calls())
                 error = reject("start_galgame_pipeline", value, expected)
-                assert len(calls()) - before == prefix + 2, (fault, len(calls()) - before)
+                assert len(calls()) - before == prefix + 3, (fault, len(calls()) - before)
                 model()
                 before = len(calls())
                 call("start_galgame_pipeline", {**value, "task_id": str(uuid.uuid4())})
@@ -399,7 +399,7 @@ def main():
                 failed = manga_result(project_id, expected, expected_task=started)
                 start_calls = len(calls()) - before
                 if fault == "manga-slots":
-                    assert start_calls == prefix + 1, (fault, start_calls)
+                    assert start_calls == prefix + 2, (fault, start_calls)
                 else:
                     # Page work is scheduled independently; whichever page
                     # reaches the injected invalid response first is valid.

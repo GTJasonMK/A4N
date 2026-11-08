@@ -11,7 +11,7 @@ use crate::generation::{
     checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
     events::{GenerationEventPublisher, GenerationTaskSession},
     generation_finish_reason_text,
-    stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation},
+    stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_validated_llm_generation},
 };
 
 use super::super::contracts::BlueprintStageSpec;
@@ -29,7 +29,7 @@ pub(super) async fn generate_blueprint_stage_output(
 ) -> Result<BlueprintStageLlmOutput, AppError> {
     ensure_not_cancelled(&cancel_token)?;
     let call_key = blueprint_stage_call_key(spec.key);
-    let output = execute_llm_generation(
+    let (output, ()) = execute_validated_llm_generation(
         context.llm_backend(),
         publisher,
         LlmGenerationRequest {
@@ -47,6 +47,15 @@ pub(super) async fn generate_blueprint_stage_output(
                 },
             }),
             usage_base: session.snapshot().usage,
+        },
+        spec.title,
+        |raw| {
+            let value = a4n_prompt::blueprint_generation::parse_blueprint_stage_json_object(
+                raw,
+                spec.title,
+                spec.output_schema,
+            )?;
+            (spec.validate)(&value)
         },
     )
     .await

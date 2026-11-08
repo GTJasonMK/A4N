@@ -62,6 +62,39 @@ def optimization_messages(observations, user_message="请提出局部补丁"):
 
 
 class MockOpenAIProviderTest(unittest.TestCase):
+    def test_anchor_faults_do_not_mutate_other_contracts_with_the_same_root_name(self):
+        from mock_openai.fixtures.story import chapter_body_response
+        content = json.dumps({"content":"#0 " + chapter_body_response()}, ensure_ascii=False)
+        content += "\n\n输入：\n" + json.dumps({"task":{"name":"chapter_fact_extraction"}})
+        body = {"model":"a4n-virtual-text","messages":[{"role":"user","content":content}]}
+        expected = response_for(body)
+        for model in ("a4n-output-recover-string_ids", "a4n-output-recover-missing_anchor", "a4n-output-recover-unknown_anchor", "a4n-anchor-fail-characters"):
+            self.assertEqual(response_for({**body,"model":model}), expected)
+        body["messages"][0]["content"] = "A4N_AGENT_CANVAS_INPUT"
+        self.assertEqual(response_for({**body,"model":"a4n-output-recover-string_ids"}), response_for(body))
+
+    def test_output_correction_fixtures_require_feedback_and_keep_task_payload_strict(self):
+        from mock_openai.prompt_parsing import json_task_payload
+
+        common = '\n'.join([
+            json.dumps({"id":1,"quote":"林岚没有把信交给他"},ensure_ascii=False),
+            json.dumps({"id":2,"quote":"修表师周衡提着工具箱从封闭通道里走出"},ensure_ascii=False),
+            "\n\n输入：\n" + json.dumps({"task":{"name":"character_discovery"}}),
+        ])
+        messages = [{"role":"user","content":common}]
+        for fault in ("string_ids", "missing_anchor", "unknown_anchor"):
+            body = {"model":"a4n-output-recover-" + fault,"messages":messages}
+            invalid = json.loads(response_for(body))["characters"][0]
+            self.assertTrue("evidence_anchor_id" not in invalid or invalid["evidence_anchor_id"] != 1)
+            feedback = {"kind":"model_output_correction","validation_error":"invalid id"}
+            corrected = {**body,"messages":[*messages,{"role":"user","content":json.dumps(feedback)}]}
+            self.assertEqual(json.loads(response_for(corrected))["characters"][0]["evidence_anchor_id"], 1)
+            self.assertEqual(json_task_payload(common + '\n' + json.dumps(feedback))["task"]["name"], "character_discovery")
+        with self.assertRaises(ValueError):
+            json_task_payload(common + '\n{}')
+        with self.assertRaisesRegex(ValueError, "unknown recovery fixture"):
+            response_for({"model":"a4n-output-recover-typo","messages":messages})
+
     def test_fact_feedback_reads_current_annotated_and_structured_sources(self) -> None:
         from mock_openai.fixtures.fact_feedback import fact_feedback_response
         from mock_openai.fixtures.story import chapter_body_response

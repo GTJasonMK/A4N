@@ -16,6 +16,19 @@ from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
 
 
 class CreationAcceptanceTest(unittest.TestCase):
+    def test_correction_budget_is_checked_per_logical_subject(self):
+        from run_analysis_anchor_cli_e2e import assert_single_correction_per_subject
+        task = "character_sync_evidence_events"
+        assert_single_correction_per_subject([(task,"one",False),(task,"two",False),(task,"one",True),(task,"two",True)], task)
+        for details in (
+            [(task,"one",False)],
+            [(task,"one",False),(task,"one",True),(task,"one",True)],
+            [(task,"one",False),(task,"one",True),(task,"two",False)],
+            [],
+        ):
+            with self.assertRaises(AssertionError):
+                assert_single_correction_per_subject(details, task)
+
     def scratch(self):
         parent = ROOT / "data"
         parent.mkdir(exist_ok=True)

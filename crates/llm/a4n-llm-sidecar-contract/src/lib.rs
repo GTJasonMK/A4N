@@ -6,8 +6,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-pub const LLM_SERVICE_NAME: &str = "llm";
-pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v8";
+pub use a4n_service_protocol::{LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME};
 pub const LLM_SERVICE_ADDR_ENV: &str = "A4N_LLM_GATEWAY_ADDR";
 pub const LLM_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47642";
 
@@ -74,6 +73,62 @@ pub enum LlmPromptCacheMode {
 #[serde(deny_unknown_fields)]
 pub struct LlmResponseFormat {
     pub r#type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub json_schema: Option<LlmJsonSchema>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmJsonSchema {
+    pub name: String,
+    pub schema: Value,
+    pub strict: bool,
+}
+
+impl LlmResponseFormat {
+    pub fn validate(&self) -> Result<(), String> {
+        match (self.r#type.as_str(), self.json_schema.as_ref()) {
+            ("json_object", None) => Ok(()),
+            ("json_schema", Some(schema)) => {
+                Self::json_schema(&schema.name, schema.schema.clone(), schema.strict).map(|_| ())
+            }
+            _ => Err("LLM 输出格式与 schema 不一致".into()),
+        }
+    }
+
+    pub fn json_object() -> Self {
+        Self {
+            r#type: "json_object".into(),
+            json_schema: None,
+        }
+    }
+
+    pub fn json_schema(
+        name: impl Into<String>,
+        schema: Value,
+        strict: bool,
+    ) -> Result<Self, String> {
+        let name = name.into();
+        if name.is_empty()
+            || name.len() > 64
+            || !name
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+        {
+            return Err("输出 schema 名称必须为 1 至 64 个字母、数字、下划线或连字符".into());
+        }
+        if schema.get("type").and_then(Value::as_str) != Some("object") {
+            return Err("结构化输出 schema 根类型必须是 object".into());
+        }
+        Ok(Self {
+            r#type: "json_schema".into(),
+            json_schema: Some(LlmJsonSchema {
+                name,
+                schema,
+                strict,
+            }),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -310,9 +365,7 @@ mod tests {
             vision_images: Vec::new(),
             temperature: Some(0.2),
             max_tokens: Some(256),
-            response_format: Some(LlmResponseFormat {
-                r#type: "json_object".to_string(),
-            }),
+            response_format: Some(LlmResponseFormat::json_object()),
             stream_include_usage: true,
             cache_scope_key: Some("scope".to_string()),
             cache_breakpoints: vec![LlmPromptCacheBreakpoint {

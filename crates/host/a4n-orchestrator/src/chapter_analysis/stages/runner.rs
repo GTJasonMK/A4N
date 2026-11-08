@@ -49,12 +49,22 @@ impl OrchestratorContext {
         } else {
             let response =
                 chat_chapter_analysis_stage(self, request.clone(), spec, progress).await?;
-            let output = parse_chapter_analysis_stage_output(
-                &response.response_content,
-                spec.context,
-                source_markers,
-                &validate,
-            )?;
+            let (response, output) = self
+                .validate_llm_response(
+                    &request,
+                    crate::structured_llm::structured_chat_response(response),
+                    spec.context,
+                    None,
+                    |raw| {
+                        parse_chapter_analysis_stage_output(
+                            raw,
+                            spec.context,
+                            source_markers,
+                            &validate,
+                        )
+                    },
+                )
+                .await?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key: spec.step_key.to_string(),
@@ -62,7 +72,7 @@ impl OrchestratorContext {
                 input_fingerprint_json: fingerprint,
                 checkpoint: CompletedLlmCallCheckpoint {
                     parsed_output: output.clone(),
-                    response_content: response.response_content,
+                    response_content: response.message.content,
                     usage: response
                         .usage
                         .as_ref()

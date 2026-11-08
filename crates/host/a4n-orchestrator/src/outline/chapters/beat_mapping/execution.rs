@@ -68,15 +68,16 @@ impl OrchestratorContext {
                 &prepared,
             )?
         } else {
-            let response =
-                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
+            let (response, chapters) =
+                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key, |raw| {
+                    parse_chapter_outline_batch(raw, prepared.part.start_chapter, prepared.count)
+                })
+                .await?;
             let content = response.message.content;
             ensure_response_not_truncated(
                 response.finish_reason.as_deref(),
                 &format!("第 {} 部节拍映射", prepared.part.part_number),
             )?;
-            let chapters =
-                parse_chapter_outline_batch(&content, prepared.part.start_chapter, prepared.count)?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key,

@@ -84,7 +84,7 @@ impl OrchestratorContext {
                 current,
                 &stage.progress_message(&input.profile_name),
             )?;
-            let call = self
+            let mut call = self
                 .run_character_profile_sync_stage_call(
                     &input,
                     workflow_run_id,
@@ -93,13 +93,47 @@ impl OrchestratorContext {
                     prompt_renderer,
                 )
                 .await?;
-            let parsed = parse_character_profile_sync_stage_output(
-                stage,
-                &call.response_content,
-                &input,
-                &mut outputs,
-            )
-            .map_err(AppError::LlmError)
+            let parsed = if call.restored_parsed_output.is_some() {
+                parse_character_profile_sync_stage_output(
+                    stage,
+                    &call.response_content,
+                    &input,
+                    &mut outputs,
+                )
+                .map_err(AppError::LlmError)
+            } else {
+                let initial = a4n_llm_provider_contract::provider::ChatResponse {
+                    message: a4n_llm_provider_contract::provider::ChatMessage::assistant(
+                        &call.response_content,
+                    ),
+                    usage: call
+                        .response_usage_json
+                        .clone()
+                        .map(serde_json::from_value)
+                        .transpose()?,
+                    finish_reason: call.response_finish_reason.clone(),
+                    reasoning_content: None,
+                };
+                self.validate_llm_response(
+                    &call.request,
+                    initial,
+                    stage.prompt_name(),
+                    None,
+                    |raw| {
+                        parse_character_profile_sync_stage_output(stage, raw, &input, &mut outputs)
+                            .map_err(AppError::LlmError)
+                    },
+                )
+                .await
+                .map(|(response, value)| {
+                    call.response_content = response.message.content;
+                    call.response_finish_reason = response.finish_reason;
+                    call.response_usage_json =
+                        response.usage.map(serde_json::to_value).transpose()?;
+                    Ok(value)
+                })
+                .and_then(|result| result)
+            }
             .and_then(|stage_value| {
                 if let Some(saved) = call.restored_parsed_output.as_ref() {
                     ensure_checkpoint_parsed_output_matches(

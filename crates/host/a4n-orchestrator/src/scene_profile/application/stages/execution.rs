@@ -28,7 +28,7 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
     step_key: String,
     step_order: i32,
     stage_progress: StructuredLlmProgress,
-    parse: impl FnOnce(&Value) -> Result<T, String>,
+    parse: impl Fn(&Value) -> Result<T, String>,
 ) -> Result<(Vec<Value>, T), AppError> {
     let root_field = stage_progress.spec.root_array_key;
     if let Some(trace_context) = request.trace_context.as_mut() {
@@ -65,14 +65,33 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
             None,
         ),
     };
-    let (output, parsed) =
-        parse_scene_stage_response(&response.response_content, prompt_name, root_field, parse)
-            .map_err(|error| {
-                AppError::LlmError(format!("{prompt_name} 输出不符合合同：{error}"))
-            })?;
+    let validate = |raw: &str| {
+        parse_scene_stage_response(raw, prompt_name, root_field, &parse)
+            .map_err(|error| AppError::LlmError(format!("{prompt_name} 输出不符合合同：{error}")))
+    };
+    let (response, (output, parsed)) = if stored_output.is_some() {
+        let parsed = validate(&response.response_content)?;
+        (
+            crate::structured_llm::structured_chat_response(response),
+            parsed,
+        )
+    } else {
+        context
+            .state
+            .validate_llm_response(
+                request,
+                crate::structured_llm::structured_chat_response(response),
+                prompt_name,
+                context
+                    .progress
+                    .and_then(super::super::progress::SceneProfileSyncProgress::cancel_token),
+                validate,
+            )
+            .await?
+    };
     let parsed_output = json!({root_field: &output});
     let restored = stored_output.is_some();
-    let response_length = response.response_content.chars().count();
+    let response_length = response.message.content.chars().count();
     if let Some(stored_output) = stored_output {
         ensure_checkpoint_parsed_output_matches(
             &stored_output,
@@ -89,7 +108,7 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
                 input_fingerprint_json: fingerprint,
                 checkpoint: CompletedLlmCallCheckpoint {
                     parsed_output,
-                    response_content: response.response_content,
+                    response_content: response.message.content,
                     usage: response.usage.map(serde_json::to_value).transpose()?,
                     finish_reason: response.finish_reason,
                     artifacts_json: None,

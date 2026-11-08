@@ -1,0 +1,49 @@
+name: Model call contracts
+
+on:
+  push:
+    branches: [debug, master, main]
+    paths: ["crates/**", "prompts/**", "scripts/**", ".github/workflows/model-contracts.yml", "Cargo.*"]
+  pull_request:
+    paths: ["crates/**", "prompts/**", "scripts/**", ".github/workflows/model-contracts.yml", "Cargo.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  model-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
+      - name: Install native test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+      - name: Check every registered model call boundary
+        run: python3 scripts/tests/check_test_catalog.py
+      - name: Test fixtures, budget limits and inventory mutations
+        run: |
+          python3 -m unittest discover -s scripts/tests -p 'test_mock_openai_provider.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_model_call_coverage.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_live_model_eval.py'
+      - name: Compile model contract and correction tests
+        run: ./scripts/cargo.sh test --locked -p a4n-domain -p a4n-llm-provider-contract -p a4n-llm-http -p a4n-orchestrator --lib --no-run
+      - name: Verify contracts and bounded correction without live-model charges
+        run: |
+          timeout 60s ./scripts/cargo.sh test --locked -p a4n-domain --lib json_contract
+          timeout 60s ./scripts/cargo.sh test --locked -p a4n-llm-provider-contract --lib
+          timeout 60s ./scripts/cargo.sh test --locked -p a4n-llm-http --lib
+          timeout 60s ./scripts/cargo.sh test --locked -p a4n-orchestrator --lib structured_llm::recovery
+          timeout 60s ./scripts/cargo.sh test --locked -p a4n-orchestrator --lib generation::stream::tests
+      - name: Check formatting and whitespace
+        run: |
+          cargo fmt --all -- --check
+          git diff --check

@@ -47,13 +47,13 @@ impl OrchestratorContext {
         if let Some(trace) = request.trace_context.as_mut() {
             trace.input_fingerprint_sha256 = Some(fingerprint_sha256);
         }
-        let raw = self
+        let mut raw = self
             .run_or_restore_raw_shooting_call(
                 workflow_run_id,
                 step_key,
                 step_order,
                 &fingerprint_json,
-                request,
+                request.clone(),
                 label,
                 structured_progress,
                 progress_total,
@@ -64,28 +64,51 @@ impl OrchestratorContext {
             .await?;
         let restored = raw.restored;
         let response_only_checkpoint = raw.response_only_checkpoint;
-        let parsed = parse_shooting_script_output::<T>(
-            &raw.response_content,
-            label,
-            step_key,
-            raw.upgraded_contract,
-            source_markers,
-        );
-        let output = parsed.and_then(|output| {
-            validate_output(&output)?;
-            if let Some(saved) = raw
-                .restored_parsed_output
-                .as_ref()
-                .filter(|_| !response_only_checkpoint)
-            {
-                ensure_checkpoint_parsed_output_matches(
-                    saved,
-                    &serde_json::to_value(&output)?,
-                    &format!("分镜脚本 {step_key}"),
-                )?;
-            }
-            Ok(output)
-        });
+        let parse = |content: &str| {
+            parse_shooting_script_output::<T>(
+                content,
+                label,
+                step_key,
+                raw.upgraded_contract,
+                source_markers,
+            )
+            .and_then(|output| {
+                validate_output(&output)?;
+                if let Some(saved) = raw
+                    .restored_parsed_output
+                    .as_ref()
+                    .filter(|_| !response_only_checkpoint)
+                {
+                    ensure_checkpoint_parsed_output_matches(
+                        saved,
+                        &serde_json::to_value(&output)?,
+                        &format!("分镜脚本 {step_key}"),
+                    )?;
+                }
+                Ok(output)
+            })
+        };
+        let output = if raw.restored {
+            parse(&raw.response_content)
+        } else {
+            let initial = a4n_llm_provider_contract::provider::ChatResponse {
+                message: a4n_llm_provider_contract::provider::ChatMessage::assistant(
+                    &raw.response_content,
+                ),
+                usage: raw.usage.clone().map(serde_json::from_value).transpose()?,
+                finish_reason: raw.finish_reason.clone(),
+                reasoning_content: None,
+            };
+            self.validate_llm_response(&request, initial, label, Some(cancel_token), parse)
+                .await
+                .map(|(response, output)| {
+                    raw.response_content = response.message.content;
+                    raw.usage = response.usage.map(serde_json::to_value).transpose()?;
+                    raw.finish_reason = response.finish_reason;
+                    Ok(output)
+                })
+                .and_then(|result| result)
+        };
         let output = self
             .validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
             .await?;

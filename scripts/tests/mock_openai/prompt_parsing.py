@@ -18,7 +18,15 @@ def json_task_payload(combined: str) -> dict[str, Any]:
     marker_index = combined.rfind(marker)
     if marker_index < 0:
         raise ValueError("prompt contains no JSON task payload")
-    payload = json.loads(combined[marker_index + len(marker) :])
+    text = combined[marker_index + len(marker) :].lstrip()
+    decoder = json.JSONDecoder()
+    payload, consumed = decoder.raw_decode(text)
+    remainder = text[consumed:].strip()
+    while remainder:
+        feedback, consumed = decoder.raw_decode(remainder)
+        if not isinstance(feedback, dict) or feedback.get("kind") != "model_output_correction":
+            raise ValueError("unexpected content after JSON task payload")
+        remainder = remainder[consumed:].strip()
     if not isinstance(payload, dict):
         raise ValueError("JSON task payload must be an object")
     return payload

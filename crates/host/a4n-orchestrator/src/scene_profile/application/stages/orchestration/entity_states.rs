@@ -36,7 +36,15 @@ pub(super) async fn run(
         json!({
             "format": "json_object",
             "required_root_field": "entity_states",
-            "field_types": { "source_anchor_ids": positive_i64_array_schema(true) },
+            "field_types": {
+                "scene_ref":{"type":"string","minLength":1}, "occurrence_ref":{"type":"string","minLength":1},
+                "entity_type":{"type":"string","enum":crate::scene_profile::SCENE_ENTITY_TYPES},
+                "entity_id":{"anyOf":[a4n_domain::json_contract::positive_i64_schema(),{"type":"null"}]},
+                "state_key":{"type":"string","enum":crate::scene_profile::SCENE_ENTITY_STATE_KEYS},
+                "state_before":{"type":"object"}, "state_after":{"type":"object"},
+                "position_description":{"type":["string","null"]}, "action_description":{"type":"string","minLength":1},
+                "source_anchor_ids": positive_i64_array_schema(true)
+            },
             "strict_rules": [
                 "只返回 entity_states 数组，不要输出 scenes、occurrences 或 transitions",
                 "scene_ref 必须来自 input.previous_stages.scenes[].scene_ref",

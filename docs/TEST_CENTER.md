@@ -23,6 +23,8 @@
 
 运行 `python3 scripts/tests/check_test_catalog.py` 检查场景 ID、handler、测试矩阵 profile 和前端 npm script 引用。
 
+该门禁也检查聊天模型调用的执行器、恢复策略和功能套件登记。运行断言与真实模型业务评测的边界及入口见 [模型调用可靠性](model-call-reliability.zh.md)；登记检查通过不表示运行覆盖率或真实模型质量达标。
+
 ## 测试层职责
 
 - 测试中心：管理员手动触发的真实项目功能场景，以及测试矩阵中经过筛选、归类的 Rust、前端、Python、浏览器、创作端到端和 Tauri 功能 suite。

@@ -11,7 +11,7 @@ use crate::generation::{
     checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
     events::{GenerationEventPublisher, GenerationTaskSession},
     generation_finish_reason_from_text, generation_finish_reason_text,
-    stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation},
+    stream::{LlmGenerationCheckpoint, LlmGenerationRequest},
 };
 use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 
@@ -100,7 +100,7 @@ pub(super) async fn execute_blueprint_refine_call(
         });
     }
 
-    let output = execute_llm_generation(
+    let (output, parsed) = crate::generation::stream::execute_validated_llm_generation(
         context.llm_backend(),
         publisher,
         LlmGenerationRequest {
@@ -119,6 +119,8 @@ pub(super) async fn execute_blueprint_refine_call(
             }),
             usage_base: None,
         },
+        "蓝图优化",
+        super::super::super::json::parse_blueprint_optimization_json,
     )
     .await
     .map_err(|error| {
@@ -135,7 +137,6 @@ pub(super) async fn execute_blueprint_refine_call(
         .map(serde_json::to_value)
         .transpose()?;
     let finish_reason_text = generation_finish_reason_text(output.finish_reason);
-    let parsed = super::super::super::json::parse_blueprint_optimization_json(&response_content)?;
     let optimization_patch = parsed.raw.clone();
     context
         .save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {

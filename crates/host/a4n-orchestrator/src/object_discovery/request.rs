@@ -76,7 +76,15 @@ pub(super) async fn build_object_discovery_request(
         request
             .with_prompt_assembly_key("object_discovery::request::build_object_discovery_request")
     })
-    .map_err(AppError::InvalidArgument)
+    .map_err(AppError::InvalidArgument)?
+    .with_json_schema_response_format(
+        OBJECT_DISCOVERY_KIND,
+        a4n_domain::json_contract::array_output_contract_schema(
+            &object_discovery_payload(json!({}))["output_contract"],
+        )
+        .map_err(AppError::InvalidArgument)?,
+        false,
+    )
 }
 
 pub(super) fn build_object_discovery_manifest_user_prompt() -> Result<String, AppError> {
@@ -98,10 +106,20 @@ fn object_discovery_payload(input: Value) -> Value {
             "format": "json_object",
             "required_root_field": "objects",
             "object_scope": "返回本次输入章节中明确出现且可作为视觉素材复用的物体。已有物体也可以返回，后端会更新而非重复创建。",
-            "object_type_values": ["prop", "tool", "weapon", "token", "vehicle", "clothing", "location_object", "environment_object", "other"],
-            "importance_values": ["primary", "secondary", "minor"],
+            "object_type_values": a4n_domain::object_profile::OBJECT_TYPES,
+            "importance_values": a4n_domain::profile_text::PROFILE_IMPORTANCE_VALUES,
             "object_fields": ["name", "aliases", "object_type", "importance", "visual_description", "material_and_state", "story_usage", "visual_usage", "generation_usage", "location_context", "evidence_anchor_ids"],
             "field_types": {
+                "name": {"type":"string","minLength":1},
+                "aliases": {"type":"array","items":{"type":"string"}},
+                "object_type": {"type":"string","enum":a4n_domain::object_profile::OBJECT_TYPES},
+                "importance": {"type":"string","enum":a4n_domain::profile_text::PROFILE_IMPORTANCE_VALUES},
+                "visual_description": {"type":"string","minLength":1},
+                "material_and_state": {"type":"string","minLength":1},
+                "story_usage": {"type":"string","minLength":1},
+                "visual_usage": {"type":"string","minLength":1},
+                "generation_usage": {"type":"string","minLength":1},
+                "location_context": {"type":"string","minLength":1},
                 "evidence_anchor_ids": positive_i64_array_schema(true),
             },
             "object_type_rules": [

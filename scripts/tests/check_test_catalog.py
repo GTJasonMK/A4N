@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from run_test_matrix import MatrixError, load_matrix, resolve_profile as resolve_matrix_profile
+from check_model_call_coverage import inspect as inspect_model_calls
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -121,6 +122,7 @@ def build_report() -> dict[str, Any]:
     scripts = check_package_scripts()
     return {
         "scenario_count": len(scenarios),
+        "model_call_inventory": inspect_model_calls(),
         "scenario_ids": scenarios,
         "matrix": matrix,
         "matrix_npm_scripts": scripts,

@@ -274,15 +274,25 @@ impl OrchestratorContext {
                         progress.and_then(|progress| progress.cancel_token),
                     )
                 })?;
-            let response_content = response.response_content;
             report_object_discovery_progress(progress, 80, "模型已返回，正在校验物体发现结果")?;
-            let (parsed_drafts, parsed_output) = parse_and_validate_object_discovery_output(
-                &response_content,
-                &analyzed_chapters,
-                chapters,
-                text_anchors,
-            )
-            .map_err(AppError::LlmError)?;
+            let (response, (parsed_drafts, parsed_output)) = self
+                .validate_llm_response(
+                    &llm_request,
+                    crate::structured_llm::structured_chat_response(response),
+                    OBJECT_DISCOVERY_CALL_KEY,
+                    progress.and_then(|progress| progress.cancel_token),
+                    |raw| {
+                        parse_and_validate_object_discovery_output(
+                            raw,
+                            &analyzed_chapters,
+                            chapters,
+                            text_anchors,
+                        )
+                        .map_err(AppError::LlmError)
+                    },
+                )
+                .await?;
+            let response_content = response.message.content;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key: OBJECT_DISCOVERY_CALL_KEY.to_string(),

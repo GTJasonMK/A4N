@@ -34,7 +34,15 @@ pub(super) async fn run(
         json!({
             "format": "json_object",
             "required_root_field": "occurrences",
-            "field_types": { "source_anchor_ids": positive_i64_array_schema(true) },
+            "field_types": {
+                "occurrence_ref":{"type":"string","minLength":1}, "scene_ref":{"type":"string","minLength":1},
+                "timeline_position":{"type":["string","null"]}, "summary":{"type":"string","minLength":1},
+                "mood":{"type":["string","null"]}, "weather_or_lighting":{"type":["string","null"]},
+                "characters":{"type":"array","items":{"type":"object","properties":{"profile_id":a4n_domain::json_contract::positive_i64_schema(),"role":{"type":"string","minLength":1}},"required":["profile_id","role"]}},
+                "objects":{"type":"array","items":{"type":"object","properties":{"object_profile_id":a4n_domain::json_contract::positive_i64_schema(),"role":{"type":"string","minLength":1}},"required":["object_profile_id","role"]}},
+                "key_events":{"type":"array","items":{"type":"string"}}, "entry_state":{"type":"object"}, "exit_state":{"type":"object"},
+                "source_anchor_ids": positive_i64_array_schema(true)
+            },
             "strict_rules": [
                 "只返回 occurrences 数组，不要输出 scenes、transitions 或 entity_states",
                 "scene_ref 必须来自 input.previous_stages.scenes[].scene_ref",

@@ -34,7 +34,15 @@ pub(super) async fn run(
         json!({
             "format": "json_object",
             "required_root_field": "transitions",
-            "field_types": { "source_anchor_ids": positive_i64_array_schema(true) },
+            "field_types": {
+                "from_scene_ref":{"type":["string","null"]}, "to_scene_ref":{"type":"string","minLength":1},
+                "occurrence_ref":{"type":["string","null"]},
+                "movement_type":{"type":"string","enum":crate::scene_profile::SCENE_TRANSITION_MOVEMENT_TYPES},
+                "route_description":{"type":"string","minLength":1}, "time_cost":{"type":["string","null"]}, "distance_hint":{"type":["string","null"]},
+                "participants":{"type":"array","items":a4n_domain::json_contract::positive_i64_schema()},
+                "object_refs":{"type":"array","items":a4n_domain::json_contract::positive_i64_schema()},
+                "source_anchor_ids": positive_i64_array_schema(true)
+            },
             "strict_rules": [
                 "只返回 transitions 数组，不要输出 scenes、occurrences 或 entity_states",
                 SCENE_TRANSITION_REFERENCE_RULE,

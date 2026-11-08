@@ -39,6 +39,19 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_candidate
             "format": "json_object",
             "required_root_field": "scenes",
             "field_types": {
+                "scene_ref": {"type":"string","minLength":1},
+                "scene_profile_id": {"anyOf":[a4n_domain::json_contract::positive_i64_schema(),{"type":"null"}]},
+                "parent_scene_id": {"anyOf":[a4n_domain::json_contract::positive_i64_schema(),{"type":"null"}]},
+                "name": {"type":"string","minLength":1},
+                "aliases": {"type":"array","items":{"type":"string"}},
+                "scene_type": {"type":"string","enum":a4n_domain::scene_profile::SCENE_TYPES},
+                "importance": {"type":"string","enum":a4n_domain::profile_text::PROFILE_IMPORTANCE_VALUES},
+                "base_description": {"type":"string","minLength":1},
+                "visual_description": {"type":"string","minLength":1},
+                "spatial_layout": {"type":"string","minLength":1},
+                "atmosphere": {"type":"string","minLength":1},
+                "entry_points": {"type":"array","items":{}},
+                "rules": {"type":"array","items":{}},
                 "evidence_anchor_ids": positive_i64_array_schema(true),
             },
             "strict_rules": [
@@ -62,6 +75,8 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     previous_stages: Value,
     output_contract: Value,
 ) -> Result<ChatRequest, AppError> {
+    let response_schema = a4n_domain::json_contract::array_output_contract_schema(&output_contract)
+        .map_err(AppError::InvalidArgument)?;
     let stage_prompt = prompt_renderer
         .render_prompt_for_call(
             prompt_name,
@@ -130,7 +145,8 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
         },
     )
     .map(|request| request.with_prompt_assembly_key(prompt_name))
-    .map_err(AppError::InvalidArgument)
+    .map_err(AppError::InvalidArgument)?
+    .with_json_schema_response_format(prompt_name, response_schema, false)
 }
 
 fn scene_profile_stage_stable_context(

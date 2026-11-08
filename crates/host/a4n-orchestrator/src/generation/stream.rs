@@ -21,7 +21,7 @@ use super::{
         GenerationEventPublisher, GenerationSessionError, GenerationTaskSession,
         SessionGenerationEventPublisher,
     },
-    generation_finish_reason_text, generation_progress,
+    generation_finish_reason_from_text, generation_finish_reason_text, generation_progress,
 };
 use crate::OrchestratorContext;
 
@@ -128,17 +128,18 @@ pub(crate) async fn execute_llm_chat_response_with_sink(
     })
 }
 
-pub(crate) async fn execute_task_llm_chat_response(
+pub(crate) async fn execute_task_llm_chat_response<T>(
     context: &OrchestratorContext,
     stream: &TaskLlmStreamContext,
     request: ChatRequest,
     call_key: &str,
     step_key: &str,
-) -> Result<ChatResponse, AppError> {
+    validate: impl FnMut(&str) -> Result<T, AppError>,
+) -> Result<(ChatResponse, T), AppError> {
     if stream.cancellation.is_cancelled() {
         return Err(AppError::Cancelled);
     }
-    let output = execute_llm_generation(
+    let (output, parsed) = execute_validated_llm_generation(
         context.llm_backend(),
         &stream.publisher,
         LlmGenerationRequest {
@@ -157,20 +158,25 @@ pub(crate) async fn execute_task_llm_chat_response(
             }),
             usage_base: stream.session.snapshot().usage,
         },
+        call_key,
+        validate,
     )
     .await
     .map_err(map_generation_error_to_app)?;
-    Ok(ChatResponse {
-        message: ChatMessage::assistant(output.content),
-        usage: match output.usage.as_ref() {
-            Some(usage) => {
-                Some(provider_usage(usage).map_err(|error| AppError::LlmError(error.message))?)
-            }
-            None => None,
+    Ok((
+        ChatResponse {
+            message: ChatMessage::assistant(output.content),
+            usage: match output.usage.as_ref() {
+                Some(usage) => {
+                    Some(provider_usage(usage).map_err(|error| AppError::LlmError(error.message))?)
+                }
+                None => None,
+            },
+            finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+            reasoning_content: None,
         },
-        finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
-        reasoning_content: None,
-    })
+        parsed,
+    ))
 }
 
 fn map_generation_error_to_app(error: GenerationError) -> AppError {
@@ -348,6 +354,142 @@ pub(crate) async fn execute_llm_generation(
             }
         }
     }
+}
+
+struct ValidatedOutputPublisher<'a> {
+    inner: &'a dyn GenerationEventPublisher,
+    adopted_stream: &'a str,
+}
+
+#[async_trait]
+impl GenerationEventPublisher for ValidatedOutputPublisher<'_> {
+    async fn progress(&self, event: ProgressEvent) -> Result<(), GenerationSessionError> {
+        self.inner.progress(event).await
+    }
+
+    async fn text_delta(&self, stream_id: &str, delta: &str) -> Result<(), GenerationSessionError> {
+        if stream_id != self.adopted_stream {
+            return self.inner.text_delta(stream_id, delta).await;
+        }
+        self.inner
+            .progress(generation_progress(
+                "provider_read",
+                ProgressPhaseKind::ModelStream,
+                "模型正在输出，完整结果校验通过后采用",
+            ))
+            .await
+    }
+
+    async fn usage(&self, _event: UsageEvent) -> Result<(), GenerationSessionError> {
+        // Provider calls keep their own billing records. Publish an adopted
+        // logical-call meter only after all attempt meters can be combined.
+        Ok(())
+    }
+}
+
+pub(crate) async fn execute_validated_llm_generation<T>(
+    llm: &dyn LlmProvider,
+    publisher: &dyn GenerationEventPublisher,
+    mut input: LlmGenerationRequest<'_>,
+    context: &str,
+    validate: impl FnMut(&str) -> Result<T, AppError>,
+) -> Result<(LlmGenerationOutput, T), GenerationError> {
+    let request = input.request.clone();
+    let cancellation = input.cancellation.clone();
+    let stream_id = input.stream_id.clone();
+    let base = input.usage_base.take();
+    let buffered = ValidatedOutputPublisher {
+        inner: publisher,
+        adopted_stream: &stream_id,
+    };
+    let initial = execute_llm_generation(llm, &buffered, input).await?;
+    let initial = ChatResponse {
+        message: ChatMessage::assistant(initial.content),
+        usage: initial.usage.as_ref().map(provider_usage).transpose()?,
+        finish_reason: Some(generation_finish_reason_text(initial.finish_reason)),
+        reasoning_content: None,
+    };
+    let (response, parsed) = crate::structured_llm::correct_llm_response(
+        &request,
+        initial,
+        context,
+        Some(&cancellation),
+        validate,
+        |corrective_request| async {
+            let output = execute_llm_generation(
+                llm,
+                &buffered,
+                LlmGenerationRequest {
+                    request: corrective_request,
+                    stream_id: stream_id.clone(),
+                    cancellation: cancellation.clone(),
+                    // A rejected attempt must never overwrite a completed business checkpoint.
+                    checkpoint: None,
+                    usage_base: None,
+                },
+            )
+            .await
+            .map_err(map_generation_error_to_app)?;
+            Ok(ChatResponse {
+                message: ChatMessage::assistant(output.content),
+                usage: output
+                    .usage
+                    .as_ref()
+                    .map(provider_usage)
+                    .transpose()
+                    .map_err(map_generation_error_to_app)?,
+                finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+                reasoning_content: None,
+            })
+        },
+    )
+    .await
+    .map_err(|error| {
+        if matches!(error, AppError::Cancelled) {
+            cancelled_error()
+        } else {
+            public_error(
+                "generation_validation_failed",
+                &error.to_string(),
+                false,
+                "model_output_validation",
+            )
+        }
+    })?;
+    let content = response.message.content;
+    let usage = response.usage.map(generation_usage).transpose()?;
+    if let Some(usage) = usage.as_ref() {
+        publish_generation_usage(publisher, usage, base.as_ref()).await?;
+    }
+    // Publishing rejected attempts would break the adopted stream's hash.
+    // Progress/reasoning and provider traces retain diagnostics while collecting.
+    for delta in crate::generation::checkpoint::split_text_delta(&content) {
+        publisher
+            .text_delta(&stream_id, &delta)
+            .await
+            .map_err(session_error)?;
+    }
+    let finish_reason = response
+        .finish_reason
+        .as_deref()
+        .and_then(generation_finish_reason_from_text)
+        .ok_or_else(|| {
+            public_error(
+                "generation_validation_failed",
+                "纠正响应缺少有效结束原因",
+                false,
+                "model_output_validation",
+            )
+        })?;
+    Ok((
+        LlmGenerationOutput {
+            content_sha256: format!("{:x}", Sha256::digest(content.as_bytes())),
+            content,
+            usage,
+            finish_reason,
+        },
+        parsed,
+    ))
 }
 
 pub(crate) async fn publish_generation_usage(
@@ -714,6 +856,7 @@ mod tests {
         text: Mutex<Vec<String>>,
         reasoning: Mutex<Vec<String>>,
         usage: Mutex<Option<GenerationUsage>>,
+        streams: Mutex<std::collections::HashMap<String, String>>,
     }
 
     #[async_trait]
@@ -730,6 +873,12 @@ mod tests {
             stream_id: &str,
             delta: &str,
         ) -> Result<(), super::super::events::GenerationSessionError> {
+            self.streams
+                .lock()
+                .unwrap()
+                .entry(stream_id.to_string())
+                .or_default()
+                .push_str(delta);
             let target = if stream_id == REASONING_STREAM_ID {
                 &self.reasoning
             } else {
@@ -746,6 +895,153 @@ mod tests {
             *self.usage.lock().unwrap() = Some(event.usage);
             Ok(())
         }
+    }
+
+    #[tokio::test]
+    async fn validated_generation_keeps_rejected_attempts_out_of_the_adopted_stream() {
+        let provider =
+            a4n_test_support::llm::SequenceLlmProvider::new(vec![r#"{"id":"1"}"#, r#"{"id":1}"#]);
+        let publisher = RecordingPublisher::default();
+        let (output, id) = execute_validated_llm_generation(
+            &provider,
+            &publisher,
+            LlmGenerationRequest {
+                request: ChatRequest::system_user("JSON integer id", "task", None, Some(100)),
+                stream_id: "raw_json".into(),
+                cancellation: CancellationToken::new(),
+                checkpoint: None,
+                usage_base: None,
+            },
+            "test",
+            |raw| {
+                let value: serde_json::Value = serde_json::from_str(raw)?;
+                value["id"]
+                    .as_i64()
+                    .ok_or_else(|| AppError::LlmError("id must be integer".into()))
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(id, 1);
+        let streams = publisher.streams.lock().unwrap();
+        assert_eq!(
+            streams.len(),
+            1,
+            "rejected content must not become a public text stream"
+        );
+        assert_eq!(streams["raw_json"], output.content);
+        assert_eq!(
+            output.content_sha256,
+            format!("{:x}", Sha256::digest(streams["raw_json"].as_bytes()))
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_initial_usage_does_not_reset_previous_task_usage_during_correction() {
+        struct UsageOnCorrection(bool);
+        #[async_trait]
+        impl LlmProvider for UsageOnCorrection {
+            async fn chat_stream(
+                &self,
+                request: ChatRequest,
+            ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError>
+            {
+                let corrected = request
+                    .messages
+                    .iter()
+                    .any(|message| message.content.contains("model_output_correction"));
+                FakeProvider(vec![ChatChunk {
+                    content: Some(if corrected { r#"{"id":1}"# } else { "invalid" }.to_string()),
+                    reasoning_content: None,
+                    tool_calls: None,
+                    finish_reason: Some("stop".into()),
+                    index: 0,
+                    usage: (corrected || self.0).then_some(UsageInfo {
+                        prompt_tokens: 3,
+                        completion_tokens: 4,
+                        total_tokens: 7,
+                        prompt_cache_hit_tokens: None,
+                        prompt_cache_miss_tokens: None,
+                        prompt_cache_write_tokens: None,
+                    }),
+                }])
+                .chat_stream(request)
+                .await
+            }
+            fn model_name(&self) -> &str {
+                "usage-on-correction"
+            }
+            fn capabilities(&self) -> ModelCapabilities {
+                FakeProvider(Vec::new()).capabilities()
+            }
+        }
+        let base = GenerationUsage {
+            prompt_tokens: 60,
+            completion_tokens: 40,
+            total_tokens: 100,
+            prompt_cache_hit_tokens: None,
+            prompt_cache_miss_tokens: None,
+            prompt_cache_write_tokens: None,
+        };
+        let publisher = RecordingPublisher::default();
+        *publisher.usage.lock().unwrap() = Some(base.clone());
+        let (output, _) = execute_validated_llm_generation(
+            &UsageOnCorrection(false),
+            &publisher,
+            LlmGenerationRequest {
+                request: ChatRequest::system_user("JSON", "task", None, Some(100)),
+                stream_id: "raw_json".into(),
+                cancellation: CancellationToken::new(),
+                checkpoint: None,
+                usage_base: Some(base.clone()),
+            },
+            "test",
+            |raw| serde_json::from_str::<serde_json::Value>(raw).map_err(AppError::Serialization),
+        )
+        .await
+        .unwrap();
+        assert!(
+            output.usage.is_none(),
+            "one missing call meter must not become a supposedly complete total"
+        );
+        assert_eq!(
+            publisher
+                .usage
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .total_tokens,
+            100
+        );
+        let publisher = RecordingPublisher::default();
+        *publisher.usage.lock().unwrap() = Some(base.clone());
+        let (output, _) = execute_validated_llm_generation(
+            &UsageOnCorrection(true),
+            &publisher,
+            LlmGenerationRequest {
+                request: ChatRequest::system_user("JSON", "task", None, Some(100)),
+                stream_id: "raw_json".into(),
+                cancellation: CancellationToken::new(),
+                checkpoint: None,
+                usage_base: Some(base),
+            },
+            "test",
+            |raw| serde_json::from_str::<serde_json::Value>(raw).map_err(AppError::Serialization),
+        )
+        .await
+        .unwrap();
+        assert_eq!(output.usage.unwrap().total_tokens, 14);
+        assert_eq!(
+            publisher
+                .usage
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .total_tokens,
+            114
+        );
     }
 
     #[tokio::test]

@@ -79,7 +79,15 @@ pub(super) async fn build_character_discovery_request(
             "character::discovery::request::build_character_discovery_request",
         )
     })
-    .map_err(AppError::InvalidArgument)
+    .map_err(AppError::InvalidArgument)?
+    .with_json_schema_response_format(
+        CHARACTER_DISCOVERY_KIND,
+        a4n_domain::json_contract::array_output_contract_schema(
+            &character_discovery_payload(json!({}))["output_contract"],
+        )
+        .map_err(AppError::InvalidArgument)?,
+        false,
+    )
 }
 
 pub(super) fn build_character_discovery_manifest_user_prompt() -> Result<String, AppError> {
@@ -121,6 +129,13 @@ fn character_discovery_payload(input: Value) -> Value {
             "character_scope": "返回本次输入章节中识别出的角色。已有角色也可以返回，后端会归入 existing，不会重复创建。",
             "characters": "array",
             "field_types": {
+                "name": {"type":"string","minLength":1},
+                "aliases": {"type":"array","items":{"type":"string"}},
+                "importance": {"type":"string","enum":a4n_domain::profile_text::PROFILE_IMPORTANCE_VALUES},
+                "role": {"type":"string","minLength":1},
+                "explicit_attributes": {"type":"object"},
+                "implicit_attributes": {"type":"object"},
+                "social_attributes": {"type":"object"},
                 "evidence_anchor_id": positive_i64_schema(),
             },
             "character_required_fields": [
@@ -131,7 +146,7 @@ fn character_discovery_payload(input: Value) -> Value {
                 "appearance", "background", "personality", "first_seen_chapter",
                 "latest_seen_chapter", "evidence"
             ],
-            "importance_values": ["primary", "secondary", "minor"],
+            "importance_values": a4n_domain::profile_text::PROFILE_IMPORTANCE_VALUES,
             "chapter_scope": "后端会根据 evidence_anchor_id 所在章节推导 first_seen_chapter 和 latest_seen_chapter；不要输出这两个字段",
             "strict_rules": [
                 "只返回可解析的完整 JSON 对象，不要 Markdown 或解释文字",

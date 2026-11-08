@@ -5,7 +5,8 @@ mod validation;
 pub use evidence::merge_profile_evidence_json;
 pub use normalization::{normalize_aliases, normalize_required_text_set, normalize_text_set};
 pub use validation::{
-    ProfileTextError, normalize_importance_value, required_text, validate_importance,
+    PROFILE_IMPORTANCE_VALUES, ProfileTextError, normalize_importance_value, required_text,
+    validate_importance,
 };
 
 #[cfg(test)]

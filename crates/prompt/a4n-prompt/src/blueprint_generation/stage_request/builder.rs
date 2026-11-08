@@ -50,7 +50,12 @@ pub async fn build_blueprint_stage_request(
             .with_prompt_assembly_key(
                 "a4n_prompt::blueprint_generation::build_blueprint_stage_request",
             )
-            .with_json_response_format()
+            .with_json_schema_response_format(
+                format!("blueprint_{stage_key}"),
+                a4n_domain::json_contract::json_schema_from_output_shape(&output_schema)
+                    .map_err(AppError::InvalidArgument)?,
+                false,
+            )?
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

@@ -38,11 +38,11 @@ impl OrchestratorContext {
         &self,
         input: MangaRenderTraceInput<'_>,
         source_markers: &SourceMarkerMap,
-        validate: F,
+        mut validate: F,
     ) -> Result<(MangaPromptGenerationTrace, T), AppError>
     where
         T: serde::Serialize,
-        F: FnOnce(&Value) -> Result<T, AppError>,
+        F: FnMut(&Value) -> Result<T, AppError>,
     {
         self.render_and_validate_manga_call(input, |value| {
             let value = source_markers.decode_output(value)?;
@@ -54,11 +54,11 @@ impl OrchestratorContext {
     pub(in crate::manga) async fn render_and_validate_manga_call<T, F>(
         &self,
         input: MangaRenderTraceInput<'_>,
-        validate: F,
+        mut validate: F,
     ) -> Result<(MangaPromptGenerationTrace, T), AppError>
     where
         T: serde::Serialize,
-        F: FnOnce(&Value) -> Result<T, AppError>,
+        F: FnMut(&Value) -> Result<T, AppError>,
     {
         let MangaRenderTraceInput {
             prompt_renderer,
@@ -112,7 +112,11 @@ impl OrchestratorContext {
                 let stream_sink =
                     stream_reporter.map(|_| &scoped_reporter as &(dyn Fn(&str) + Send + Sync));
                 let response = self
-                    .stream_complete_llm_with_sink(prepared.request, stream_sink, cancel_token)
+                    .stream_complete_llm_with_sink(
+                        prepared.request.clone(),
+                        stream_sink,
+                        cancel_token,
+                    )
                     .await?;
                 if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                     return Err(AppError::InvalidArgument(format!(
@@ -126,7 +130,7 @@ impl OrchestratorContext {
                     None,
                 )
             };
-        let trace = MangaPromptGenerationTrace {
+        let mut trace = MangaPromptGenerationTrace {
             prompt_name: prompt_name.to_string(),
             request_json: prepared.request_json,
             messages_json: prepared.messages_json,
@@ -138,8 +142,8 @@ impl OrchestratorContext {
             usage,
             finish_reason,
         };
-        let parsed = parse_strict_json_response::<Value>(&trace.response_text, &trace.prompt_name)
-            .and_then(|value| {
+        let mut parse = |raw: &str| {
+            parse_strict_json_response::<Value>(raw, prompt_name).and_then(|value| {
                 let output = validate(&value)?;
                 let parsed_output = serde_json::to_value(&output)?;
                 if let Some(saved) = restored_parsed_output.as_ref() {
@@ -150,7 +154,28 @@ impl OrchestratorContext {
                     )?;
                 }
                 Ok((output, parsed_output))
-            });
+            })
+        };
+        let parsed = if restored_parsed_output.is_some() {
+            parse(&trace.response_text)
+        } else {
+            let initial = a4n_llm_provider_contract::provider::ChatResponse {
+                message: a4n_llm_provider_contract::provider::ChatMessage::assistant(
+                    &trace.response_text,
+                ),
+                usage: trace.usage.clone(),
+                finish_reason: trace.finish_reason.clone(),
+                reasoning_content: None,
+            };
+            self.validate_llm_response(&prepared.request, initial, prompt_name, cancel_token, parse)
+                .await
+                .map(|(response, parsed)| {
+                    trace.response_text = response.message.content;
+                    trace.usage = response.usage;
+                    trace.finish_reason = response.finish_reason;
+                    parsed
+                })
+        };
         let (output, parsed_output) = if restored_parsed_output.is_some() {
             self.validate_llm_call_output(
                 trace.workflow_run_id,

@@ -34,7 +34,7 @@ where
             context_pack_refs_json: None,
         });
     let response = service
-        .stream_complete_llm_with_sink(request, stream_reporter, input.cancel_token)
+        .stream_complete_llm_with_sink(request.clone(), stream_reporter, input.cancel_token)
         .await?;
     if service
         .workflow_run_status_record_by_id(input.workflow_run_id)
@@ -50,8 +50,16 @@ where
             operation: format!("执行 {} 的 {} 阶段", input.workflow, input.step_key),
         });
     }
+    let (response, parsed_output) = service
+        .validate_llm_response(
+            &request,
+            response,
+            input.prompt_name,
+            input.cancel_token,
+            |raw| validate(parse_strict_json_response(raw, input.prompt_name)?),
+        )
+        .await?;
     let raw_output = response.message.content;
-    let parsed_output = validate(parse_strict_json_response(&raw_output, input.prompt_name)?)?;
     let parsed_json = serde_json::to_value(&parsed_output)?;
     let usage_json = response
         .usage

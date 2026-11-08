@@ -78,12 +78,19 @@ pub(crate) fn request_body(
         body.insert("temperature".into(), json!(value));
     }
     if let Some(format) = &request.response_format {
-        if format.r#type != "json_object" {
-            return Err(AppError::InvalidArgument(
-                "Responses 请求只支持 json_object 格式".into(),
-            ));
-        }
-        body.insert("text".into(), json!({"format": {"type": "json_object"}}));
+        let output_format = match (&*format.r#type, &format.json_schema) {
+            ("json_object", None) => json!({"type": "json_object"}),
+            ("json_schema", Some(schema)) => json!({
+                "type": "json_schema", "name": schema.name,
+                "schema": schema.schema, "strict": schema.strict,
+            }),
+            _ => {
+                return Err(AppError::InvalidArgument(
+                    "Responses 输出格式与 schema 不一致".into(),
+                ));
+            }
+        };
+        body.insert("text".into(), json!({"format": output_format}));
     }
     apply_openai_cache_options(request, &mut body)?;
     if let Some(tools) = &request.tools {
