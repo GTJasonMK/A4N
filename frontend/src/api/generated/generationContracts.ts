@@ -516,7 +516,11 @@ export interface InspirationUiControl {
 export interface InspirationOption {
   description: string;
   id: string;
-  key_elements: string[];
+  /**
+   * @minItems 2
+   * @maxItems 3
+   */
+  key_elements: [string, string] | [string, string, string];
   label: string;
 }
 export interface GenerationTaskSnapshot {

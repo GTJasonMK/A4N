@@ -2603,13 +2603,13 @@ export interface MangaChapterComicSynthesisV1 {
 }
 
 export interface MangaPreprocessingV3 {
-  characters: unknown;
+  characters: Record<string, unknown>;
   comic_synthesis: MangaChapterComicSynthesisV1;
-  items: unknown;
-  schema_version: string;
-  source_events: unknown;
-  speech: unknown;
-  visual_anchors: unknown;
+  items: { items: { first_appearance_source_event_id: string }[] };
+  schema_version: "manga_preprocessing_v3";
+  source_events: { events: { description: string; event_id: string; participants: string[]; source_span_ids: string[]; type: string }[] };
+  speech: { dialogues: { source_event_id: string }[]; narrations: { source_event_id: string }[] };
+  visual_anchors: { scenes: { source_event_ids: string[] }[] };
 }
 
 export interface MangaPipelineArtifactRecord {
