@@ -211,7 +211,11 @@ async fn scene_stages_share_one_chapter_prefix_without_merging_stage_instruction
         SCENE_PROFILE_CANDIDATES_PROMPT,
         "识别场景",
         json!({}),
-        json!({"required_root_field": "scenes"}),
+        json!({
+            "required_root_field": "scenes",
+            "item_required_fields": ["scene_ref"],
+            "field_types": {"scene_ref": {"type": "string"}}
+        }),
     )
     .await
     .expect("scene request");
@@ -222,7 +226,14 @@ async fn scene_stages_share_one_chapter_prefix_without_merging_stage_instruction
         SCENE_OCCURRENCE_PROMPT,
         "抽取出场",
         json!({"scenes": []}),
-        json!({"required_root_field": "occurrences"}),
+        json!({
+            "required_root_field": "occurrences",
+            "item_required_fields": ["entry_state", "exit_state"],
+            "field_types": {
+                "entry_state": {"type": "object"},
+                "exit_state": {"type": "object"}
+            }
+        }),
     )
     .await
     .expect("occurrence request");
