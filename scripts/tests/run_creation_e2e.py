@@ -71,13 +71,19 @@ def source_fingerprint(root: Path = ROOT) -> str:
     paths += [path for path in (root / ".github").rglob("*") if path.is_file()]
     paths += [path for path in (root / "frontend/e2e").rglob("*") if path.is_file()]
     paths += [root / name for name in ("frontend/package.json", "frontend/package-lock.json")]
-    return files_fingerprint(root, paths)
+    return files_fingerprint(root, checkout_input_paths(root,paths))
 
 
 def frontend_fingerprint(root: Path = ROOT) -> str:
     paths = [path for directory in ("src", "public", "resources") for path in (root / "frontend" / directory).rglob("*") if path.is_file()]
     paths += [path for path in (root / "frontend").iterdir() if path.is_file() and path.suffix in {".json", ".ts", ".html"}]
-    return files_fingerprint(root, paths)
+    return files_fingerprint(root, checkout_input_paths(root,paths))
+
+
+def checkout_input_paths(root:Path,paths:list[Path])->list[Path]:
+    if not (root/".git").exists():return paths
+    names=set(subprocess.check_output(["git","ls-files","-z","--cached","--others","--exclude-standard"],cwd=root).decode().split("\0"))
+    return [path for path in paths if str(path.relative_to(root)) in names]
 
 
 def files_fingerprint(root: Path, paths: list[Path]) -> str:

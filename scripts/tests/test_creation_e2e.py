@@ -214,6 +214,19 @@ class CreationAcceptanceTest(unittest.TestCase):
         self.assertFalse((snapshot / ".env.production").exists())
         self.assertTrue((snapshot / ".env").is_file())
 
+    def test_checkout_fingerprint_uses_the_same_nonignored_files_as_the_snapshot(self):
+        root=self.scratch()
+        subprocess.run(["git","init","-q",str(root)],check=True)
+        (root/".gitignore").write_text("frontend/e2e/ui-page-audit/media/\nscripts/deploy/*.env\n")
+        for name in ("Cargo.toml","Cargo.lock","tools/onnxruntime/VERSION","scripts/cargo.sh","scripts/lib/common.sh","frontend/package.json","frontend/package-lock.json","scripts/tests/test_current.py"):
+            path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text("current input")
+        before=source_fingerprint(root)
+        for name in ("frontend/e2e/ui-page-audit/media/clip.mp4","scripts/deploy/deploy-cloud.env"):
+            path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text("ignored local runtime data")
+        self.assertEqual(source_fingerprint(root),before)
+        fixture=root/"scripts/tests/fixtures/model.png";fixture.parent.mkdir(parents=True);fixture.write_text("real fixture")
+        self.assertNotEqual(source_fingerprint(root),before)
+
     def test_ci_build_cache_stays_inside_checkout_and_uses_a_private_lock(self):
         target = ROOT / "target" / "creation-e2e"
         with patch.dict("os.environ", {"A4N_E2E_CARGO_TARGET_DIR": str(target)}):
