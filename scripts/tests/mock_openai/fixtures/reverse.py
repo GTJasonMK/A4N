@@ -170,12 +170,16 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
 def message_text(content: Any) -> str:
     if isinstance(content, str):
         return content
-    if not isinstance(content, list) or any(
-        not isinstance(part, dict) or not isinstance(part.get("text"), str)
-        for part in content
-    ):
+    if not isinstance(content, list):
         raise ValueError("text fixture requires text content blocks")
-    return "".join(part["text"] for part in content)
+    texts=[]
+    for part in content:
+        if not isinstance(part,dict):raise ValueError("invalid model content block")
+        if isinstance(part.get("text"),str):texts.append(part["text"])
+        elif part.get("type")=="image_url" and isinstance(part.get("image_url"),dict) and isinstance(part["image_url"].get("url"),str) and part["image_url"]["url"].strip():
+            continue
+        else:raise ValueError("text fixture requires text or complete image content blocks")
+    return "".join(texts)
 
 
 def cache_fixture_usage(protocol: str) -> dict[str, Any]:

@@ -178,6 +178,17 @@ class ModelMockBoundaryTests(unittest.TestCase):
         self.assertEqual(names,["search_project_context","read_project_context","read_project_context"])
         self.assertNotIn("tool_call",optimization_fixture({},messages))
 
+    def test_vision_http_uses_complete_image_blocks_and_rejects_bad_bytes(self):
+        body={"model":"a4n-virtual-text","messages":[
+            {"role":"system","content":"你是 A4N 的视觉质量检查器"},
+            {"role":"user","content":[{"type":"text","text":"检查图片构图"},{"type":"image_url","image_url":{"url":"data:image/png;base64,"+PNG_1X1_BASE64}}]},
+        ]}
+        self.assertIn("构图",self.post(body)["choices"][0]["message"]["content"])
+        body["messages"][1]["content"][1]["image_url"]["url"]="data:image/png;base64,***"
+        with self.assertRaises(HTTPError) as caught:self.post(body)
+        self.assertEqual(caught.exception.code,422)
+        caught.exception.close()
+
 
 if __name__ == "__main__":
     unittest.main()
