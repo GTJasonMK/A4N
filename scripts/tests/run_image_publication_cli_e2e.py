@@ -70,7 +70,7 @@ def main():
             report["checks"].append("project image list filters requested IDs and preserves summary order")
             report["checks"].append("identical batch items publish distinct images")
             inspection_start=len(provider_log_entries(args.provider_log))
-            inspection=call("read_image",{"projectId":project["id"],"imageIds":[first[0]["id"]],"chapterId":None,"instruction":"检查图片构图"})
+            inspection=checked(cli,["call","read_image","--args",json.dumps({"projectId":project["id"],"imageIds":[first[0]["id"]],"chapterId":None,"instruction":"检查图片构图"},ensure_ascii=False)],"read_image")[0]["data"]
             assert inspection["image_ids"]==[first[0]["id"]] and inspection["analysis"].strip(),inspection
             inspection_calls=provider_log_entries(args.provider_log)[inspection_start:]
             assert len(inspection_calls)==1 and "data:image/png;base64," in json.dumps(inspection_calls[0]["body"]),inspection_calls
