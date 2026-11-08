@@ -70,7 +70,7 @@ from mock_openai.fixtures.story import (
 )
 from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
 from mock_openai.protocol import UnhandledPromptError
-from mock_openai.contract_guard import split_output_contracts
+from mock_openai.contract_guard import fixture_prompt_parts, validate_business_request
 
 ANCHOR_OUTPUT_FIELDS = {
     "object_discovery": ("objects", "evidence_anchor_ids"),
@@ -88,8 +88,17 @@ ANCHOR_OUTPUT_FIELDS = {
 
 def normal_fixture_model(model: str) -> str:
     if model=="a4n-fact-feedback-invalid":return "a4n-fact-feedback"
-    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-")):return "a4n-virtual-text"
+    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-","a4n-scene-sync-")):return "a4n-virtual-text"
     return model
+
+
+def validated_fixture_response(body:dict,messages:list[dict]|None=None)->str:
+    fixture=body if messages is None else {"messages":messages,"model":body["model"]}
+    content=response_for(fixture)
+    normal_model=normal_fixture_model(str(fixture.get("model","")))
+    normal=content if normal_model==fixture.get("model") else response_for({**fixture,"model":normal_model})
+    validate_business_request(body,fixture.get("messages",[]),normal)
+    return content
 
 
 def anchor_fault_response(body, fault, expected_root=None):
@@ -209,11 +218,8 @@ def response_for(body: dict[str, Any]) -> str:
     messages = body.get("messages") or []
     # System contracts may follow the dynamic task on Chat Completions. Keep
     # instructions before task data when handing text to input-payload parsers.
-    systems=[split_output_contracts(message_text(message.get("content",""))) for message in messages if message.get("role")=="system"]
-    system="\n".join(text for text,_ in systems)
-    contracts=[contract for _,declared in systems for contract in declared]
+    system,combined,contracts=fixture_prompt_parts(messages)
     contract_name=contracts[0].get("name") if contracts else None
-    combined=system+"\n"+"\n".join(message_text(message.get("content","")) for message in messages if message.get("role")!="system")
     if "你是 A4N 的媒体文本创作助手" in system:
         if not any(message.get("role")=="user" and message_text(message.get("content","")).strip() for message in messages):
             raise ValueError("text asset draft requires the current instruction")

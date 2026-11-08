@@ -9,6 +9,7 @@ from mock_openai.fixtures.reverse import message_text
 from mock_openai.fixtures.entities import character_sync_profile_name
 from mock_openai.fixtures.story import chapter_body_response
 from mock_openai.prompt_parsing import json_task_payload
+from mock_openai.contract_guard import fixture_prompt_parts
 from run_cli_contract_e2e import (
     RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli,
     provider_log_entries, runtime_snapshot, secure_json,
@@ -63,7 +64,7 @@ def main():
                         continue
                     body = entry.get("body", {})
                     messages = body.get("messages", body.get("input", []))
-                    combined = "\n".join(message_text(item.get("content", "")) for item in messages)
+                    _,combined,_=fixture_prompt_parts(messages)
                     payload = json_task_payload(combined)
                     name = payload.get("task", {}).get("name")
                     if not name:
@@ -188,7 +189,7 @@ def main():
                 for entry in corrections:
                     body = entry["body"]
                     messages = body.get("messages", body.get("input", []))
-                    combined = "\n".join(message_text(item.get("content", "")) for item in messages)
+                    _,combined,_=fixture_prompt_parts(messages)
                     corrected_tasks.add(json_task_payload(combined)["task"]["name"])
                 assert {row[2] for row in failures}.issubset(corrected_tasks), (fault, corrected_tasks)
                 names, _ = llm_calls(offset)

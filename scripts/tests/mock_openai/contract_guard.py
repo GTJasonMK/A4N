@@ -37,6 +37,14 @@ def split_output_contracts(text: str) -> tuple[str, list[dict]]:
     return "".join(instructions),contracts
 
 
+def fixture_prompt_parts(messages:list[dict])->tuple[str,str,list[dict]]:
+    systems=[split_output_contracts(message_text(row.get("content",""))) for row in messages if row.get("role")=="system"]
+    system="\n".join(text for text,_ in systems)
+    contracts=[contract for _,declared in systems for contract in declared]
+    combined=system+"\n"+"\n".join(message_text(row.get("content","")) for row in messages if row.get("role")!="system")
+    return system,combined,contracts
+
+
 @functools.lru_cache(maxsize=512)
 def validate_fixture(schema_json: str, output: str) -> None:
     value = json.loads(output, object_pairs_hook=unique_object)

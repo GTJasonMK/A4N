@@ -28,7 +28,7 @@ from mock_openai.protocol import (
     UnhandledPromptError,
     VideoIdempotencyConflict,
 )
-from mock_openai.response import normal_fixture_model, response_for
+from mock_openai.response import response_for, validated_fixture_response
 from mock_openai.contract_guard import split_output_contracts, unique_object, validate_business_request
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
@@ -329,13 +329,9 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return
         if agent_fixture is None:
             try:
-                content = response_for(body)
                 # Deliberate fault responses must reach the production recovery path.
                 # Validate their normal fixture, then send the injected response unchanged.
-                normal_model=normal_fixture_model(str(body.get("model","")))
-                normal_body={**body,"model":normal_model} if normal_model!=body.get("model") else body
-                normal = response_for(normal_body) if normal_body is not body else content
-                validate_business_request(body, body.get("messages", []), normal)
+                content = validated_fixture_response(body)
             except (UnhandledPromptError, ValueError) as error:
                 self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
                 return
@@ -499,7 +495,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
 
     def _native_llm(self, path: str, body: dict[str, Any]) -> bool:
         """Wire fixtures for native text protocols; reuse the prompt fixture owner."""
-        if path not in {"/v1/responses", "/v1/messages", "/v1beta/models/a4n-virtual-text:streamGenerateContent"}:
+        if path not in {"/v1/responses", "/v1/messages"} and not re.fullmatch(r"/v1beta/models/[^/]+:streamGenerateContent",path):
             return False
         try:
             if path == "/v1/responses":
@@ -517,8 +513,10 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 body = {**body, "model": path.split("/models/", 1)[1].split(":", 1)[0]}
                 messages = [{"role": "system", "content": "\n".join(part["text"] for part in body.get("systemInstruction", {}).get("parts", []))}]
                 messages += [{"role": "assistant" if item["role"] == "model" else "user", "content": "\n".join(part["text"] for part in item["parts"])} for item in body["contents"]]
-            content = "雨夜里，角色谨慎地推开仓库门。" if body.get("a4n_test_cache_usage") is True else response_for({"messages": messages, "model": body.get("model", "")})
-            validate_business_request(body, messages, content)
+            if body.get("a4n_test_cache_usage") is True:
+                content="雨夜里，角色谨慎地推开仓库门。"
+                validate_business_request(body,messages,content)
+            else:content=validated_fixture_response(body,messages)
         except (KeyError, TypeError, ValueError, UnhandledPromptError) as error:
             self._json(422, {"error": {"message": str(error)}})
             return True

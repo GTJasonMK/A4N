@@ -134,6 +134,31 @@ class ModelMockBoundaryTests(unittest.TestCase):
         output=json.loads(self.post(body)["choices"][0]["message"]["content"])
         self.assertEqual(output["changes"][0]["source_span_ids"],["#999999"])
 
+    def test_native_protocols_deliver_fault_content_after_validating_normal_fixture(self):
+        model="a4n-checkpoint-fail-video-json"
+        contract={"name":"chapter_video_segment_plan","schema":{"type":"object","required":["segments"],"properties":{"segments":{"type":"array"}}}}
+        system="你是影视分段导演；遵守 constraints.selected_duration_secs"
+        block="[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"
+        task="任务\n\n输入：\n"+json.dumps({"current_shot":{"source_shot_id":"shot-2"},"constraints":{"selected_duration_secs":6}})
+        cases=[
+            ("/v1/responses",{"model":model,"stream":True,"input":[{"role":"system","content":system},{"role":"user","content":task},{"role":"system","content":block}],"text":{"format":{"type":"json_schema","schema":contract["schema"]}}},{"Authorization":"Bearer fixture"}),
+            ("/v1/messages",{"model":model,"stream":True,"system":system+"\n"+block,"messages":[{"role":"user","content":task}]},{"x-api-key":"fixture","anthropic-version":"2023-06-01"}),
+            (f"/v1beta/models/{model}:streamGenerateContent?alt=sse",{"systemInstruction":{"parts":[{"text":system+"\n"+block}]},"contents":[{"role":"user","parts":[{"text":task}]}],"generationConfig":{"responseJsonSchema":contract["schema"]}},{"x-goog-api-key":"fixture"}),
+        ]
+        for path,body,headers in cases:
+            with self.subTest(path=path):
+                request=Request(self.url.removesuffix("/v1/chat/completions")+path,data=json.dumps(body).encode(),headers={"Content-Type":"application/json",**headers})
+                with urlopen(request,timeout=10) as response:
+                    events=[json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
+                texts=[]
+                for event in events:
+                    if event.get("type")=="response.output_text.delta":texts.append(event["delta"])
+                    elif event.get("type")=="content_block_delta":texts.append(event["delta"].get("text",""))
+                    elif "candidates" in event:texts.extend(part["text"] for candidate in event["candidates"] for part in candidate["content"]["parts"])
+                output="".join(texts)
+                self.assertIn("shot-2",output)
+                with self.assertRaises(json.JSONDecodeError):json.loads(output)
+
 
 if __name__ == "__main__":
     unittest.main()

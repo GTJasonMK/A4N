@@ -19,6 +19,7 @@ from pathlib import Path
 
 from mock_openai.protocol import PNG_1X1_BASE64
 from mock_openai.prompt_parsing import json_task_payload
+from mock_openai.contract_guard import fixture_prompt_parts
 from run_agent_cli_e2e import data
 from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
@@ -299,9 +300,7 @@ def main():
             continuity_requests = [row["body"] for row in provider_log_entries(args.provider_log)[before_continuity:]
                                    if row["path"].endswith("/chat/completions")]
             assert len(continuity_requests) == 1, continuity_requests
-            contents = [message["content"] for message in continuity_requests[0]["messages"]]
-            combined = "\n".join(content if isinstance(content, str) else "\n".join(part.get("text", "") for part in content)
-                                 for content in contents)
+            _,combined,_=fixture_prompt_parts(continuity_requests[0]["messages"])
             payload = json_task_payload(combined)
             assert payload["previous_steps"]["previous_completed_shot"]["generation_prompt"] == video["prompt"]
             assert payload["constraints"]["input_frame_usage"]["opening_source"] == "previous_completed_shot"
