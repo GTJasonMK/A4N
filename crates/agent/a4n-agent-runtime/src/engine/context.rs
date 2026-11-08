@@ -30,7 +30,7 @@ pub(crate) async fn compact_context(
             source,
             Some(0.1),
             Some(output_tokens.min(4096)),
-        ).with_stream_usage().with_json_response_format();
+        ).with_stream_usage().with_json_schema_response_format("agent_context_summary", a4n_agent_runtime_contract::AgentContextSummary::output_schema(), false)?;
         let projection = history::fit_context_projection(
             request.messages.clone(),
             &[],
@@ -159,6 +159,7 @@ fn validate_summary_response(
     response: &ChatResponse,
     covered: i64,
 ) -> Result<a4n_agent_runtime_contract::AgentContextSummary, AppError> {
+    a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())?;
     if response
         .message
         .tool_calls
@@ -167,8 +168,12 @@ fn validate_summary_response(
     {
         return Err(AppError::InvalidArgument("上下文摘要不得调用工具".into()));
     }
-    let summary: a4n_agent_runtime_contract::AgentContextSummary =
-        serde_json::from_str(&response.message.content).map_err(|error| {
+    let value = a4n_domain::json_contract::parse_strict_json_value(&response.message.content)
+        .map_err(|error| {
+            AppError::InvalidArgument(format!("上下文摘要不是严格 JSON，原始历史已保留：{error}"))
+        })?;
+    let summary: a4n_agent_runtime_contract::AgentContextSummary = serde_json::from_value(value)
+        .map_err(|error| {
             AppError::InvalidArgument(format!("上下文摘要格式无效，原始历史已保留：{error}"))
         })?;
     summary.validate()?;
@@ -293,6 +298,57 @@ mod tests {
     use a4n_api_contract::agent::AgentScope;
     use a4n_llm_provider_contract::ChatMessage;
     use serde_json::json;
+
+    #[test]
+    fn model_contract_matrix_summary_schema() {
+        a4n_test_support::model_contract::emit_schema(
+            "agent_context_summary",
+            a4n_agent_runtime_contract::AgentContextSummary::output_schema(),
+        );
+    }
+
+    #[test]
+    #[ignore = "model runner supplies production summary vectors"]
+    fn model_contract_matrix_summary_boundary() {
+        let document: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(std::env::var("A4N_MODEL_CONTRACT_CASES").unwrap()).unwrap(),
+        )
+        .unwrap();
+        for case in document["cases"].as_array().unwrap() {
+            let response = a4n_llm_provider_contract::ChatResponse {
+                message: ChatMessage::assistant(case["value"].to_string()),
+                usage: None,
+                finish_reason: Some("stop".into()),
+                reasoning_content: None,
+            };
+            let covered = case["value"]["covered_through_sequence"]
+                .as_i64()
+                .unwrap_or(0);
+            a4n_test_support::model_contract::assert_case(
+                "agent_context_summary",
+                "runtime-summary",
+                case["vector_key"].as_str().unwrap(),
+                "validated-output",
+                case["expected"].clone(),
+                json!(validate_summary_response(&response, covered).is_ok()),
+                json!({"validator":"validate_summary_response"}),
+            );
+        }
+        let mut response = a4n_llm_provider_contract::ChatResponse {
+            message: ChatMessage::assistant(document["valid"].to_string()),
+            usage: None,
+            finish_reason: Some("stop".into()),
+            reasoning_content: None,
+        };
+        let covered = document["valid"]["covered_through_sequence"]
+            .as_i64()
+            .unwrap();
+        assert!(validate_summary_response(&response, covered + 1).is_err());
+        for reason in [None, Some("length"), Some("content_filter")] {
+            response.finish_reason = reason.map(str::to_string);
+            assert!(validate_summary_response(&response, covered).is_err());
+        }
+    }
 
     fn context(project_id: Option<i64>) -> AgentRunContext {
         AgentRunContext {

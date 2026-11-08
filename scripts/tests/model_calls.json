@@ -3,6 +3,8 @@
   "scope": "Offline engineering acceptance. Provider availability, compliance and artistic quality require separate live evaluation.",
   "request_contracts":[{"call_id":"image.request","crate":"a4n-image-providers","test":"contract_matrix::model_contract_matrix_request_boundary"},{"call_id":"video.request","crate":"a4n-video-providers","test":"contract_matrix::model_contract_matrix_request_boundary"}],
   "structured": [
+    {"calls":["agent_json_compat"],"owners":["crates/agent/a4n-agent-runtime/src/engine/loop.rs"],"contract_owner":"crates/agent/a4n-agent-runtime-contract/src/protocol.rs","validators":["crates/agent/a4n-agent-runtime-contract/src/protocol.rs"],"branches":["think","run_tool","final","snapshot-replay"],"boundary":{"crate":"a4n-agent-runtime-contract","test":"protocol::tests::model_contract_matrix_agent_json_boundary","adapter":"runtime-compat","scenario":"validated-output"}},
+    {"calls":["agent_context_summary"],"owners":["crates/agent/a4n-agent-runtime/src/engine/context.rs"],"contract_owner":"crates/agent/a4n-agent-runtime-contract/src/snapshots.rs","validators":["crates/agent/a4n-agent-runtime/src/engine/context.rs"],"branches":["compact","replay","failed-history-retained"],"boundary":{"crate":"a4n-agent-runtime","test":"engine::context::tests::model_contract_matrix_summary_boundary","adapter":"runtime-summary","scenario":"validated-output"}},
     {"calls":["blueprint_story_core","blueprint_world","blueprint_characters","blueprint_relationships"],"owners":["blueprint/generation/stage/transport.rs"],"contract_owner":"crates/platform/a4n-domain/src/project/output_contract.rs","validators":["blueprint/json.rs"],"branches":["generate","resume"]},
     {"calls":["blueprint_optimization"],"owners":["blueprint/refine/execution/call.rs"],"contract_owner":"crates/platform/a4n-domain/src/project/output_contract.rs","validators":["blueprint/json/parser/optimization.rs"],"branches":["generate","resume"]},
     {"calls":["chapter_fact_extraction","chapter_summary_synthesis","chapter_character_state","chapter_foreshadowing_events"],"owners":["chapter_analysis/stages/runner/call.rs"],"contract_owner":"crates/chapter/a4n-chapter-analysis/src/model_output.rs","validators":["chapter_analysis/owner/validation.rs"],"branches":["analyze","resume"]},
@@ -30,12 +32,16 @@
     {"calls":["project_fact_consolidation"],"owners":["fact_feedback/run.rs"],"contract_owner":"crates/platform/a4n-domain/src/fact_feedback/contracts.rs","validators":["fact_feedback/run.rs"],"branches":["periodic","immediate","resume"]}
   ],
   "free_text": [
+    {"call_id":"canvas_text_asset_draft","owner":"crates/host/a4n-runtime/src/actions/canvas_workflow/text_asset_draft.rs","validator":"validate_text_response","branches":["draft","source-asset-version"],"scenarios":["valid","empty","missing-finish","truncated","refusal"]},
     {"call_id":"chapter_generation","owner":"chapter_generation/application/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"]},
     {"call_id":"chapter_scene_generation","owner":"chapter_scene/execution.rs","validator":"validate_text_content","branches":["generate","resume"]},
     {"call_id":"chapter_visual_plan","owner":"chapter_visual_plan/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"]},
-    {"call_id":"portrait_prompt","owner":"portrait/application/workflow.rs","validator":"validate_text_content","branches":["initial","regenerate","resume"]}
+    {"call_id":"portrait_prompt","owner":"portrait/application/workflow.rs","validator":"validate_text_content","branches":["initial","regenerate","resume"]},
+    {"call_id":"canvas_text_generation","owner":"canvas/text_generation/execution.rs","validator":"validate_canvas_llm_text_content","branches":["generate","cancel","resume"],"scenarios":["valid","empty","missing-finish","truncated","refusal"]},
+    {"call_id":"image_analysis","owner":"crates/host/a4n-runtime/src/actions/image_records/reading.rs","validator":"validated_image_analysis","branches":["inspect","multiple-images"],"scenarios":["valid","empty","missing-finish","truncated","refusal","unexpected-tool"],"media_scenarios":["valid","corrupt","truncated","mismatched-format"]}
   ],
   "shared_scenarios": {
+    "search":["valid","auth","rate-limit","server","malformed-json","duplicate-keys","missing-results","invalid-source","oversize","timeout","missing-finish","truncated","invalid-input","error-envelope"],
     "text":["actual-protocol-contract-budget","auth","rate-limit","server","malformed-sse","missing-finish","truncated","refusal","empty","disconnect","bounded-timeout"],
     "tools":["valid","malformed-arguments","duplicate-keys","missing-name","missing-finish","truncated"],
     "image":["actual-request-parameters","decodable-artifact","unsupported-before-request","auth","rate-limit","server","malformed-envelope","empty","fake-image","truncated-image","empty-prompt","bad-width","empty-model","reference-base64","reference-corrupt","reference-mime"],
@@ -52,9 +58,10 @@
     "a4n-embedding-providers":["http::","local::"],
     "a4n-embedding-provider-contract":["tests::"],
     "a4n-media-processing-core":["probe::"],
-    "a4n-orchestrator":["model_contract_exports::","structured_llm::","generation::stream::","blueprint::tests::","outline::tests::","chapter_analysis::owner::","character::discovery::","character::profile_sync::stages::","character::implicit_review::","character::implicit_classification::","character::conflict::output_rules::","scene_profile::application::","object_discovery::","manga::pipeline::json::","manga::prompt_optimization::","manga::reference_assets::discovery::","galgame::pipeline::json::","shooting_script::context::","video::prompts::json::","video::prompts::optimization::","optimize::patch::response::","optimize::agent_loop::request::","import_reverse::request::"],
-    "a4n-runtime":["dynamic_embedding::","dynamic_llm::","actions::image_generation::","actions::video_generation::","actions::config_records::llm::","sidecar_clients::embedding::"],
+    "a4n-orchestrator":["model_contract_exports::","structured_llm::","generation::stream::","blueprint::tests::","outline::tests::","chapter_analysis::owner::","character::discovery::","character::profile_sync::stages::","character::implicit_review::","character::implicit_classification::","character::conflict::output_rules::","scene_profile::application::","object_discovery::","manga::pipeline::json::","manga::prompt_optimization::","manga::reference_assets::discovery::","galgame::pipeline::json::","shooting_script::context::","video::prompts::json::","video::prompts::optimization::","optimize::patch::response::","optimize::agent_loop::request::","import_reverse::request::","canvas::text_generation::"],
+    "a4n-runtime":["dynamic_embedding::","dynamic_llm::","actions::image_generation::","actions::video_generation::","actions::config_records::llm::","sidecar_clients::embedding::","actions::image_records::reading::","actions::config_records::web_search::","actions::canvas_workflow::text_asset_draft::"],
     "a4n-agent-runtime":["engine::"],
+    "a4n-agent-runtime-contract":["tests::","protocol::"],
     "a4n-prompt":["blueprint_generation::","tera_engine::tests::"],
     "a4n-chapter-analysis":["validation::"]
   }

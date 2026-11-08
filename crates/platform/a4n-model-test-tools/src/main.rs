@@ -11,6 +11,10 @@ use syn::visit::{self, Visit};
 
 const BOUNDARIES: &[&str] = &[
     "chat_stream",
+    "chat_with_config",
+    "chat_with_config_id",
+    "stream_complete",
+    "search_with_config",
     "stream_complete_llm",
     "stream_complete_llm_with_sink",
     "chat_json_stream_result_with_sink",
@@ -326,7 +330,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("workspace members missing")?;
     let mut rows = Vec::new();
     let mut implementations = Vec::new();
-    let mut dependencies = BTreeMap::new();
     for package in metadata["packages"].as_array().ok_or("packages missing")? {
         if !members.contains(&package["id"])
             || ["a4n-model-test-tools", "a4n-test-support"]
@@ -335,19 +338,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         {
             continue;
         }
-        dependencies.insert(
-            package["name"]
-                .as_str()
-                .ok_or("package name missing")?
-                .to_string(),
-            package["dependencies"]
-                .as_array()
-                .ok_or("dependencies missing")?
-                .iter()
-                .filter_map(|dep| dep["name"].as_str())
-                .filter(|name| name.starts_with("a4n-"))
-                .collect::<Vec<_>>(),
-        );
         let directory = Path::new(
             package["manifest_path"]
                 .as_str()
@@ -385,6 +375,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     rows.sort_by_key(Value::to_string);
     implementations.sort_by_key(Value::to_string);
     let catalogs = json!({
+        "search":a4n_api_contract::web_search::WEB_SEARCH_PROTOCOLS.iter().map(|id|json!({"id":id})).collect::<Vec<_>>(),
         "text":a4n_domain::llm::LLM_PROVIDER_CAPABILITIES.iter().map(|cap|json!({"id":cap.id,"protocol":format!("{:?}",cap.protocol)})).collect::<Vec<_>>(),
         "image":a4n_domain::image::IMAGE_PROVIDER_CAPABILITIES.iter().map(|cap|json!({"id":cap.backend,"references":cap.supports_reference_images})).collect::<Vec<_>>(),
         "video":a4n_video_provider_contract::VIDEO_PROVIDER_CAPABILITIES.iter().map(|cap|json!({"id":cap.backend,"asynchronous":cap.asynchronous,"last_frame":cap.last_frame,"max_reference_images":cap.max_reference_images,"reference_video_audio":cap.reference_video_audio,"first_frame_with_references":cap.first_frame_with_references,"status_query":cap.status_query,"delete":cap.delete,"fps_parameter":cap.fps_parameter})).collect::<Vec<_>>()
@@ -392,7 +383,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(
-            &json!({"schema_version":2,"scanner":"syn-workspace","dependencies":dependencies,"implementations":implementations,"calls":rows,"catalogs":catalogs})
+            &json!({"schema_version":2,"scanner":"syn-workspace","implementations":implementations,"calls":rows,"catalogs":catalogs})
         )?
     );
     Ok(())

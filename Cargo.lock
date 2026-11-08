@@ -84,6 +84,7 @@ dependencies = [
  "a4n-llm-context",
  "a4n-llm-provider-contract",
  "a4n-service-protocol",
+ "a4n-test-support",
  "a4n-worker-contract",
  "async-trait",
  "chrono",
@@ -103,9 +104,11 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "a4n-llm-provider-contract",
+ "a4n-test-support",
  "a4n-worker-contract",
  "async-trait",
  "chrono",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
 ]
@@ -1764,6 +1767,7 @@ dependencies = [
 name = "a4n-model-test-tools"
 version = "0.1.0"
 dependencies = [
+ "a4n-api-contract",
  "a4n-domain",
  "a4n-video-provider-contract",
  "serde_json",

@@ -3,13 +3,29 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
+fn response_json(body: &[u8]) -> Result<Value, AppError> {
+    let text = std::str::from_utf8(body)
+        .map_err(|error| AppError::LlmError(format!("联网搜索响应不是 UTF-8: {error}")))?;
+    let value = a4n_domain::json_contract::parse_strict_json_value(text)
+        .map_err(|error| AppError::LlmError(format!("联网搜索响应不是严格 JSON: {error}")))?;
+    if value.get("error").is_some_and(|error| !error.is_null()) {
+        return Err(AppError::LlmError("联网搜索响应包含服务错误".into()));
+    }
+    Ok(value)
+}
+
 pub(super) fn parse_search_response(
     query: &str,
     max_results: u32,
     body: &[u8],
 ) -> Result<WebSearchResult, AppError> {
-    let value: Value = serde_json::from_slice(body)
-        .map_err(|error| AppError::LlmError(format!("联网搜索响应不是合法 JSON: {error}")))?;
+    let value = response_json(body)?;
+    if value["stop_reason"] != "end_turn" {
+        return Err(AppError::LlmError(format!(
+            "联网搜索模型未正常完成：stop_reason={}",
+            value["stop_reason"]
+        )));
+    }
     let blocks = value
         .get("content")
         .and_then(Value::as_array)
@@ -60,8 +76,7 @@ pub(super) fn parse_result_array(
     body: &[u8],
     pointer: &str,
 ) -> Result<WebSearchResult, AppError> {
-    let value: Value = serde_json::from_slice(body)
-        .map_err(|error| AppError::LlmError(format!("联网搜索响应不是合法 JSON: {error}")))?;
+    let value = response_json(body)?;
     let results = value
         .pointer(pointer)
         .and_then(Value::as_array)
@@ -90,8 +105,13 @@ pub(super) fn parse_openai_responses(
     max_results: u32,
     body: &[u8],
 ) -> Result<WebSearchResult, AppError> {
-    let value: Value = serde_json::from_slice(body)
-        .map_err(|error| AppError::LlmError(format!("联网搜索响应不是合法 JSON: {error}")))?;
+    let value = response_json(body)?;
+    if value["status"] != "completed" {
+        return Err(AppError::LlmError(format!(
+            "联网搜索模型未正常完成：status={}",
+            value["status"]
+        )));
+    }
     let output = value
         .get("output")
         .and_then(Value::as_array)

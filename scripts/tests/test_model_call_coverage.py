@@ -34,6 +34,17 @@ class ModelCallCoverageTest(unittest.TestCase):
         del self.ledger["structured"][0]["suites"]
         self.ledger["structured"][0]["validators"]=["missing.rs"]
         with self.assertRaisesRegex(ValueError,"不存在"):self.check()
+        self.ledger["structured"][0]["validators"]=[""]
+        with self.assertRaisesRegex(ValueError,"不存在"):self.check()
+
+    def test_free_text_identifiers_and_search_execution_scenarios_cannot_disappear(self):
+        row={"call_id":"text","owner":"run.rs","validator":"validate_text","branches":["run"]}
+        self.ledger["free_text"]=[row,row.copy()]
+        with self.assertRaisesRegex(ValueError,"重复"):self.check()
+        self.ledger["free_text"]=[row]
+        self.ast["catalogs"]["search"]=[{"id":"anthropic"}]
+        self.baseline["catalogs"]["search"]=[{"id":"anthropic"}]
+        with self.assertRaisesRegex(ValueError,"必测异常"):self.check()
 
     def test_missing_owner_duplicate_id_and_catalog_drift_fail(self):
         self.ledger["structured"][0]["owners"]=["other.rs"]

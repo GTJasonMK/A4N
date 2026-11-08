@@ -565,6 +565,27 @@ fn validate_canvas_llm_text_content(
     Ok(content.to_string())
 }
 
+#[test]
+fn model_contract_matrix_canvas_text_boundary() {
+    for (scenario, content, finish, expected) in [
+        ("valid", "镜头推向门内。", Some("stop"), true),
+        ("empty", " \n", Some("stop"), false),
+        ("missing-finish", "正文", None, false),
+        ("truncated", "正文", Some("length"), false),
+        ("refusal", "正文", Some("content_filter"), false),
+    ] {
+        a4n_test_support::model_contract::assert_case(
+            "canvas_text_generation",
+            "runtime-text",
+            "output",
+            scenario,
+            json!(expected),
+            json!(validate_canvas_llm_text_content(content, finish).is_ok()),
+            json!({"validator":"validate_canvas_llm_text_content"}),
+        );
+    }
+}
+
 fn validate_restored_canvas_llm_text_checkpoint(
     parsed_output: &Value,
     response_content: &str,

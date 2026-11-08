@@ -677,7 +677,7 @@ async fn process_claimed_run_inner(
                 tool_choice: None,
                 stop_sequences: None,
             };
-            configure_agent_request(&mut request, &protocol, tools);
+            configure_agent_request(&mut request, &protocol, tools)?;
             if let Some(remaining) = state
                 .worker_budget_application(claimed)
                 .worker_budget_snapshot(claimed.run.id)

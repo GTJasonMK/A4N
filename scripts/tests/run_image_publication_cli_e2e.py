@@ -69,6 +69,12 @@ def main():
             assert selected == [first[0]], selected
             report["checks"].append("project image list filters requested IDs and preserves summary order")
             report["checks"].append("identical batch items publish distinct images")
+            inspection_start=len(provider_log_entries(args.provider_log))
+            inspection=call("read_image",{"projectId":project["id"],"imageIds":[first[0]["id"]],"chapterId":None,"instruction":"检查图片构图"})
+            assert inspection["image_ids"]==[first[0]["id"]] and inspection["analysis"].strip(),inspection
+            inspection_calls=provider_log_entries(args.provider_log)[inspection_start:]
+            assert len(inspection_calls)==1 and "data:image/png;base64," in json.dumps(inspection_calls[0]["body"]),inspection_calls
+            report["checks"].append("read_image sends real persisted image bytes to the vision model and returns validated analysis")
             second = generate()
             assert len(second) == 4 and len({image["file_path"] for image in second}) == 4, second
             report["checks"].append("a new run with the same requests creates new publications")

@@ -16,6 +16,9 @@ MANIFEST="scripts/tests/model_calls.json"
 BASELINE="scripts/tests/model_call_sites.json"
 ORCHESTRATOR="crates/host/a4n-orchestrator/src/"
 
+def source_path(name:str)->str:
+    return name if not name or name.startswith("crates/") else ORCHESTRATOR+name
+
 
 def scan(root:Path=ROOT,binary:Path|None=None)->dict:
     selected=binary or os.environ.get("A4N_MODEL_TEST_TOOLS_BINARY")
@@ -57,17 +60,21 @@ def inspect(root:Path=ROOT,ledger:dict|None=None,ast:dict|None=None,baseline:dic
         if "suites" in group or not group.get("owners") or not group.get("validators") or not group.get("branches"):
             raise ValueError("业务调用必须登记 owner、生产 validator 和分支，不能用 suite 名称替代执行证据")
         for owner in group["owners"]:
-            if ORCHESTRATOR+owner not in observed_files:
+            if source_path(owner) not in observed_files:
                 raise ValueError("业务 owner 未发现实际模型调用："+owner)
-        for source in [group.get("contract_owner",""),*(ORCHESTRATOR+name for name in group["validators"])]:
+        for source in [group.get("contract_owner",""),*(source_path(name) for name in group["validators"])]:
             path=(root/source).resolve()
             if not source or not path.is_relative_to(root.resolve()) or not path.exists():
                 raise ValueError("生产合同或 validator 不存在："+source)
+    free_ids=set()
     for row in ledger.get("free_text",[]):
-        if row.get("call_id") in ids: raise ValueError("业务 call_id 重复")
-        if ORCHESTRATOR+row.get("owner","") not in observed_files or not row.get("validator") or not row.get("branches"):
+        call_id=row.get("call_id")
+        if not isinstance(call_id,str) or not call_id.strip() or call_id in ids or call_id in free_ids: raise ValueError("业务 call_id 无效或重复")
+        free_ids.add(call_id)
+        if source_path(row.get("owner","")) not in observed_files or not row.get("validator") or not row.get("branches"):
             raise ValueError("自由文本业务调用未完整登记")
-    for capability in ("text","image","video"):
+    capabilities=("text","image","video",*( ("search",) if ast["catalogs"].get("search") is not None else ()))
+    for capability in capabilities:
         catalog=ast["catalogs"].get(capability)
         if not catalog or len({row["id"] for row in catalog})!=len(catalog):
             raise ValueError("生产能力目录为空或重复："+capability)

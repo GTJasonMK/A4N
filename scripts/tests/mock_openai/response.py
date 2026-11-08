@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import re
 import time
@@ -199,8 +200,23 @@ def response_for(body: dict[str, Any]) -> str:
             value["patches"][0]["old_text"] = "该文本并不存在于输入章节"
         return json.dumps(value, ensure_ascii=False)
     messages = body.get("messages") or []
-    combined = "\n".join(message_text(message.get("content", "")) for message in messages)
+    # System contracts may follow the dynamic task on Chat Completions. Keep
+    # instructions before task data when handing text to input-payload parsers.
+    combined = "\n".join(message_text(message.get("content", "")) for message in sorted(messages,key=lambda message:message.get("role")!="system"))
     system = "\n".join(message_text(message.get("content", "")) for message in messages if message.get("role") == "system")
+    if "你是 A4N 的媒体文本创作助手" in system:
+        if not any(message.get("role")=="user" and message_text(message.get("content","")).strip() for message in messages):
+            raise ValueError("text asset draft requires the current instruction")
+        return "雨夜里，镜头从钟楼窗外缓缓推向门内。"
+    if "你是 A4N 的视觉质量检查器" in system:
+        images=[part.get("image_url",{}).get("url","") for message in messages if isinstance(message.get("content"),list) for part in message["content"] if part.get("type")=="image_url"]
+        if not images:
+            raise ValueError("visual inspection requires actual image bytes in the provider request")
+        for uri in images:
+            metadata,separator,data=uri.partition(",")
+            if not separator or not metadata.startswith("data:image/") or not base64.b64decode(data,validate=True):
+                raise ValueError("visual inspection image data URI is invalid")
+        return "画面主体清楚，构图可读，未发现必须重新生成的缺陷。"
     if "A4N_AGENT_CANVAS_INPUT" in combined:
         return "镜头：雨水沿钟楼的窗棂滑落。"
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):

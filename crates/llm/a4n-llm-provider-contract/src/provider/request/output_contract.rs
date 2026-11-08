@@ -28,8 +28,16 @@ impl ChatRequest {
         name: &str,
         schema: Value,
     ) -> Result<Self, AppError> {
-        self.append_output_contract(&json!({"name":name,"schema":schema}))?;
+        self.protect_prompt_output_contract(name, schema)?;
         Ok(self)
+    }
+
+    pub fn protect_prompt_output_contract(
+        &mut self,
+        name: &str,
+        schema: Value,
+    ) -> Result<(), AppError> {
+        self.append_output_contract(&json!({"name":name,"schema":schema}))
     }
 
     fn append_output_contract(&mut self, contract: &Value) -> Result<(), AppError> {

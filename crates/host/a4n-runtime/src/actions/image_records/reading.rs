@@ -68,7 +68,7 @@ pub async fn read_image(
                 operation: "读取 Agent 图片".into(),
             });
         }
-        let media_type = a4n_domain::media::image_mime_from_path(&path).map_err(|error| {
+        let media_type = validated_analysis_media_type(&path, &bytes).map_err(|error| {
             AppError::InvalidState {
                 current: format!("图片 {image_id} MIME 类型无效: {error}"),
                 operation: "读取 Agent 图片".into(),
@@ -121,13 +121,101 @@ pub async fn read_image(
         .dynamic_llm_provider_for_profile()?
         .chat_with_config_id(None, request)
         .await?;
-    let analysis = response.message.content.trim().to_string();
-    if analysis.is_empty() {
-        return Err(AppError::LlmError("视觉模型没有返回图片评估结果".into()));
-    }
+    let analysis = validated_image_analysis(&response)?;
     Ok(ReadImageResult {
         project_id: input.project_id,
         image_ids: input.image_ids,
-        analysis: analysis.chars().take(MAX_ANALYSIS_CHARS).collect(),
+        analysis,
     })
+}
+
+fn validated_analysis_media_type(
+    path: &std::path::Path,
+    bytes: &[u8],
+) -> Result<&'static str, String> {
+    let format = a4n_media::validated_image_format(bytes)?;
+    let declared = a4n_domain::media::image_mime_from_path(path)?;
+    if declared != format.mime_type {
+        return Err("图片文件扩展名与实际字节格式不一致".into());
+    }
+    Ok(format.mime_type)
+}
+
+fn validated_image_analysis(
+    response: &a4n_llm_provider_contract::ChatResponse,
+) -> Result<String, AppError> {
+    Ok(a4n_llm_provider_contract::validate_text_response(response)?
+        .chars()
+        .take(MAX_ANALYSIS_CHARS)
+        .collect())
+}
+
+#[test]
+fn model_contract_matrix_image_analysis_boundary() {
+    use a4n_llm_provider_contract::{ChatResponse, ToolCall};
+    for (scenario, content, finish, expected) in [
+        ("valid", "构图清楚。", Some("stop"), true),
+        ("empty", " \n", Some("stop"), false),
+        ("missing-finish", "评估", None, false),
+        ("truncated", "评估", Some("length"), false),
+        ("refusal", "评估", Some("content_filter"), false),
+        ("unexpected-tool", "评估", Some("tool_calls"), false),
+    ] {
+        let mut response = ChatResponse {
+            message: ChatMessage::assistant(content),
+            usage: None,
+            finish_reason: finish.map(str::to_string),
+            reasoning_content: None,
+        };
+        if scenario == "unexpected-tool" {
+            response.message.tool_calls = Some(vec![ToolCall {
+                id: "call".into(),
+                name: "write".into(),
+                arguments: serde_json::json!({}),
+                stream_index: None,
+                provider_metadata: None,
+            }]);
+        }
+        a4n_test_support::model_contract::assert_case(
+            "image_analysis",
+            "runtime-text",
+            "output",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(validated_image_analysis(&response).is_ok()),
+            serde_json::json!({"validator":"validated_image_analysis"}),
+        );
+    }
+}
+
+#[test]
+fn model_contract_matrix_image_analysis_media() {
+    let mut output = std::io::Cursor::new(Vec::new());
+    image::RgbImage::new(2, 2)
+        .write_to(&mut output, image::ImageFormat::Png)
+        .unwrap();
+    let png = output.into_inner();
+    for (scenario, path, bytes, expected) in [
+        ("valid", "reference.png", png.as_slice(), true),
+        (
+            "corrupt",
+            "reference.png",
+            b"not an image".as_slice(),
+            false,
+        ),
+        ("truncated", "reference.png", &png[..24], false),
+        ("mismatched-format", "reference.jpg", png.as_slice(), false),
+    ] {
+        a4n_test_support::model_contract::assert_case(
+            "image_analysis",
+            "runtime-text",
+            "media",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(
+                validated_analysis_media_type(std::path::Path::new(path), bytes).is_ok()
+            ),
+            serde_json::json!({"before_provider":true}),
+        );
+    }
 }

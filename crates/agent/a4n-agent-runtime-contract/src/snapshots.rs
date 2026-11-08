@@ -1,6 +1,7 @@
 //! Worker-facing snapshots and in-memory inputs shared by Agent runtimes.
 
 use super::*;
+use serde_json::json;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
 pub const AGENT_CONTEXT_SUMMARY_VERSION: u32 = 2;
@@ -25,7 +26,7 @@ pub struct AgentRunSnapshot {
 }
 
 /// Durable facts carried between Agent runs.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentContextSummary {
     pub schema_version: u32,
@@ -41,31 +42,36 @@ pub struct AgentContextSummary {
 }
 
 impl AgentContextSummary {
-    pub fn validate(&self) -> Result<(), AppError> {
-        if self.schema_version != AGENT_CONTEXT_SUMMARY_VERSION
-            || self.covered_through_sequence < 0
-            || self.current_goal.chars().count() > 4_000
-        {
-            return Err(AppError::InvalidState {
-                current: "Agent context_summary 的目标或覆盖序列无效".into(),
-                operation: "校验 Agent context_summary".into(),
-            });
-        }
-        for (name, values) in [
-            ("constraints", &self.constraints),
-            ("decisions", &self.decisions),
-            ("facts_resources", &self.facts_resources),
-            ("completed", &self.completed),
-            ("pending", &self.pending),
-            ("tool_state", &self.tool_state),
+    pub fn output_schema() -> Value {
+        let mut schema = a4n_domain::json_contract::typed_output_schema::<Self>();
+        let fields = schema["properties"]
+            .as_object_mut()
+            .expect("summary object");
+        fields.get_mut("schema_version").unwrap()["const"] = json!(AGENT_CONTEXT_SUMMARY_VERSION);
+        fields.get_mut("covered_through_sequence").unwrap()["minimum"] = json!(0);
+        fields.get_mut("current_goal").unwrap()["maxLength"] = json!(4_000);
+        for name in [
+            "constraints",
+            "decisions",
+            "facts_resources",
+            "completed",
+            "pending",
+            "tool_state",
         ] {
-            if values.len() > 64 || values.iter().any(|value| value.chars().count() > 4_000) {
-                return Err(AppError::InvalidState {
-                    current: format!("Agent context_summary.{name} 超出大小限制"),
-                    operation: "校验 Agent context_summary".into(),
-                });
-            }
+            fields.get_mut(name).unwrap()["maxItems"] = json!(64);
+            fields.get_mut(name).unwrap()["items"]["maxLength"] = json!(4_000);
         }
+        schema
+    }
+
+    pub fn validate(&self) -> Result<(), AppError> {
+        a4n_domain::json_contract::OutputSchemaValidator::new(&Self::output_schema())
+            .map_err(AppError::ConfigError)?
+            .validate(&serde_json::to_value(self)?)
+            .map_err(|error| AppError::InvalidState {
+                current: format!("Agent context_summary 无效：{error}"),
+                operation: "校验 Agent context_summary".into(),
+            })?;
         if serde_json::to_vec(self)?.len() > MAX_CONTEXT_SUMMARY_BYTES {
             return Err(AppError::InvalidState {
                 current: format!(

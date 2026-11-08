@@ -563,6 +563,7 @@ def main() -> int:
                 ]
             if name in {"checkpoints", "facts", "scene_sync", "agent_delegation", "media_authoring"}:
                 command += ["--embedding-dimension", str(EMBEDDING_DIMENSION)]
+            if name=="model_probes":command += ["--postgres-container",container]
             if name == "authoring":
                 last_requested_stage = max(STAGES.index(stage) for stage in stages)
                 authoring_stages = set(STAGES[: last_requested_stage + 1]) & SUITES[name][1]

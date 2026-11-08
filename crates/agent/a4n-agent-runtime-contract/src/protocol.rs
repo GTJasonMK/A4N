@@ -131,16 +131,25 @@ pub enum AgentModelDecision {
     },
 }
 
-pub fn configure_agent_request(request: &mut ChatRequest, protocol: &str, tools: Vec<Value>) {
+pub fn configure_agent_request(
+    request: &mut ChatRequest,
+    protocol: &str,
+    tools: Vec<Value>,
+) -> Result<(), AppError> {
     if protocol == AGENT_PROTOCOL_JSON_COMPAT {
         request.tools = None;
         request.tool_choice = None;
         request.response_format = Some(ResponseFormat::json_object());
+        request.protect_prompt_output_contract(
+            "agent_json_compat",
+            agent_json_compat_output_schema(),
+        )?;
     } else {
         request.tools = (!tools.is_empty()).then_some(tools);
         request.tool_choice = None;
         request.response_format = None;
     }
+    Ok(())
 }
 
 pub fn agent_protocol_prompt(protocol: &str, tools: &[Value]) -> String {
@@ -197,9 +206,20 @@ pub fn decode_agent_response(
         });
     }
 
-    let value: Value = serde_json::from_str(response.message.content.trim()).map_err(|error| {
-        AppError::LlmError(format!("Agent json_compat 响应不是严格 JSON 对象: {error}"))
-    })?;
+    if response
+        .message
+        .tool_calls
+        .as_ref()
+        .is_some_and(|calls| !calls.is_empty())
+    {
+        return Err(AppError::LlmError(
+            "Agent JSON 协议不得混入原生工具调用".into(),
+        ));
+    }
+    let value = a4n_domain::json_contract::parse_strict_json_value(response.message.content.trim())
+        .map_err(|error| {
+            AppError::LlmError(format!("Agent json_compat 响应不是严格 JSON 对象: {error}"))
+        })?;
     parse_json_compat_decision(value, execution_id)
 }
 
@@ -217,93 +237,103 @@ fn parse_json_compat_decision(
     value: Value,
     execution_id: i64,
 ) -> Result<AgentModelDecision, AppError> {
-    let object = value.as_object().ok_or_else(|| {
-        AppError::InvalidArgument("Agent json_compat 响应必须是 JSON 对象".into())
-    })?;
-    reject_unknown_fields(object, &["action", "arguments"])?;
-    let action = object
-        .get("action")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::InvalidArgument("Agent json_compat 响应缺少 action".into()))?;
-    let arguments = object
-        .get("arguments")
-        .and_then(Value::as_object)
-        .ok_or_else(|| {
-            AppError::InvalidArgument("Agent json_compat arguments 必须是对象".into())
-        })?;
+    a4n_domain::json_contract::OutputSchemaValidator::new(&agent_json_compat_output_schema())
+        .map_err(AppError::ConfigError)?
+        .validate(&value)
+        .map_err(AppError::InvalidArgument)?;
     let content = serde_json::to_string(&value)?;
-    match action {
-        "think" => {
-            reject_unknown_fields(arguments, &["thought", "public_update"])?;
-            let thought = required_string(arguments, "thought")?;
-            let public_update = required_string(arguments, "public_update")?;
-            Ok(AgentModelDecision::Think {
-                content: serde_json::to_string(&json!({
-                    "action": "think",
-                    "arguments": {"thought": thought, "public_update": public_update},
-                }))?,
-            })
-        }
-        "run_tool" => {
-            reject_unknown_fields(arguments, &["tool", "arguments"])?;
-            let tool = required_string(arguments, "tool")?;
-            let tool_arguments = arguments.get("arguments").cloned().ok_or_else(|| {
-                AppError::InvalidArgument("run_tool 缺少 arguments.arguments".into())
-            })?;
-            if !tool_arguments.is_object() {
-                return Err(AppError::InvalidArgument(
-                    "run_tool arguments.arguments 必须是对象".into(),
-                ));
-            }
-            Ok(AgentModelDecision::ToolCalls {
-                content,
-                calls: vec![ToolCall {
-                    id: format!("compat-tool-{execution_id}"),
-                    name: tool,
-                    arguments: tool_arguments,
-                    stream_index: None,
-                    provider_metadata: None,
-                }],
-            })
-        }
-        "final" => {
-            reject_unknown_fields(arguments, &["reply"])?;
-            Ok(AgentModelDecision::Final {
-                reply: required_string(arguments, "reply")?,
-            })
-        }
-        other => Err(AppError::InvalidArgument(format!(
-            "Agent json_compat action 非法: {other}"
-        ))),
+    match serde_json::from_value::<JsonCompatDecision>(value).map_err(AppError::Serialization)? {
+        JsonCompatDecision::Think {
+            thought,
+            public_update,
+        } => Ok(AgentModelDecision::Think {
+            content: serde_json::to_string(&json!({
+                "action": "think",
+                "arguments": {"thought": thought.trim(), "public_update": public_update.trim()},
+            }))?,
+        }),
+        JsonCompatDecision::RunTool { tool, arguments } => Ok(AgentModelDecision::ToolCalls {
+            content,
+            calls: vec![ToolCall {
+                id: format!("compat-tool-{execution_id}"),
+                name: tool.trim().to_string(),
+                arguments: Value::Object(arguments),
+                stream_index: None,
+                provider_metadata: None,
+            }],
+        }),
+        JsonCompatDecision::Final { reply } => Ok(AgentModelDecision::Final {
+            reply: reply.trim().to_string(),
+        }),
     }
 }
 
-fn required_string(object: &Map<String, Value>, field: &str) -> Result<String, AppError> {
-    object
-        .get(field)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| AppError::InvalidArgument(format!("Agent json_compat 缺少非空 {field}")))
+#[derive(Deserialize, schemars::JsonSchema)]
+#[serde(
+    tag = "action",
+    content = "arguments",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
+enum JsonCompatDecision {
+    Think {
+        #[schemars(length(min = 1), regex(pattern = r"\S"))]
+        thought: String,
+        #[schemars(length(min = 1), regex(pattern = r"\S"))]
+        public_update: String,
+    },
+    RunTool {
+        #[schemars(length(min = 1), regex(pattern = r"\S"))]
+        tool: String,
+        arguments: Map<String, Value>,
+    },
+    Final {
+        #[schemars(length(min = 1), regex(pattern = r"\S"))]
+        reply: String,
+    },
 }
 
-fn reject_unknown_fields(object: &Map<String, Value>, allowed: &[&str]) -> Result<(), AppError> {
-    if let Some(field) = object
-        .keys()
-        .find(|field| !allowed.contains(&field.as_str()))
-    {
-        return Err(AppError::InvalidArgument(format!(
-            "Agent json_compat 包含未知字段: {field}"
-        )));
-    }
-    Ok(())
+pub fn agent_json_compat_output_schema() -> Value {
+    a4n_domain::json_contract::typed_output_schema::<JsonCompatDecision>()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse, MessageRole};
+
+    #[test]
+    fn model_contract_matrix_agent_json_schema() {
+        a4n_test_support::model_contract::emit_schema(
+            "agent_json_compat",
+            agent_json_compat_output_schema(),
+        );
+    }
+
+    #[test]
+    #[ignore = "model runner supplies Agent JSON decision vectors"]
+    fn model_contract_matrix_agent_json_boundary() {
+        let document: Value = serde_json::from_slice(
+            &std::fs::read(std::env::var("A4N_MODEL_CONTRACT_CASES").unwrap()).unwrap(),
+        )
+        .unwrap();
+        for case in document["cases"].as_array().unwrap() {
+            let actual = decode_agent_response(
+                &response(&case["value"].to_string()),
+                AGENT_PROTOCOL_JSON_COMPAT,
+                7,
+            );
+            a4n_test_support::model_contract::assert_case(
+                "agent_json_compat",
+                "runtime-compat",
+                case["vector_key"].as_str().unwrap(),
+                "validated-output",
+                case["expected"].clone(),
+                json!(actual.is_ok()),
+                json!({"decoder":"decode_agent_response"}),
+            );
+        }
+    }
 
     fn response(content: &str) -> ChatResponse {
         ChatResponse {
@@ -355,7 +385,7 @@ mod tests {
     #[test]
     fn replay_protocol_is_derived_from_the_persisted_request_snapshot() {
         let mut request = ChatRequest::system_user("system", "task", None, None);
-        configure_agent_request(&mut request, AGENT_PROTOCOL_JSON_COMPAT, Vec::new());
+        configure_agent_request(&mut request, AGENT_PROTOCOL_JSON_COMPAT, Vec::new()).unwrap();
         let snapshot = request.snapshot_value().expect("request snapshot");
 
         assert_eq!(

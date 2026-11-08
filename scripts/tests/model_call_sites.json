@@ -307,6 +307,38 @@
       "receiver": "llm"
     },
     {
+      "callee": "chat_with_config",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/config_records/llm/connectivity.rs",
+      "function": "test_llm_config",
+      "ordinal": 1,
+      "receiver": "provider"
+    },
+    {
+      "callee": "chat_with_config_id",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/text_asset_draft.rs",
+      "function": "generate_canvas_text_asset_draft",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_with_config_id",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/text_nodes/host_port.rs",
+      "function": "stream_complete",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "chat_with_config_id",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/image_records/reading.rs",
+      "function": "read_image",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
       "callee": "chat_with_video_cancel",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/llm_chat.rs",
@@ -889,6 +921,14 @@
       "function": "generate_or_resume_blueprint_stage",
       "ordinal": 1,
       "receiver": null
+    },
+    {
+      "callee": "execute_canvas_llm_text_call",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/text_generation/execution.rs",
+      "function": "run_canvas_llm_text_node_validated",
+      "ordinal": 1,
+      "receiver": "self"
     },
     {
       "callee": "execute_chapter_analysis_character_state_stage",
@@ -1623,6 +1663,14 @@
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/frame_chain/layout_dispatch.rs",
       "function": "generate_frame_layout",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "generate_canvas_text_asset_draft",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands/canvas.rs",
+      "function": "run_canvas_web_command",
       "ordinal": 1,
       "receiver": null
     },
@@ -3107,6 +3155,22 @@
       "receiver": "self"
     },
     {
+      "callee": "run_canvas_llm_text_node",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/execution/host_port.rs",
+      "function": "execute_node",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_canvas_llm_text_node_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/canvas.rs",
+      "function": "run_llm_text",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
       "callee": "run_canvas_node_with_origin",
       "crate": "a4n-runtime",
       "file": "crates/host/a4n-runtime/src/actions/agent_domains/canvas.rs",
@@ -3129,6 +3193,14 @@
       "function": "run_video",
       "ordinal": 1,
       "receiver": "self"
+    },
+    {
+      "callee": "run_canvas_web_command",
+      "crate": "a4n-control",
+      "file": "crates/host/a4n-control/src/routes/commands.rs",
+      "function": "dispatch_runtime_command_inner",
+      "ordinal": 1,
+      "receiver": null
     },
     {
       "callee": "run_chapter_analysis_application",
@@ -3471,6 +3543,14 @@
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/inspiration/ports.rs",
       "function": "run_generation",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_llm_text",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/text_nodes/llm_text.rs",
+      "function": "run_canvas_llm_text_node",
       "ordinal": 1,
       "receiver": null
     },
@@ -3891,6 +3971,14 @@
       "receiver": null
     },
     {
+      "callee": "search_with_config",
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/actions/config_records/web_search.rs",
+      "function": "web_search",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
       "callee": "send_user_message_with_permissions",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/optimize/chat/generation.rs",
@@ -4017,6 +4105,14 @@
       "function": "render_and_chat_trace_with_context",
       "ordinal": 1,
       "receiver": null
+    },
+    {
+      "callee": "stream_complete",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/canvas/text_generation/execution.rs",
+      "function": "execute_canvas_llm_text_call",
+      "ordinal": 1,
+      "receiver": "llm_port"
     },
     {
       "callee": "stream_complete_llm",
@@ -4726,6 +4822,26 @@
       {
         "id": "comfyui",
         "references": false
+      }
+    ],
+    "search": [
+      {
+        "id": "anthropic"
+      },
+      {
+        "id": "openai_responses"
+      },
+      {
+        "id": "tavily"
+      },
+      {
+        "id": "brave"
+      },
+      {
+        "id": "serper"
+      },
+      {
+        "id": "bing"
       }
     ],
     "text": [

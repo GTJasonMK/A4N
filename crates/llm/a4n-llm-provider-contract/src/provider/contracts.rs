@@ -238,3 +238,19 @@ pub fn validate_text_content(content: &str) -> Result<(), a4n_error::AppError> {
     }
     Ok(())
 }
+
+pub fn validate_text_response(response: &ChatResponse) -> Result<&str, a4n_error::AppError> {
+    validate_finish_reason(response.finish_reason.as_deref())?;
+    validate_text_content(&response.message.content)?;
+    if response
+        .message
+        .tool_calls
+        .as_ref()
+        .is_some_and(|calls| !calls.is_empty())
+    {
+        return Err(a4n_error::AppError::LlmError(
+            "普通文本请求不得返回工具调用".into(),
+        ));
+    }
+    Ok(response.message.content.trim())
+}

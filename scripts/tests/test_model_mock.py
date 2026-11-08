@@ -62,6 +62,40 @@ class ModelMockBoundaryTests(unittest.TestCase):
         output = json.loads(self.post(body)["choices"][0]["message"]["content"])
         self.assertNotIn("genre", output["conversation_state"])
 
+    def test_json_agent_http_fixture_uses_json_decisions_and_preserves_contract(self):
+        contract={"name":"agent_json_compat","schema":{"type":"object","required":["action","arguments"],"properties":{"action":{"enum":["think","run_tool","final"]},"arguments":{"type":"object"}},"additionalProperties":False}}
+        body={"model":"a4n-virtual-text","response_format":{"type":"json_object"},"messages":[
+            {"role":"system","content":"你是 A4N 项目 Agent。\n当前能力域：content_optimization\n[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+            {"role":"user","content":"A4N_OPTIMIZATION_PLAIN 何时写回？"},
+        ]}
+        message=self.post(body)["choices"][0]["message"]
+        self.assertNotIn("tool_calls",message)
+        self.assertEqual(json.loads(message["content"])["action"],"final")
+
+    def test_bad_summary_is_returned_as_model_output_after_validating_the_request(self):
+        contract={"name":"agent_context_summary","schema":{"type":"object","required":["pending","covered_through_sequence"]}}
+        body={"model":"a4n-summary-fail-fields","response_format":{"type":"json_schema","json_schema":contract},"messages":[
+            {"role":"system","content":"你负责压缩 A4N Agent 的历史\n[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+            {"role":"user","content":json.dumps({"previous_summary":None,"current_request":[],"messages":[],"covered_through_sequence":0})},
+        ]}
+        output=json.loads(self.post(body)["choices"][0]["message"]["content"])
+        self.assertNotIn("pending",output)
+        self.assertEqual(output["covered_through_sequence"],0)
+
+    def test_system_contract_after_task_does_not_pollute_input_or_swallow_fault_output(self):
+        contract={"name":"chapter_video_segment_plan","schema":{"type":"object","required":["segments"],"properties":{"segments":{"type":"array"}}}}
+        payload={"current_shot":{"source_shot_id":"shot-2"},"constraints":{"selected_duration_secs":6}}
+        body={"model":"a4n-checkpoint-fail-video-json","response_format":{"type":"json_schema","json_schema":contract},"messages":[
+            {"role":"system","content":"你是影视分段导演；遵守 constraints.selected_duration_secs"},
+            {"role":"user","content":"执行任务\n\n输入：\n"+json.dumps(payload)},
+            {"role":"system","content":"[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+        ]}
+        output=self.post(body)["choices"][0]["message"]["content"]
+        with self.assertRaises(json.JSONDecodeError):json.loads(output)
+        body["model"]="a4n-virtual-text"
+        output=json.loads(self.post(body)["choices"][0]["message"]["content"])
+        self.assertEqual(output["segments"][0]["source_shot_id"],"shot-2")
+
 
 if __name__ == "__main__":
     unittest.main()

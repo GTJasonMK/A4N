@@ -65,13 +65,36 @@ pub async fn generate_canvas_text_asset_draft(
         .map_err(|error| AppError::LlmError(error.to_string()))?
         .chat_with_config_id(input.llm_config_id, request)
         .await?;
-    let content = response.message.content.trim().to_string();
-    if content.is_empty() {
-        return Err(AppError::LlmError(
-            "文本素材草稿模型没有返回正文".to_string(),
-        ));
-    }
+    let content = a4n_llm_provider_contract::validate_text_response(&response)?.to_string();
     Ok(CanvasTextAssetDraftSummary { content })
+}
+
+#[test]
+fn model_contract_matrix_text_asset_boundary() {
+    use a4n_llm_provider_contract::{ChatMessage, ChatResponse};
+    for (scenario, content, finish, expected) in [
+        ("valid", "素材正文", Some("stop"), true),
+        ("empty", " \n", Some("stop"), false),
+        ("missing-finish", "正文", None, false),
+        ("truncated", "正文", Some("length"), false),
+        ("refusal", "正文", Some("content_filter"), false),
+    ] {
+        let response = ChatResponse {
+            message: ChatMessage::assistant(content),
+            usage: None,
+            finish_reason: finish.map(str::to_string),
+            reasoning_content: None,
+        };
+        a4n_test_support::model_contract::assert_case(
+            "canvas_text_asset_draft",
+            "runtime-text",
+            "output",
+            scenario,
+            serde_json::json!(expected),
+            serde_json::json!(a4n_llm_provider_contract::validate_text_response(&response).is_ok()),
+            serde_json::json!({"validator":"validate_text_response"}),
+        );
+    }
 }
 
 async fn build_request(

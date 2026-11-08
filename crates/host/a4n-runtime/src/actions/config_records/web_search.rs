@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod contract_matrix;
 mod response;
 
 use a4n_api_contract::runtime_config::RuntimeWebSearchConfig;
@@ -10,10 +12,16 @@ use std::time::Duration;
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 pub async fn web_search(input: WebSearchInput) -> Result<WebSearchResult, AppError> {
+    search_with_config(input, current_web_search_config()?).await
+}
+
+async fn search_with_config(
+    input: WebSearchInput,
+    config: RuntimeWebSearchConfig,
+) -> Result<WebSearchResult, AppError> {
     let query = input
         .normalized_query()
         .map_err(AppError::InvalidArgument)?;
-    let config = current_web_search_config()?;
     a4n_api_contract::web_search::validate_web_search_config(&config)
         .map_err(AppError::ConfigError)?;
     let api_key = config
@@ -210,6 +218,7 @@ mod tests {
     #[test]
     fn parses_only_structured_search_results_and_joins_citations_after_first_pass() {
         let body = serde_json::json!({
+            "stop_reason":"end_turn",
             "content": [
                 {
                     "type": "web_search_tool_result",
@@ -250,6 +259,7 @@ mod tests {
     #[test]
     fn rejects_unstructured_model_text_without_search_tool_result() {
         let body = serde_json::json!({
+            "stop_reason":"end_turn",
             "content": [{
                 "type": "text",
                 "text": "https://example.com/not-a-source"
@@ -262,6 +272,7 @@ mod tests {
     #[test]
     fn caps_results_and_reports_truncation() {
         let body = serde_json::json!({
+            "stop_reason":"end_turn",
             "content": [{
                 "type": "web_search_tool_result",
                 "content": [
@@ -318,6 +329,7 @@ mod tests {
     #[test]
     fn parses_openai_responses_url_citations() {
         let body = serde_json::json!({
+            "status":"completed",
             "output": [{
                 "type": "message",
                 "content": [{

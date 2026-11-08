@@ -342,6 +342,27 @@ class ProviderHandler(BaseHTTPRequestHandler):
         else:
             content = str(agent_fixture.get("content", ""))
             tool_calls = agent_fixture.get("tool_calls") or ([agent_fixture["tool_call"]] if agent_fixture.get("tool_call") else [])
+            json_agent=body.get("response_format",{}).get("type")=="json_object" and any("\"name\":\"agent_json_compat\"" in message_text(row.get("content","")).replace(" ","") for row in body.get("messages",[]) if row.get("role")=="system")
+            summary_agent=any(str(row.get("content","")).startswith("你负责压缩 A4N Agent 的历史") for row in body.get("messages",[]) if row.get("role")=="system")
+            if json_agent:
+                if len(tool_calls)>1:
+                    self._json(422,{"error":{"message":"JSON Agent fixture requires one tool call per turn"}})
+                    return
+                if tool_calls:
+                    call=tool_calls[0]
+                    content=json.dumps({"action":"run_tool","arguments":{"tool":call["name"],"arguments":call["arguments"]}},ensure_ascii=False)
+                else:
+                    content=json.dumps({"action":"final","arguments":{"reply":content}},ensure_ascii=False)
+                tool_calls=[]
+            if json_agent or summary_agent:
+                try:validate_business_request(body,body["messages"],content)
+                except ValueError as error:
+                    self._json(422,{"error":{"message":str(error),"type":"invalid_agent_contract"}})
+                    return
+            if summary_agent and body.get("model")=="a4n-summary-fail-fields":
+                invalid=json.loads(content)
+                del invalid["pending"]
+                content=json.dumps(invalid,ensure_ascii=False)
         if body.get("stream") is True:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")

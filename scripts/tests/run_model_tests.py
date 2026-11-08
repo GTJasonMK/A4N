@@ -23,7 +23,7 @@ from runner_support import private_file, safe_report_dir, terminate_process, rai
 
 ROOT=Path(__file__).resolve().parents[2]
 SUMMARY=re.compile(r"test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored;")
-EXCLUDED=("model_contract_matrix_production_recovery","model_contract_matrix_request_boundary","model_contract_matrix_business_schema_wire")
+EXCLUDED=("model_contract_matrix_production_recovery","model_contract_matrix_request_boundary","model_contract_matrix_business_schema_wire","model_contract_matrix_summary_boundary","model_contract_matrix_agent_json_boundary")
 MANUAL_BENCHMARKS=("tests::performance_sse_batches", "anthropic::tests::performance_anthropic_batches")
 SEALED={}
 
@@ -101,7 +101,7 @@ def build(report_dir:Path,ledger:dict)->tuple[dict,str]:
 
 def exported_matrices(report_dir:Path,binaries:dict,report:dict)->dict:
     corpus={}
-    for package in ("a4n-orchestrator","a4n-image-providers","a4n-video-providers","a4n-llm-http","a4n-embedding-providers","a4n-media-processing-core"):
+    for package in ("a4n-orchestrator","a4n-image-providers","a4n-video-providers","a4n-llm-http","a4n-embedding-providers","a4n-media-processing-core","a4n-agent-runtime","a4n-agent-runtime-contract","a4n-runtime"):
         log=report_dir/"logs"/f"matrix-{package}.log"
         text=run(runtime_command([binaries[package],"model_contract_matrix","--nocapture","--test-threads=1",*sum((["--skip",name] for name in EXCLUDED),[])]),log,60)
         count=rust_result(text)
@@ -134,14 +134,16 @@ def run_vectors(report_dir:Path,ledger:dict,corpus:dict,tool:str,binaries:dict,r
             report["cases"].append(case_record(case["case_id"]+"/"+engine,log,report_dir,call_id=case["call_id"],adapter=engine,expected=case["expected"],actual=row["accepted"]))
         report["suites"]["vectors/"+engine]={"status":"passed","executed":len(actual),"log":seal_artifact(log,report_dir)}
     requests={row["call_id"]:row for row in ledger.get("request_contracts",[])}
+    boundaries={call_id:row["boundary"] for row in ledger["structured"] if "boundary" in row for call_id in row["calls"]}
     for call_id,row in sorted(corpus.items()):
         print(json.dumps({"contract":call_id,"stage":"production-boundary"}),flush=True)
         selected=[{key:value for key,value in case.items() if key!="schema"}|{"vector_key":case["case_id"].split("/contract/",1)[1]} for case in vectors if case["call_id"]==call_id]
         fixture=report_dir/"inputs"/(call_id+".json")
         write_json(fixture,{"call_id":call_id,"schema":row["schema"],"valid":selected[0]["value"],"cases":selected})
         env={**os.environ,"A4N_MODEL_CONTRACT_CASES":str(fixture)}
-        package=requests[call_id]["crate"] if call_id in requests else "a4n-orchestrator"
-        test=requests[call_id]["test"] if call_id in requests else "structured_llm::recovery::matrix::model_contract_matrix_production_recovery"
+        boundary=requests.get(call_id,boundaries.get(call_id))
+        package=boundary["crate"] if boundary else "a4n-orchestrator"
+        test=boundary["test"] if boundary else "structured_llm::recovery::matrix::model_contract_matrix_production_recovery"
         log=report_dir/"logs"/("boundary-"+call_id+".log")
         text=run(runtime_command([binaries[package],test,"--exact","--ignored","--nocapture","--test-threads=1"]),log,60,env=env)
         if rust_result(text)!=1:raise ModelTestError("生产边界测试未按要求执行")

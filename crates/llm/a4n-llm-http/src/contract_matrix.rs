@@ -100,8 +100,12 @@ async fn model_contract_matrix_business_schema_wire() {
         })
         .await;
         let request = ChatRequest::system_user("业务创作要求", "当前任务输入", None, Some(256));
-        let request = if document["valid"].is_object() {
+        let request = if schema["type"] == "object" {
             request.with_json_schema_response_format(call_id, schema.clone(), false)
+        } else if document["valid"].is_object() {
+            request
+                .with_json_response_format()
+                .with_prompt_output_contract(call_id, schema.clone())
         } else {
             request.with_prompt_output_contract(call_id, schema.clone())
         }

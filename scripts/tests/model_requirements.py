@@ -45,6 +45,10 @@ def adapter_case_ids(ledger:dict,inventory:dict)->set[str]:
     for scenario in ledger["shared_scenarios"]["embedding"]:
         variant="batch" if scenario in {"order-and-identity","actual-request-order"} else "invalid-input" if scenario in {"batch","model"} else "response"
         result.add(f"embedding.embed/api/{variant}/{scenario}")
+    for row in inventory["catalogs"].get("search",[]):
+        for scenario in ledger["shared_scenarios"].get("search",[]):
+            if scenario in {"missing-finish","truncated"} and row["id"] not in {"anthropic","openai_responses"}:continue
+            result.add(f"web_search/{row['id']}/query/{scenario}")
     # Configuration dimension failure and response dimension failure are distinct.
     result.add("embedding.embed/api/invalid-input/dimension")
     result.add("video.artifact/ffprobe/valid/actual-metadata")
@@ -55,19 +59,25 @@ def adapter_case_ids(ledger:dict,inventory:dict)->set[str]:
 def required_case_ids(ledger:dict,inventory:dict,corpus:dict,profile:str)->set[str]:
     result=adapter_case_ids(ledger,inventory)
     for row in ledger.get("free_text",[]):
-        scenarios=("valid","empty","over-limit") if row["call_id"]=="chapter_visual_plan" else ("valid","empty","structured","fenced","thinking")
+        scenarios=row.get("scenarios",("valid","empty","over-limit") if row["call_id"]=="chapter_visual_plan" else ("valid","empty","structured","fenced","thinking"))
         result.update(f"{row['call_id']}/runtime-text/output/{scenario}" for scenario in scenarios)
+        result.update(f"{row['call_id']}/runtime-text/media/{scenario}" for scenario in row.get("media_scenarios",[]))
     requests={row["call_id"] for row in ledger.get("request_contracts",[])}
+    boundaries={call_id:row["boundary"] for row in ledger["structured"] if "boundary" in row for call_id in row["calls"]}
     for case in contract_cases(ledger,corpus):
         result.add(case["case_id"]+"/rust")
         result.add(case["case_id"]+"/ajv")
         key=case["case_id"].split("/contract/",1)[1]
         if case["call_id"] in requests:
             result.add(f"{case['call_id']}/runtime-request/{key}/before-http")
+        elif case["call_id"] in boundaries:
+            boundary=boundaries[case["call_id"]]
+            result.add(f"{case['call_id']}/{boundary['adapter']}/{key}/{boundary['scenario']}")
         else:
             result.add(f"{case['call_id']}/runtime-schema/{key}/recovery-enforcement")
     for call_id in structured_ids(ledger):
         result.update(f"{call_id}/{preset['id']}/business-schema/actual-wire-roundtrip" for preset in inventory["catalogs"]["text"])
+        if call_id in boundaries:continue
         result.add(f"{call_id}/runtime-schema/correction/valid-replacement")
         result.add(f"{call_id}/runtime-schema/cancellation/no-late-adoption")
         result.update(f"{call_id}/runtime-schema/{reason}/terminal-before-validation" for reason in ("missing-finish","length","content_filter"))
