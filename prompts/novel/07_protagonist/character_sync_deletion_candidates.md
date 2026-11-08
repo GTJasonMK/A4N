@@ -9,4 +9,6 @@ name: character_sync_deletion_candidates
 输出必须是严格 JSON 对象，只包含 `deletion_candidates` 字段。不要输出属性变化、行为记录、章节状态、最终角色状态或解释文字。没有删除候选时返回 `{"deletion_candidates":[]}`。
 
 删除候选只是一种保护标记，不代表立即删除。`key` 必须是对应分类下的顶层属性键，不能使用点路径。
+
+每条候选的 `evidence_anchor_id` 必须引用对应章节的 `⟦id⟧`，以单个 JSON 正整数输出，不加引号、不带小数点或标记。例如本次输入的 `⟦12⟧` 对应 `12`，不能输出 `"12"`、`"⟦12⟧"` 或 `[12]`。
 `category` 只能使用 `explicit`、`implicit`、`social` 三个字面值，不能输出内部存储字段名 `explicit_attributes`、`implicit_attributes`、`social_attributes`。

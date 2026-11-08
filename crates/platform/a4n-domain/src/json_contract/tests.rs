@@ -2,8 +2,8 @@ use serde_json::json;
 
 use super::{
     ensure_object, optional_positive_i64, optional_string, parse_llm_json_object,
-    positive_i64_array, reject_unknown_fields, required_array_value, required_object_value,
-    required_string, string_array, string_array_value,
+    positive_i64_array, positive_i64_array_schema, positive_i64_schema, reject_unknown_fields,
+    required_array_value, required_object_value, required_string, string_array, string_array_value,
 };
 
 #[test]
@@ -18,6 +18,21 @@ fn object_and_unknown_field_contracts_are_strict() {
     );
     assert!(ensure_object(&json!({"title": "x"}), "root").is_ok());
     assert!(reject_unknown_fields(&json!({"title": "x"}), "root", &["title"]).is_ok());
+}
+
+#[test]
+fn generated_id_contracts_share_the_integer_range_and_encoding() {
+    let scalar = positive_i64_schema();
+    assert_eq!(scalar["type"], "integer");
+    assert_eq!(scalar["minimum"], 1);
+    assert_eq!(scalar["maximum"], i64::MAX);
+    assert!(scalar["description"].as_str().unwrap().contains("不加引号"));
+    for (non_empty, minimum) in [(true, 1), (false, 0)] {
+        let array = positive_i64_array_schema(non_empty);
+        assert_eq!(array["type"], "array");
+        assert_eq!(array["items"], scalar);
+        assert_eq!(array["minItems"], minimum);
+    }
 }
 
 #[test]

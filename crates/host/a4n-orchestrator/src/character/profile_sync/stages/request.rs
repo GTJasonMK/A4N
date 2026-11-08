@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_domain::json_contract::positive_i64_schema;
 use a4n_error::AppError;
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
@@ -220,6 +221,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::EvidenceEvents => json!({
             "format": "json_object",
             "required_root_field": "events",
+            "field_types": { "evidence_anchor_id": positive_i64_schema() },
             "item_required_fields": ["chapter_number", "event_type", "summary", "evidence_anchor_id", "related_characters"],
             "rules": [
                 "只抽取当前角色在本次章节中的事实事件、状态变化线索、关键行为线索和可能失效线索",
@@ -231,6 +233,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::AttributeChanges => json!({
             "format": "json_object",
             "required_root_field": "attribute_changes",
+            "field_types": { "evidence_anchor_id": positive_i64_schema() },
             "item_required_fields": ["chapter_number", "category", "key", "operation", "new_value", "change_description", "event_cause", "evidence_anchor_id", "assertion"],
             "field_value_rules": {
                 "category": {
@@ -268,6 +271,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::BehaviorRecords => json!({
             "format": "json_object",
             "required_root_field": "behaviors",
+            "field_types": { "original_text_anchor_id": positive_i64_schema() },
             "item_required_fields": ["chapter_number", "behavior_type", "behavior_description", "original_text_anchor_id", "behavior_tags", "related_characters", "impact_analysis"],
             "rules": [
                 "只记录推动剧情、暴露性格、改变关系或影响目标的关键行为",
@@ -278,6 +282,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::DeletionCandidates => json!({
             "format": "json_object",
             "required_root_field": "deletion_candidates",
+            "field_types": { "evidence_anchor_id": positive_i64_schema() },
             "item_required_fields": ["chapter_number", "category", "key", "reason", "evidence_anchor_id"],
             "field_value_rules": {
                 "category": {

@@ -71,6 +71,28 @@ from mock_openai.prompt_parsing import current_task_prompt_name, json_task_paylo
 from mock_openai.protocol import UnhandledPromptError
 def response_for(body: dict[str, Any]) -> str:
     model = str(body.get("model", ""))
+    if model.startswith("a4n-anchor-fail-"):
+        value = json.loads(response_for({**body, "model": "a4n-virtual-text"}))
+        root = model.removeprefix("a4n-anchor-fail-")
+        fields = {
+            "objects": "evidence_anchor_ids",
+            "characters": "evidence_anchor_id",
+            "scenes": "evidence_anchor_ids",
+            "occurrences": "source_anchor_ids",
+            "transitions": "source_anchor_ids",
+            "entity_states": "source_anchor_ids",
+            "events": "evidence_anchor_id",
+            "attribute_changes": "evidence_anchor_id",
+            "behaviors": "original_text_anchor_id",
+        }
+        if root not in fields:
+            raise ValueError(f"unknown anchor failure fixture: {root}")
+        if root in value:
+            field = fields[root]
+            item = value[root][0]
+            ids = item[field]
+            item[field] = [str(anchor) for anchor in ids] if isinstance(ids, list) else str(ids)
+        return json.dumps(value, ensure_ascii=False)
     if model.startswith("a4n-checkpoint-"):
         raw = response_for({**body, "model": "a4n-virtual-text"})
         value = json.loads(raw)

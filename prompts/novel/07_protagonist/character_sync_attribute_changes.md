@@ -12,4 +12,6 @@ name: character_sync_attribute_changes
 
 输出必须是严格 JSON 对象，只包含 `attribute_changes` 字段。不要输出 `old_value`、`updated_attributes`、`current_state`、删除操作、行为记录、章节状态或解释文字。旧值和最终状态由系统根据事件链推导。
 
+每条变化的 `evidence_anchor_id` 必须引用对应章节的 `⟦id⟧`，以单个 JSON 正整数输出，不加引号、不带小数点或标记。例如本次输入的 `⟦12⟧` 对应 `12`，不能输出 `"12"`、`"⟦12⟧"` 或 `[12]`。
+
 只记录真正新增或变化的信息；不要复述 baseline 中已有且本章没有变化的属性。`category` 只能使用 `explicit`、`implicit`、`social` 三个字面值，不能输出内部存储字段名 `explicit_attributes`、`implicit_attributes`、`social_attributes`。`key` 必须是对应分类下的顶层属性键，不能使用点路径。

@@ -352,8 +352,8 @@ fn parse_and_validate_character_discovery_content(
     text_anchors: &[a4n_domain::text_anchor::TextAnchorRecord],
 ) -> Result<Vec<Value>, AppError> {
     let discovered = parse_character_discovery_output(content, chapters, text_anchors)
-        .map_err(AppError::InvalidArgument)?;
+        .map_err(AppError::LlmError)?;
     validate_discovered_character_chapter_scope(&discovered, analyzed_chapters)
-        .map_err(AppError::InvalidArgument)?;
+        .map_err(AppError::LlmError)?;
     Ok(discovered)
 }

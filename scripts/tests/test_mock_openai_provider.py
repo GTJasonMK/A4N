@@ -995,6 +995,19 @@ class MockOpenAIProviderTest(unittest.TestCase):
             scene_transition_response(common),
             scene_entity_state_response(common),
         ]
+        for prompt, root, field in [
+            ("object_discovery", "objects", "evidence_anchor_ids"),
+            ("character_discovery", "characters", "evidence_anchor_id"),
+            ("scene_profile_candidates", "scenes", "evidence_anchor_ids"),
+            ("scene_occurrence_extraction", "occurrences", "source_anchor_ids"),
+            ("scene_transition_extraction", "transitions", "source_anchor_ids"),
+            ("scene_entity_state_extraction", "entity_states", "source_anchor_ids"),
+        ]:
+            body = {"model": "a4n-virtual-text", "messages": [{"role": "user", "content": common + json.dumps({"task": {"name": prompt}})}]}
+            valid = json.loads(response_for(body))[root][0][field]
+            invalid = json.loads(response_for({**body, "model": "a4n-anchor-fail-" + root}))[root][0][field]
+            self.assertEqual(invalid, [str(anchor) for anchor in valid] if isinstance(valid, list) else str(valid))
+            self.assertEqual(json.loads(response_for({**body, "model": "a4n-anchor-fail-events"}))[root][0][field], valid)
         for profile_name in ("林岚", "周衡"):
             prompt = common + f'\n{{"profile_name":"{profile_name}"}}'
             responses.extend(
@@ -1005,6 +1018,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     character_sync_behaviors_response(prompt),
                 ]
             )
+        with self.assertRaisesRegex(ValueError, "unknown anchor failure fixture"):
+            response_for({"model": "a4n-anchor-fail-typo", "messages": [{"role": "user", "content": common + json.dumps({"task": {"name": "character_discovery"}})}]})
         encoded = json.dumps(responses, ensure_ascii=False)
         self.assertNotIn("补画在墙面", encoded)
         self.assertNotIn("进入地下机房", encoded)

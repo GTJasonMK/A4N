@@ -224,7 +224,7 @@ impl OrchestratorContext {
                 chapters,
                 text_anchors,
             )
-            .map_err(AppError::InvalidArgument)?;
+            .map_err(AppError::LlmError)?;
             ensure_checkpoint_parsed_output_matches(
                 &checkpoint.parsed_output,
                 &parsed_output,
@@ -282,7 +282,7 @@ impl OrchestratorContext {
                 chapters,
                 text_anchors,
             )
-            .map_err(AppError::InvalidArgument)?;
+            .map_err(AppError::LlmError)?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key: OBJECT_DISCOVERY_CALL_KEY.to_string(),

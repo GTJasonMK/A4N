@@ -401,6 +401,32 @@ fn scene_stages_reject_reference_errors_before_returning_drafts() {
 }
 
 #[test]
+fn every_scene_stage_rejects_non_integer_source_ids() {
+    let context = context_for_test();
+    let content = valid_scene_sync_content(&context);
+    for (root, field) in [
+        ("scenes", "evidence_anchor_ids"),
+        ("occurrences", "source_anchor_ids"),
+        ("transitions", "source_anchor_ids"),
+        ("entity_states", "source_anchor_ids"),
+    ] {
+        for invalid in [
+            json!("1"),
+            json!("⟦1⟧"),
+            json!(1.0),
+            json!(true),
+            Value::Null,
+        ] {
+            let mut value = content.clone();
+            value[root][0][field] = json!([invalid]);
+            let error = parse_scene_profile_sync_content(&value.to_string(), &context)
+                .expect_err("invalid IDs must not reach persistence or checkpoints");
+            assert_eq!(error, format!("{root}[0].{field}[0] 必须是 JSON 整数数字"));
+        }
+    }
+}
+
+#[test]
 fn rejects_scene_type_and_movement_type_aliases() {
     let context = context_for_test();
     let mut value = valid_scene_sync_content(&context);

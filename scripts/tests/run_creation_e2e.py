@@ -33,6 +33,7 @@ SUITES = {
     "authoring": ("run_authoring_stage_cli_e2e.py", set(STAGES[:5])),
     "checkpoints": ("run_checkpoint_call_cli_e2e.py", {"blueprint", "shooting", "segments", "media"}),
     "facts": ("run_fact_feedback_cli_e2e.py", {"chapter", "analysis"}),
+    "analysis_anchors": ("run_analysis_anchor_cli_e2e.py", {"analysis"}),
     "director": ("run_director_timeline_cli_e2e.py", set(STAGES[5:])),
     "shooting": ("run_shooting_async_cli_e2e.py", {"shooting", "segments"}),
     "image_publication": ("run_image_publication_cli_e2e.py", {"media"}),

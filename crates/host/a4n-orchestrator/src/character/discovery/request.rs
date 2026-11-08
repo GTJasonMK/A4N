@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_domain::json_contract::positive_i64_schema;
 use a4n_domain::source_spans::text_anchor_prompt_text;
 use a4n_domain::{
     chapter::ChapterRecord, character::CharacterProfileRecord, text_anchor::TextAnchorRecord,
@@ -119,6 +120,9 @@ fn character_discovery_payload(input: Value) -> Value {
             "required_root_field": "characters",
             "character_scope": "返回本次输入章节中识别出的角色。已有角色也可以返回，后端会归入 existing，不会重复创建。",
             "characters": "array",
+            "field_types": {
+                "evidence_anchor_id": positive_i64_schema(),
+            },
             "character_required_fields": [
                 "name", "aliases", "importance", "role", "explicit_attributes",
                 "implicit_attributes", "social_attributes", "evidence_anchor_id"

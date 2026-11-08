@@ -37,7 +37,7 @@ name: character_discovery
 - `explicit_attributes`: 显性属性对象，可以包含外貌、身份、职业、位置、物品等
 - `implicit_attributes`: 隐性属性对象，可以包含性格、目标、价值观等
 - `social_attributes`: 社会关系对象，可以包含与其他角色、组织、阵营的关系
-- `evidence_anchor_id`: 能证明该角色出现或身份的 text_anchor id
+- `evidence_anchor_id`: 能证明该角色出现或身份的单个 JSON 正整数。选择本次正文的 `⟦id⟧`，去掉标记后输出十进制整数，不加引号、不带小数点或指数。例如 `⟦12⟧` 对应 `12`，不能输出 `"12"`、`"⟦12⟧"`、`12.0` 或 `[12]`；实际 ID 必须来自本次输入
 
 如果没有发现新角色或有效角色，返回 `{"characters":[]}`。
 

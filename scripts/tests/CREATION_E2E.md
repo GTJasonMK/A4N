@@ -41,6 +41,7 @@ Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flow
 - `run_authoring_stage_cli_e2e.py`：灵感、蓝图、规划编辑、正文、分析的结果/版本/下游输入。
 - `run_checkpoint_call_cli_e2e.py`：各模型调用的非法输出、有效断点复用及重试调用次数。
 - `run_fact_feedback_cli_e2e.py`：正文事实撤回、周期反馈、来源覆盖及项目族往返。
+- `run_analysis_anchor_cli_e2e.py`：通过 OpenAI Responses 协议依次注入物品、角色、场景及角色同步的字符串证据 ID，验证明确失败、拒绝无效落库、有效断点复用及最终续跑完成；随 `analysis` 阶段运行，也可连接隔离 Server 单独执行。
 - `run_director_timeline_cli_e2e.py`：导演、镜头、片段、图片/视频、局部失效与媒体导出。
 - `run_shooting_async_cli_e2e.py`：后台任务、观察者断线、取消、部分结果、恢复与来源同步。
 - 全量生成矩阵额外运行 `run_media_authoring_cli_e2e.py`、`run_character_sync_resume_cli_e2e.py`、`run_scene_sync_cli_e2e.py`、`run_agent_cli_e2e.py`、`run_agent_domains_cli_e2e.py`、`run_specialized_agent_cli_e2e.py`、`run_llm_lifecycle_cli_e2e.py`、`run_llm_cache_cli_e2e.py`、`run_image_publication_cli_e2e.py`、`run_image_checkpoint_recovery_cli_e2e.py` 和 `run_portrait_generation_cli_e2e.py`。立绘套件覆盖新增、重绘、年龄变体及缺失批量生成，并检查 LLM/图片 Provider、任务终态、结果引用和正式记录。

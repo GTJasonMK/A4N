@@ -99,7 +99,7 @@ impl OrchestratorContext {
                 &input,
                 &mut outputs,
             )
-            .map_err(AppError::InvalidArgument)
+            .map_err(AppError::LlmError)
             .and_then(|stage_value| {
                 if let Some(saved) = call.restored_parsed_output.as_ref() {
                     ensure_checkpoint_parsed_output_matches(
@@ -191,7 +191,7 @@ impl OrchestratorContext {
                         format!("；LLM 调试日志：{}", llm_trace_paths.join("，"))
                     };
                     return Err(match error {
-                        AppError::InvalidArgument(message) => AppError::InvalidArgument(format!(
+                        AppError::LlmError(message) => AppError::LlmError(format!(
                             "{}输出不符合角色同步阶段契约：{message}{trace_summary}",
                             stage.title()
                         )),

@@ -40,7 +40,7 @@ name: scene_entity_state_extraction
 - `entity_type=object` 时 `entity_id` 必须引用输入 `available_object_profiles[].object_profile_id`。
 - `entity_type=event` 时 `entity_id` 必须为 `null`。
 - `state_key` 只能从 `position`、`possession`、`condition`、`action`、`relation`、`event_progress` 中选择；位置/地点用 `position`，持有/携带/归属用 `possession`，状态/情绪/身体状况用 `condition`，动作/行为用 `action`，关系/联系用 `relation`，事件或剧情进展用 `event_progress`，不要输出 `location`、`status`、`movement`、`relationship`、`progress`。
-- `source_anchor_ids` 必须选择 chapter.content 内 `⟦id⟧` 标记的 ID，不含括号。标记不属于原文。
+- `source_anchor_ids` 必须是非空 JSON 正整数数组，选择 chapter.content 内 `⟦id⟧` 标记的 ID，去掉标记后输出十进制整数，不加引号、不带小数点或指数。例如本次输入的 `⟦12⟧` 对应 `[12]`，不能输出 `["12"]`、`["⟦12⟧"]` 或 `[12.0]`。标记不属于原文。
 - 每个实体状态对象只输出上方示例中的字段；实体显示名称由系统根据 `entity_id` 或动作描述生成。
 
 <!-- @include _partials/json_only_rule.md -->

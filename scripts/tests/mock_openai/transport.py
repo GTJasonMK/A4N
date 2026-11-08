@@ -479,7 +479,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
                     raise ValueError("Gemini requires native auth and alt=sse")
                 messages = [{"role": "system", "content": "\n".join(part["text"] for part in body.get("systemInstruction", {}).get("parts", []))}]
                 messages += [{"role": "assistant" if item["role"] == "model" else "user", "content": "\n".join(part["text"] for part in item["parts"])} for item in body["contents"]]
-            content = "雨夜里，角色谨慎地推开仓库门。" if body.get("a4n_test_cache_usage") is True else response_for({"messages": messages})
+            content = "雨夜里，角色谨慎地推开仓库门。" if body.get("a4n_test_cache_usage") is True else response_for({"messages": messages, "model": body.get("model", "")})
         except (KeyError, TypeError, ValueError, UnhandledPromptError) as error:
             self._json(422, {"error": {"message": str(error)}})
             return True

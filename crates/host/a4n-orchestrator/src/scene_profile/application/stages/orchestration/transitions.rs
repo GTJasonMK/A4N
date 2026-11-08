@@ -1,3 +1,4 @@
+use a4n_domain::json_contract::positive_i64_array_schema;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -33,6 +34,7 @@ pub(super) async fn run(
         json!({
             "format": "json_object",
             "required_root_field": "transitions",
+            "field_types": { "source_anchor_ids": positive_i64_array_schema(true) },
             "strict_rules": [
                 "只返回 transitions 数组，不要输出 scenes、occurrences 或 entity_states",
                 SCENE_TRANSITION_REFERENCE_RULE,

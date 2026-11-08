@@ -77,6 +77,8 @@ class CreationAcceptanceTest(unittest.TestCase):
         self.assertFalse(set(FULL_GENERATION_SUITES) & set(selected_suites({"inspiration"})))
         for script in FULL_GENERATION_SUITES.values():
             self.assertTrue((ROOT / "scripts/tests" / script).is_file(), script)
+        self.assertIn("analysis_anchors", selected_suites({"analysis"}))
+        self.assertNotIn("analysis_anchors", selected_suites({"chapter"}))
 
     def test_browser_feature_flows_extend_the_creation_browser_path(self):
         default = selected_browser_specs(False)

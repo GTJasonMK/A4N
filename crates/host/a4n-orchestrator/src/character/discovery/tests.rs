@@ -171,7 +171,10 @@ fn character_discovery_user_prompt_uses_json_payload() {
             .expect("system derived fields should be array")
             .contains(&json!("personality"))
     );
-    assert!(payload["output_contract"].get("field_types").is_none());
+    let evidence = &payload["output_contract"]["field_types"]["evidence_anchor_id"];
+    assert_eq!(evidence["type"], "integer");
+    assert_eq!(evidence["minimum"], 1);
+    assert_eq!(evidence["maximum"], i64::MAX);
     assert!(
         payload["output_contract"]["strict_rules"]
             .as_array()
@@ -406,6 +409,30 @@ fn parse_output_rejects_unknown_evidence_anchor_id() {
         .expect_err("unknown evidence anchor id must fail");
     assert!(error.contains("evidence_anchor_id 无效"));
     assert!(error.contains("text_anchor_id 不在本次输入候选中"));
+}
+
+#[test]
+fn parse_output_rejects_non_integer_evidence_without_coercion() {
+    let (chapters, anchors) = discovery_anchor_context("沈砚推门而入。");
+    let anchor_id = anchor_id_containing(&anchors, "沈砚推门而入");
+    for invalid in [
+        json!(anchor_id.to_string()),
+        json!(format!("⟦{anchor_id}⟧")),
+        json!(anchor_id as f64),
+        json!([anchor_id]),
+        json!(true),
+        Value::Null,
+    ] {
+        let mut value: Value =
+            serde_json::from_str(&canonical_discovery_content(anchor_id)).unwrap();
+        value["characters"][0]["evidence_anchor_id"] = invalid;
+        let error = parse_character_discovery_output(&value.to_string(), &chapters, &anchors)
+            .expect_err("a model-supplied ID must be an integer token");
+        assert_eq!(
+            error,
+            "characters[0].evidence_anchor_id 必须是 JSON 整数数字"
+        );
+    }
 }
 
 #[test]

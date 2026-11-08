@@ -291,6 +291,29 @@ fn contracts_make_canonical_category_values_explicit() {
     }
 }
 
+#[test]
+fn all_evidence_bearing_stages_declare_integer_ids() {
+    for stage in CharacterProfileSyncStage::ALL {
+        let contract = character_profile_sync_stage_contract(stage);
+        let field = if stage == CharacterProfileSyncStage::BehaviorRecords {
+            "original_text_anchor_id"
+        } else if stage == CharacterProfileSyncStage::ChapterStates {
+            assert!(contract.get("field_types").is_none());
+            continue;
+        } else {
+            "evidence_anchor_id"
+        };
+        assert!(
+            contract["item_required_fields"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(field))
+        );
+        assert_eq!(contract["field_types"][field]["type"], "integer");
+        assert_eq!(contract["field_types"][field]["minimum"], 1);
+    }
+}
+
 #[tokio::test]
 async fn stage_requests_share_chapters_across_characters_and_keep_subjects_separate() {
     let input = stage_input(None);
