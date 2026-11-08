@@ -70,6 +70,7 @@ from mock_openai.fixtures.story import (
 )
 from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
 from mock_openai.protocol import UnhandledPromptError
+from mock_openai.contract_guard import split_output_contracts
 
 ANCHOR_OUTPUT_FIELDS = {
     "object_discovery": ("objects", "evidence_anchor_ids"),
@@ -202,8 +203,11 @@ def response_for(body: dict[str, Any]) -> str:
     messages = body.get("messages") or []
     # System contracts may follow the dynamic task on Chat Completions. Keep
     # instructions before task data when handing text to input-payload parsers.
-    combined = "\n".join(message_text(message.get("content", "")) for message in sorted(messages,key=lambda message:message.get("role")!="system"))
-    system = "\n".join(message_text(message.get("content", "")) for message in messages if message.get("role") == "system")
+    systems=[split_output_contracts(message_text(message.get("content",""))) for message in messages if message.get("role")=="system"]
+    system="\n".join(text for text,_ in systems)
+    contracts=[contract for _,declared in systems for contract in declared]
+    contract_name=contracts[0].get("name") if contracts else None
+    combined=system+"\n"+"\n".join(message_text(message.get("content","")) for message in messages if message.get("role")!="system")
     if "你是 A4N 的媒体文本创作助手" in system:
         if not any(message.get("role")=="user" and message_text(message.get("content","")).strip() for message in messages):
             raise ValueError("text asset draft requires the current instruction")
@@ -403,7 +407,7 @@ def response_for(body: dict[str, Any]) -> str:
         combined,
         re.DOTALL,
     )
-    if part_match and "character_focus" in combined and "key_events" in combined:
+    if part_match and (contract_name=="part_outline_single" or ("character_focus" in combined and "key_events" in combined)):
         return json.dumps(part_outline_response(int(part_match.group(1))), ensure_ascii=False)
 
     chapter_matches = re.findall(
@@ -411,7 +415,7 @@ def response_for(body: dict[str, Any]) -> str:
         combined,
         re.DOTALL,
     )
-    if chapter_matches and "word_count_target" in combined and "pacing_score" in combined:
+    if chapter_matches and (contract_name=="outline" or ("word_count_target" in combined and "pacing_score" in combined)):
         return json.dumps(
             {"chapters": [chapter_outline_response(int(chapter_matches[-1]))]},
             ensure_ascii=False,

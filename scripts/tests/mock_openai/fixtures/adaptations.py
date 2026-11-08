@@ -16,7 +16,7 @@ def media_adaptation_response(combined: str) -> dict[str, Any]:
     payloads = [
         value
         for value in embedded_json_objects(combined)
-        if value.get("target") in {"manga", "galgame"}
+        if value.get("target") in ("manga", "galgame")
         and isinstance(value.get("chapter"), dict)
         and isinstance(value["chapter"].get("content"), str)
     ]

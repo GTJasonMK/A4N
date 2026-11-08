@@ -65,7 +65,7 @@ class ModelMockBoundaryTests(unittest.TestCase):
     def test_json_agent_http_fixture_uses_json_decisions_and_preserves_contract(self):
         contract={"name":"agent_json_compat","schema":{"type":"object","required":["action","arguments"],"properties":{"action":{"enum":["think","run_tool","final"]},"arguments":{"type":"object"}},"additionalProperties":False}}
         body={"model":"a4n-virtual-text","response_format":{"type":"json_object"},"messages":[
-            {"role":"system","content":"你是 A4N 项目 Agent。\n当前能力域：content_optimization\n[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+            {"role":"system","content":"你是 A4N 项目 Agent。\n当前能力域：content_optimization\n[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract,indent=2)+"\n[/A4N_OUTPUT_CONTRACT]"},
             {"role":"user","content":"A4N_OPTIMIZATION_PLAIN 何时写回？"},
         ]}
         message=self.post(body)["choices"][0]["message"]
@@ -95,6 +95,18 @@ class ModelMockBoundaryTests(unittest.TestCase):
         body["model"]="a4n-virtual-text"
         output=json.loads(self.post(body)["choices"][0]["message"]["content"])
         self.assertEqual(output["segments"][0]["source_shot_id"],"shot-2")
+
+    def test_schema_and_unrelated_target_objects_are_not_adaptation_task_inputs(self):
+        contract={"name":"chapter_media_adaptation_plan","schema":{"type":"object","required":["target","units"],"properties":{"target":{"enum":["manga","galgame"]},"units":{"type":"array","minItems":1}}}}
+        payload={"target":"galgame","chapter":{"content":"#1 林岚在旧车站看到周衡。\n#2 林岚走进机房。"},"unrelated":{"target":{"shape":"object"}}}
+        body={"model":"a4n-virtual-text","response_format":{"type":"json_schema","json_schema":contract},"messages":[
+            {"role":"system","content":"你负责把原作章节改编为指定媒介的叙事计划"},
+            {"role":"user","content":json.dumps(payload,ensure_ascii=False)},
+            {"role":"system","content":"[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+        ]}
+        output=json.loads(self.post(body)["choices"][0]["message"]["content"])
+        self.assertEqual(output["target"],"galgame")
+        self.assertEqual(output["units"][0]["source_span_ids"],["#1","#2"])
 
 
 if __name__ == "__main__":

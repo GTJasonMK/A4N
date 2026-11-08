@@ -29,7 +29,7 @@ from mock_openai.protocol import (
     VideoIdempotencyConflict,
 )
 from mock_openai.response import response_for
-from mock_openai.contract_guard import unique_object, validate_business_request
+from mock_openai.contract_guard import split_output_contracts, unique_object, validate_business_request
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
 
@@ -338,11 +338,19 @@ class ProviderHandler(BaseHTTPRequestHandler):
             except (UnhandledPromptError, ValueError) as error:
                 self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
                 return
+            except (KeyError,TypeError) as error:
+                self._json(422,{"error":{"message":str(error),"type":"invalid_fixture_input"}})
+                return
             tool_calls = []
         else:
             content = str(agent_fixture.get("content", ""))
             tool_calls = agent_fixture.get("tool_calls") or ([agent_fixture["tool_call"]] if agent_fixture.get("tool_call") else [])
-            json_agent=body.get("response_format",{}).get("type")=="json_object" and any("\"name\":\"agent_json_compat\"" in message_text(row.get("content","")).replace(" ","") for row in body.get("messages",[]) if row.get("role")=="system")
+            try:
+                contracts=[contract for row in body.get("messages",[]) if row.get("role")=="system" for contract in split_output_contracts(message_text(row.get("content","")))[1]]
+            except ValueError as error:
+                self._json(422,{"error":{"message":str(error),"type":"invalid_agent_contract"}})
+                return
+            json_agent=body.get("response_format",{}).get("type")=="json_object" and any(contract.get("name")=="agent_json_compat" for contract in contracts)
             summary_agent=any(str(row.get("content","")).startswith("你负责压缩 A4N Agent 的历史") for row in body.get("messages",[]) if row.get("role")=="system")
             if json_agent:
                 if len(tool_calls)>1:

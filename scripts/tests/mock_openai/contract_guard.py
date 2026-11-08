@@ -22,6 +22,21 @@ def unique_object(pairs):
     return result
 
 
+def split_output_contracts(text: str) -> tuple[str, list[dict]]:
+    instructions=[]
+    contracts=[]
+    while START in text:
+        before,after=text.split(START,1)
+        if END not in after:raise ValueError("unclosed output contract")
+        raw,text=after.split(END,1)
+        instructions.append(before)
+        declared=json.loads(raw,object_pairs_hook=unique_object)
+        if not isinstance(declared,dict):raise ValueError("output contract must be an object")
+        contracts.append(declared)
+    instructions.append(text)
+    return "".join(instructions),contracts
+
+
 @functools.lru_cache(maxsize=512)
 def validate_fixture(schema_json: str, output: str) -> None:
     value = json.loads(output, object_pairs_hook=unique_object)
@@ -51,13 +66,8 @@ def validate_business_request(body: dict, messages: list[dict], normal_output: s
     for row in messages:
         if row.get("role") != "system":
             continue
-        text = message_text(row.get("content", ""))
-        while START in text:
-            _, text = text.split(START, 1)
-            if END not in text:
-                raise ValueError("unclosed output contract")
-            raw, text = text.split(END, 1)
-            contracts.append(json.loads(raw, object_pairs_hook=unique_object))
+        _,declared=split_output_contracts(message_text(row.get("content", "")))
+        contracts.extend(declared)
     native = body.get("response_format", {}).get("json_schema", {}).get("schema")
     native = body.get("text", {}).get("format", {}).get("schema", native)
     native = body.get("generationConfig", {}).get("responseJsonSchema", native)
