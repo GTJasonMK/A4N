@@ -28,7 +28,7 @@ from mock_openai.protocol import (
     UnhandledPromptError,
     VideoIdempotencyConflict,
 )
-from mock_openai.response import response_for
+from mock_openai.response import normal_fixture_model, response_for
 from mock_openai.contract_guard import split_output_contracts, unique_object, validate_business_request
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
@@ -332,7 +332,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 content = response_for(body)
                 # Deliberate fault responses must reach the production recovery path.
                 # Validate their normal fixture, then send the injected response unchanged.
-                normal_body = {**body, "model": "a4n-virtual-text"} if str(body.get("model", "")).startswith(("a4n-output-", "a4n-anchor-", "a4n-checkpoint-")) or body.get("model") == "a4n-fact-feedback-invalid" else body
+                normal_model=normal_fixture_model(str(body.get("model","")))
+                normal_body={**body,"model":normal_model} if normal_model!=body.get("model") else body
                 normal = response_for(normal_body) if normal_body is not body else content
                 validate_business_request(body, body.get("messages", []), normal)
             except (UnhandledPromptError, ValueError) as error:

@@ -86,10 +86,16 @@ ANCHOR_OUTPUT_FIELDS = {
 }
 
 
+def normal_fixture_model(model: str) -> str:
+    if model=="a4n-fact-feedback-invalid":return "a4n-fact-feedback"
+    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-")):return "a4n-virtual-text"
+    return model
+
+
 def anchor_fault_response(body, fault, expected_root=None):
     combined = "\n".join(message_text(message.get("content", "")) for message in body.get("messages", []))
     selected = ANCHOR_OUTPUT_FIELDS.get(current_task_prompt_name(combined))
-    raw = response_for({**body, "model": "a4n-virtual-text"})
+    raw = response_for({**body, "model": normal_fixture_model(str(body.get("model","")))})
     # Root names can overlap across unrelated contracts (facts also contain
     # characters). Inject only into the intended task, never into its upstream.
     if selected is None or (expected_root is not None and selected[0] != expected_root):
@@ -135,7 +141,7 @@ def response_for(body: dict[str, Any]) -> str:
             raise ValueError(f"unknown anchor failure fixture: {root}")
         return anchor_fault_response(body, "string_ids", expected_root=root)
     if model.startswith("a4n-checkpoint-"):
-        raw = response_for({**body, "model": "a4n-virtual-text"})
+        raw = response_for({**body, "model": normal_fixture_model(model)})
         value = json.loads(raw)
         fault = model.removeprefix("a4n-checkpoint-fail-")
         combined = "\n".join(message_text(message.get("content", "")) for message in body["messages"])

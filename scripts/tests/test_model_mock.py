@@ -120,6 +120,20 @@ class ModelMockBoundaryTests(unittest.TestCase):
         self.assertEqual(output["requirements"],[])
         self.assertEqual(output["references"],[])
 
+    def test_fact_fault_keeps_its_calendar_context_for_normal_contract_validation(self):
+        contract={"name":"object_discovery","schema":{"type":"object","required":["objects"],"properties":{"objects":{"type":"array"}}}}
+        body={"model":"a4n-fact-feedback-invalid","response_format":{"type":"json_schema","json_schema":contract},"messages":[
+            {"role":"user","content":json.dumps({"task":{"name":"object_discovery"},"chapter":{"content":"#1 记忆城每年有六个季节。"}},ensure_ascii=False)},
+            {"role":"system","content":"[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+        ]}
+        self.assertEqual(json.loads(self.post(body)["choices"][0]["message"]["content"]),{"objects":[]})
+        contract={"name":"project_fact_consolidation","schema":{"type":"object","required":["changes"],"properties":{"changes":{"type":"array"}}}}
+        body["response_format"]["json_schema"]=contract
+        body["messages"][0]["content"]=json.dumps({"task":{"name":"project_fact_consolidation"},"blueprint":{"id":1,"world_setting":{"culture_and_society":{"calendar":"旧历法"}}},"part_outlines":[],"chapters":[{"chapter_number":9,"content":"#1 记忆城每年有六个季节。"}]},ensure_ascii=False)
+        body["messages"][1]["content"]="[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"
+        output=json.loads(self.post(body)["choices"][0]["message"]["content"])
+        self.assertEqual(output["changes"][0]["source_span_ids"],["#999999"])
+
 
 if __name__ == "__main__":
     unittest.main()
