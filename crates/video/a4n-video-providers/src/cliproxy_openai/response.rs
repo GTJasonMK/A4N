@@ -71,7 +71,7 @@ pub(super) fn failure_message(v: &Value) -> Option<String> {
     if status_failed {
         Some(message.unwrap_or_else(|| "视频生成失败".to_string()))
     } else {
-        message.filter(|_| status_failed)
+        None
     }
 }
 

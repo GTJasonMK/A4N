@@ -291,7 +291,7 @@ fn user_prompt_is_json_contract_and_names_canonical_fields() {
         .expect("prompt should contain the canonical JSON payload");
     assert_eq!(payload["output_contract"]["required_root_field"], "objects");
     assert!(
-        payload["output_contract"]["object_fields"]
+        payload["output_contract"]["item_required_fields"]
             .as_array()
             .is_some_and(|fields| fields.contains(&json!("evidence_anchor_ids")))
     );

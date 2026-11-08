@@ -73,13 +73,17 @@ def inspect(root:Path=ROOT,ledger:dict|None=None,ast:dict|None=None,baseline:dic
         free_ids.add(call_id)
         if source_path(row.get("owner","")) not in observed_files or not row.get("validator") or not row.get("branches"):
             raise ValueError("自由文本业务调用未完整登记")
-    capabilities=("text","image","video",*( ("search",) if ast["catalogs"].get("search") is not None else ()))
-    for capability in capabilities:
+        scenarios = row.get("scenarios")
+        if not isinstance(scenarios, list) or not scenarios or any(not isinstance(name, str) or not name.strip() for name in scenarios) or len(scenarios) != len(set(scenarios)):
+            raise ValueError("自由文本业务调用必须显式登记非空且不重复的异常场景")
+    for capability in ("text", "image", "video", "search"):
         catalog=ast["catalogs"].get(capability)
         if not catalog or len({row["id"] for row in catalog})!=len(catalog):
             raise ValueError("生产能力目录为空或重复："+capability)
-        if not ledger["shared_scenarios"].get(capability):
-            raise ValueError("生产能力缺少必测异常场景："+capability)
+    for capability in ("text", "tools", "image", "video", "embedding", "search"):
+        scenarios = ledger["shared_scenarios"].get(capability)
+        if not isinstance(scenarios, list) or not scenarios or any(not isinstance(name, str) or not name.strip() for name in scenarios) or len(scenarios) != len(set(scenarios)):
+            raise ValueError("生产能力缺少非空且不重复的必测异常场景："+capability)
     return {"business_json_calls":len(ids),"free_text_calls":len(ledger.get("free_text",[])),"ast_call_sites":len(ast["calls"]),"provider_implementations":len(ast["implementations"]),"scope":ledger["scope"],"runtime_coverage_measured":False}
 
 

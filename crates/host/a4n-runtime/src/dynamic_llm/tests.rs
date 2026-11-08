@@ -233,7 +233,7 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
                     content: None,
                     reasoning_content: None,
                     tool_calls: Some(vec![ToolCall {
-                        id: "__stream_tool_0".into(),
+                        id: String::new(),
                         name: String::new(),
                         arguments: serde_json::Value::String("7}".into()),
                         stream_index: Some(0),

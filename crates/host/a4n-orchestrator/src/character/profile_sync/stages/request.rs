@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_domain::json_contract::positive_i64_schema;
+use a4n_domain::character::{CharacterAttributeCategory, CharacterAttributeOperation};
+use a4n_domain::json_contract::{positive_i64_schema, typed_output_schema};
 use a4n_error::AppError;
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
@@ -229,7 +230,7 @@ fn character_profile_sync_stage_stable_context(input: &CharacterProfileSyncStage
 }
 
 pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncStage) -> Value {
-    let mut contract = match stage {
+    match stage {
         CharacterProfileSyncStage::EvidenceEvents => json!({
             "format": "json_object",
             "required_root_field": "events",
@@ -252,8 +253,8 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
             "required_root_field": "attribute_changes",
             "field_types": {
                 "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
-                "category":{"type":"string"}, "key":{"type":"string","minLength":1},
-                "operation":{"type":"string"}, "new_value":{"not":{"type":"null"}},
+                "category":typed_output_schema::<CharacterAttributeCategory>(), "key":{"type":"string","minLength":1},
+                "operation":{"type":"string","enum":[CharacterAttributeOperation::Add,CharacterAttributeOperation::Modify]}, "new_value":{"not":{"type":"null"}},
                 "change_description":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
                 "event_cause":{"type":"string","minLength":1,"maxLength":CHARACTER_SYNC_DESCRIPTION_MAX_CHARS},
                 "assertion":{"type":"string","enum":["observed","inferred"]},
@@ -262,17 +263,11 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
             "item_required_fields": ["chapter_number", "category", "key", "operation", "new_value", "change_description", "event_cause", "evidence_anchor_id", "assertion"],
             "field_value_rules": {
                 "category": {
-                    "allowed_values": ["explicit", "implicit", "social"],
-                    "forbidden_values": ["explicit_attributes", "implicit_attributes", "social_attributes"],
                     "mapping": {
                         "explicit": "baseline_state.explicit_attributes",
                         "implicit": "baseline_state.implicit_attributes",
                         "social": "baseline_state.social_attributes"
                     }
-                },
-                "operation": {
-                    "allowed_values": ["add", "modify"],
-                    "forbidden_values": ["delete"]
                 }
             },
             "rules": [
@@ -323,15 +318,13 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
             "required_root_field": "deletion_candidates",
             "field_types": {
                 "chapter_number":{"type":"integer","minimum":1,"maximum":i32::MAX},
-                "category":{"type":"string"}, "key":{"type":"string","minLength":1},
+                "category":typed_output_schema::<CharacterAttributeCategory>(), "key":{"type":"string","minLength":1},
                 "reason":{"type":"string","minLength":1},
                 "evidence_anchor_id": positive_i64_schema()
             },
             "item_required_fields": ["chapter_number", "category", "key", "reason", "evidence_anchor_id"],
             "field_value_rules": {
                 "category": {
-                    "allowed_values": ["explicit", "implicit", "social"],
-                    "forbidden_values": ["explicit_attributes", "implicit_attributes", "social_attributes"],
                     "mapping": {
                         "explicit": "baseline_state.explicit_attributes",
                         "implicit": "baseline_state.implicit_attributes",
@@ -346,15 +339,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
                 "没有删除候选时输出 []"
             ]
         }),
-    };
-    let schema = a4n_domain::json_contract::array_output_contract_schema(&contract)
-        .expect("static character sync contract");
-    let root = contract["required_root_field"]
-        .as_str()
-        .expect("contract root");
-    let fields = schema["properties"][root]["items"]["properties"].clone();
-    contract["field_types"] = fields;
-    contract
+    }
 }
 
 #[cfg(test)]

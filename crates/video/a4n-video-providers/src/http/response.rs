@@ -1,9 +1,24 @@
 use a4n_domain::{ProviderError as AppError, media::canonical_video_extension};
-use a4n_video_provider_contract::VideoGenerationResult;
+use a4n_video_provider_contract::{VideoGenerationResult, VideoJobStatus};
 use base64::Engine as _;
 use serde_json::Value;
 
 use super::super::download::download_video_url;
+
+pub(super) fn decode_job_status(value: &Value) -> Result<VideoJobStatus, AppError> {
+    let status = required_string(value, "/status", "视频任务 status")?;
+    crate::response::parse_job_status(status, || {
+        value
+            .get("error_message")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|message| !message.is_empty())
+            .unwrap_or("视频任务失败，后端未返回错误详情")
+            .chars()
+            .take(500)
+            .collect()
+    })
+}
 
 pub(super) async fn decode_result(
     client: &reqwest::Client,

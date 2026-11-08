@@ -1,4 +1,5 @@
 use a4n_domain::ProviderError as AppError;
+use a4n_video_provider_contract::VideoJobStatus;
 use serde_json::Value;
 
 pub(super) struct VideoUrlPayload<'a> {
@@ -20,17 +21,23 @@ pub(super) fn extract_task_id(v: &Value) -> Result<Option<String>, AppError> {
     Ok(None)
 }
 
-pub(super) fn extract_status(v: &Value) -> Option<&str> {
-    [
-        "/data/data/status",
-        "/data/status",
-        "/status",
-        "/state",
-        "/data/state",
-    ]
-    .into_iter()
-    .find_map(|pointer| v.pointer(pointer).and_then(Value::as_str).map(str::trim))
-    .filter(|text| !text.is_empty())
+pub(super) fn extract_status(v: &Value) -> Result<Option<&str>, AppError> {
+    first_optional_pointer_str(
+        v,
+        &[
+            "/data/data/status",
+            "/data/status",
+            "/status",
+            "/state",
+            "/data/state",
+        ],
+    )
+}
+
+pub(super) fn decode_job_status(v: &Value) -> Result<VideoJobStatus, AppError> {
+    let status = extract_status(v)?
+        .ok_or_else(|| AppError::Internal("New API 视频任务响应缺少 status".into()))?;
+    crate::response::parse_job_status(status, || extract_failure_message(v))
 }
 
 pub(super) fn find_video_url(v: &Value) -> Result<Option<VideoUrlPayload<'_>>, AppError> {

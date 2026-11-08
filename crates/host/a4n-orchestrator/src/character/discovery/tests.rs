@@ -160,7 +160,7 @@ fn character_discovery_user_prompt_uses_json_payload() {
     );
     assert!(payload["output_contract"].get("size_limits").is_none());
     assert!(
-        !payload["output_contract"]["character_required_fields"]
+        !payload["output_contract"]["item_required_fields"]
             .as_array()
             .expect("required fields should be array")
             .contains(&json!("appearance"))

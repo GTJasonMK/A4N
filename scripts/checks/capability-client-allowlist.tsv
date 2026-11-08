@@ -117,6 +117,7 @@ client-dependency	a4n-source-snapshot-worker-client	a4n-error	normal
 client-dependency	a4n-source-snapshot-worker-client	a4n-source-snapshot-worker-contract	normal
 client-dependency	a4n-source-snapshot-worker-client	a4n-worker-client	normal
 client-dependency	a4n-source-snapshot-worker-client	a4n-worker-contract	normal
+client-dependency	a4n-worker-client	a4n-error	normal
 client-dependency	a4n-worker-client	a4n-worker-contract	normal
 client-dependency	a4n-profile-material-worker-client	a4n-api-contract	normal
 client-dependency	a4n-profile-material-worker-client	a4n-error	normal

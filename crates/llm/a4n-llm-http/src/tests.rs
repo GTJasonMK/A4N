@@ -247,7 +247,7 @@ fn parse_sse_data_line_keeps_openai_tool_call_deltas() {
         .tool_calls
         .expect("continuation should be parsed")
         .remove(0);
-    assert_eq!(call.id, "__stream_tool_0");
+    assert!(call.id.is_empty());
     assert_eq!(call.stream_index, Some(0));
     assert_eq!(call.arguments, Value::String("7}".into()));
 }
@@ -258,6 +258,22 @@ fn parse_sse_data_line_recognizes_done_marker() {
         parse_sse_data_line(b"data: [DONE]"),
         ParsedSseLine::Done
     ));
+}
+
+#[test]
+fn malformed_tool_call_shapes_are_not_silently_dropped() {
+    for tool_calls in [json!({}), json!("invalid"), json!([{"index":0,"id":1}])] {
+        let line = format!(
+            "data: {}",
+            json!({
+                "choices":[{"index":0,"delta":{"tool_calls":tool_calls},"finish_reason":"stop"}]
+            })
+        );
+        assert!(matches!(
+            parse_sse_data_line(line.as_bytes()),
+            ParsedSseLine::Chunk(Err(_))
+        ));
+    }
 }
 
 #[test]

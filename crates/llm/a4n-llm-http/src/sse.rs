@@ -135,9 +135,12 @@ pub(super) fn parse_sse_data_line(line_bytes: &[u8]) -> ParsedSseLine {
 fn parse_tool_calls(
     value: &Value,
 ) -> Result<Option<Vec<a4n_llm_provider_contract::ToolCall>>, AppError> {
-    let Some(items) = value.as_array() else {
+    if value.is_null() {
         return Ok(None);
-    };
+    }
+    let items = value
+        .as_array()
+        .ok_or_else(|| internal_error("LLM 响应字段 choices[0].delta.tool_calls 必须是数组"))?;
     let mut calls = Vec::with_capacity(items.len());
     for item in items {
         let index = match required_usize(&item["index"], "choices[0].delta.tool_calls[].index") {
@@ -151,11 +154,12 @@ fn parse_tool_calls(
             },
             Err(error) => return Err(error),
         };
-        let id = item["id"]
-            .as_str()
-            .filter(|id| !id.trim().is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("__stream_tool_{index}"));
+        // Continuations identify the call by index and may omit its id.
+        let id = match &item["id"] {
+            Value::Null => String::new(),
+            Value::String(id) => id.clone(),
+            _ => return Err(internal_error("LLM tool call id 必须是字符串")),
+        };
         let function = item.get("function").unwrap_or(&Value::Null);
         let name = function["name"].as_str().unwrap_or_default().to_string();
         let arguments = function

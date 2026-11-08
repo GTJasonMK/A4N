@@ -11,7 +11,7 @@ use a4n_video_provider_contract::{
 };
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
-use self::response::{decode_result, extract_job_id, required_string};
+use self::response::{decode_job_status, decode_result, extract_job_id};
 use crate::transport::{self, ApiKeyAuth};
 
 pub(crate) struct HttpVideoProvider {
@@ -71,9 +71,25 @@ impl VideoProvider for HttpVideoProvider {
         )
         .await?;
         let job_id = extract_job_id(&v)?;
+        let status = v.get("status").map(|_| decode_job_status(&v)).transpose()?;
 
-        if let Some(result) = decode_result(&self.client, &v, job_id.clone()).await? {
-            return Ok(result);
+        match status {
+            Some(VideoJobStatus::Failed(message)) => return Err(AppError::Internal(message)),
+            Some(VideoJobStatus::Cancelled) => {
+                return Err(AppError::Internal("视频任务已取消".into()));
+            }
+            Some(VideoJobStatus::Pending | VideoJobStatus::Running) => {}
+            Some(VideoJobStatus::Completed) | None => {
+                if let Some(result) = decode_result(&self.client, &v, job_id.clone()).await? {
+                    return Ok(result);
+                }
+                if status == Some(VideoJobStatus::Completed) {
+                    return Err(AppError::Internal(
+                        "视频任务已完成，但响应缺少视频产物".into(),
+                    ));
+                }
+            }
+            Some(VideoJobStatus::NotFound) => unreachable!("a submission cannot indicate HTTP 404"),
         }
 
         if let Some(job_id) = job_id {
@@ -103,34 +119,23 @@ impl VideoProvider for HttpVideoProvider {
             "视频任务查询",
         )
         .await?;
-        let status = required_string(&v, "/status", "视频任务 status")?.to_lowercase();
-
-        if matches!(status.as_str(), "failed" | "cancelled") {
-            let msg = required_string(&v, "/error_message", "视频任务 error_message")?
-                .chars()
-                .take(500)
-                .collect::<String>();
-            return Ok(VideoJobState::Failed(msg));
-        }
-
-        if status == "pending" {
-            return Ok(VideoJobState::Pending);
-        }
-
-        if status == "running" {
-            return Ok(VideoJobState::Running);
-        }
-
-        if status == "completed" {
-            if let Some(result) = decode_result(&self.client, &v, Some(job_id.to_string())).await? {
-                return Ok(VideoJobState::Completed(result));
+        match decode_job_status(&v)? {
+            VideoJobStatus::Pending => Ok(VideoJobState::Pending),
+            VideoJobStatus::Running => Ok(VideoJobState::Running),
+            VideoJobStatus::Failed(message) => Ok(VideoJobState::Failed(message)),
+            VideoJobStatus::Cancelled => Ok(VideoJobState::Failed("视频任务已取消".into())),
+            VideoJobStatus::Completed => decode_result(&self.client, &v, Some(job_id.to_string()))
+                .await?
+                .map(VideoJobState::Completed)
+                .ok_or_else(|| {
+                    AppError::Internal(
+                        "视频任务已完成，但响应缺少 data[0].b64_json 或 data[0].url".into(),
+                    )
+                }),
+            VideoJobStatus::NotFound => {
+                unreachable!("provider status body cannot indicate HTTP 404")
             }
-            return Err(AppError::Internal(
-                "视频任务已完成，但响应缺少 data[0].b64_json 或 data[0].url".to_string(),
-            ));
         }
-
-        Err(AppError::Internal(format!("未知视频任务 status={status}")))
     }
 
     async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError> {
@@ -148,37 +153,6 @@ impl VideoProvider for HttpVideoProvider {
         let Some(value) = value else {
             return Ok(VideoJobStatus::NotFound);
         };
-        let status = required_string(&value, "/status", "视频任务 status")?.to_ascii_lowercase();
-        if matches!(
-            status.as_str(),
-            "pending" | "queued" | "submitted" | "starting"
-        ) {
-            return Ok(VideoJobStatus::Pending);
-        }
-        if matches!(status.as_str(), "running" | "processing" | "in_progress") {
-            return Ok(VideoJobStatus::Running);
-        }
-        if matches!(status.as_str(), "cancelled" | "canceled") {
-            return Ok(VideoJobStatus::Cancelled);
-        }
-        if matches!(status.as_str(), "failed" | "failure" | "error" | "expired") {
-            let message = value
-                .pointer("/error_message")
-                .and_then(|item| item.as_str())
-                .map(str::trim)
-                .filter(|item| !item.is_empty())
-                .unwrap_or("视频任务失败")
-                .chars()
-                .take(500)
-                .collect();
-            return Ok(VideoJobStatus::Failed(message));
-        }
-        if matches!(
-            status.as_str(),
-            "completed" | "complete" | "succeeded" | "success" | "done"
-        ) {
-            return Ok(VideoJobStatus::Completed);
-        }
-        Err(AppError::Internal(format!("未知视频任务 status={status}")))
+        decode_job_status(&value)
     }
 }

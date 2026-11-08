@@ -108,7 +108,7 @@ fn object_discovery_payload(input: Value) -> Value {
             "object_scope": "返回本次输入章节中明确出现且可作为视觉素材复用的物体。已有物体也可以返回，后端会更新而非重复创建。",
             "object_type_values": a4n_domain::object_profile::OBJECT_TYPES,
             "importance_values": a4n_domain::profile_text::PROFILE_IMPORTANCE_VALUES,
-            "object_fields": ["name", "aliases", "object_type", "importance", "visual_description", "material_and_state", "story_usage", "visual_usage", "generation_usage", "location_context", "evidence_anchor_ids"],
+            "item_required_fields": ["name", "aliases", "object_type", "importance", "visual_description", "material_and_state", "story_usage", "visual_usage", "generation_usage", "location_context", "evidence_anchor_ids"],
             "field_types": {
                 "name": {"type":"string","minLength":1},
                 "aliases": {"type":"array","items":{"type":"string"}},

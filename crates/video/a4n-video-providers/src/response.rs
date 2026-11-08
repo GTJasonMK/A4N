@@ -1,6 +1,23 @@
 use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
+use a4n_video_provider_contract::VideoJobStatus;
+
+pub(crate) fn parse_job_status(
+    status: &str,
+    failure_message: impl FnOnce() -> String,
+) -> Result<VideoJobStatus, AppError> {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "pending" | "queued" | "submitted" | "starting" => Ok(VideoJobStatus::Pending),
+        "running" | "processing" | "in_progress" => Ok(VideoJobStatus::Running),
+        "cancelled" | "canceled" => Ok(VideoJobStatus::Cancelled),
+        "failed" | "failure" | "error" | "expired" => Ok(VideoJobStatus::Failed(failure_message())),
+        "completed" | "complete" | "succeeded" | "success" | "done" => {
+            Ok(VideoJobStatus::Completed)
+        }
+        _ => Err(AppError::Internal(format!("未知视频任务 status={status}"))),
+    }
+}
 
 pub(crate) async fn parse_json_response(
     resp: reqwest::Response,
@@ -36,7 +53,7 @@ async fn parse_json_response_inner(
     if !status.is_success() {
         return Err(non_success_error(status, label, &text));
     }
-    serde_json::from_str(&text)
+    a4n_domain::json_contract::parse_strict_json_value(&text)
         .map(Some)
         .map_err(|e| AppError::Internal(format!("{label}响应解析失败：{e}")))
 }

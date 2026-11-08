@@ -187,7 +187,10 @@ async fn model_contract_matrix_llm_all_presets_use_actual_protocol_and_contract(
                 .await
                 .unwrap_or_else(|error| panic!("{}: {error}", preset.id));
         request()
-            .validate_output_value(&serde_json::from_str(&response.message.content).unwrap())
+            .output_validator()
+            .unwrap()
+            .unwrap()
+            .validate(&serde_json::from_str(&response.message.content).unwrap())
             .unwrap();
         let captured = server.requests();
         assert_eq!(captured.len(), 1);

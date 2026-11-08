@@ -1,4 +1,3 @@
-import copy
 import json
 import subprocess
 import tempfile
@@ -23,8 +22,8 @@ class ModelEvidenceTests(unittest.TestCase):
         from model_requirements import required_case_ids
         source=self.root/"crates/host/a4n-orchestrator/src/run.rs"
         source.parent.mkdir(parents=True);source.write_text("fn run() {}")
-        self.ledger={"schema_version":2,"scope":"unit fixture","structured":[{"calls":["task"],"owners":["run.rs"],"validators":["run.rs"],"branches":["run"],"contract_owner":str(source.relative_to(self.root))}],"shared_scenarios":{"text":["normal"],"image":["actual-request-parameters"],"video":["actual-request-parameters"],"embedding":[]},"semantic_rust_groups":{}}
-        self.inventory={"schema_version":2,"scanner":"syn-workspace","calls":[{"file":str(source.relative_to(self.root)),"function":"run","callee":"chat_stream"}],"implementations":[],"catalogs":{"text":[{"id":"text"}],"image":[{"id":"image","references":False}],"video":[{"id":"video","asynchronous":False,"last_frame":False,"max_reference_images":0,"reference_video_audio":False,"first_frame_with_references":False}]}}
+        self.ledger={"schema_version":2,"scope":"unit fixture","structured":[{"calls":["task"],"owners":["run.rs"],"validators":["run.rs"],"branches":["run"],"contract_owner":str(source.relative_to(self.root))}],"shared_scenarios":{"text":["normal"],"tools":["valid"],"image":["actual-request-parameters"],"video":["actual-request-parameters"],"embedding":["order-and-identity"],"search":["valid"]},"semantic_rust_groups":{}}
+        self.inventory={"schema_version":2,"scanner":"syn-workspace","calls":[{"file":str(source.relative_to(self.root)),"function":"run","callee":"chat_stream"}],"implementations":[],"catalogs":{"text":[{"id":"text"}],"image":[{"id":"image","references":False}],"video":[{"id":"video","asynchronous":False,"last_frame":False,"max_reference_images":0,"reference_video_audio":False,"first_frame_with_references":False}],"search":[{"id":"anthropic"}]}}
         self.corpus={"task":{"schema":{"type":"object","required":["state"],"additionalProperties":False,"properties":{"state":{"type":"object"}}}}}
         manifest=self.root/"scripts/tests/model_calls.json";manifest.parent.mkdir(parents=True);manifest.write_text(json.dumps(self.ledger))
         (manifest.parent/"model_call_sites.json").write_text(json.dumps(self.inventory))

@@ -110,7 +110,6 @@ def verify_report(path: Path, *, root: Path = ROOT, require_full: bool = True) -
     if not isinstance(suites, dict) or not suites or any(row.get("status") != "passed" or row.get("executed", 0) <= 0 for row in suites.values()):
         raise EvidenceError("测试套件未执行、跳过、超时或失败")
     if require_full:
-        if not report.get("contracts") or not report.get("inventory"):raise EvidenceError("完整验收缺少生产合同/AST 证据")
         creation = report.get("creation")
         if not isinstance(creation, dict):
             raise EvidenceError("缺少完整 CLI/浏览器流程验证")

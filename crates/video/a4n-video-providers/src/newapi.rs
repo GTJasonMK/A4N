@@ -5,7 +5,7 @@ mod tests;
 
 use self::request::{aspect_ratio_from_size, size_from_request};
 use self::response::{
-    api_error_suffix, extract_failure_message, extract_status, extract_task_id, find_video_b64,
+    api_error_suffix, decode_job_status, extract_status, extract_task_id, find_video_b64,
     find_video_url,
 };
 use async_trait::async_trait;
@@ -157,9 +157,27 @@ impl VideoProvider for NewApiVideoProvider {
         )
         .await?;
         let task_id = extract_task_id(&v)?;
+        let status = extract_status(&v)?
+            .map(|_| decode_job_status(&v))
+            .transpose()?;
 
-        if let Some(result) = self.decode_result(&v, task_id.clone()).await? {
-            return Ok(result);
+        match status {
+            Some(VideoJobStatus::Failed(message)) => return Err(AppError::Internal(message)),
+            Some(VideoJobStatus::Cancelled) => {
+                return Err(AppError::Internal("New API 视频任务已取消".into()));
+            }
+            Some(VideoJobStatus::Pending | VideoJobStatus::Running) => {}
+            Some(VideoJobStatus::Completed) | None => {
+                if let Some(result) = self.decode_result(&v, task_id.clone()).await? {
+                    return Ok(result);
+                }
+                if status == Some(VideoJobStatus::Completed) {
+                    return Err(AppError::Internal(
+                        "New API 视频任务已完成，但响应缺少视频产物".into(),
+                    ));
+                }
+            }
+            Some(VideoJobStatus::NotFound) => unreachable!("a submission cannot indicate HTTP 404"),
         }
         if let Some(task_id) = task_id {
             return Ok(VideoGenerationResult {
@@ -190,39 +208,24 @@ impl VideoProvider for NewApiVideoProvider {
         )
         .await?;
 
-        let status = extract_status(&v)
-            .ok_or_else(|| AppError::Internal("New API 视频任务响应缺少 status".to_string()))?
-            .to_ascii_lowercase();
-        if matches!(
-            status.as_str(),
-            "queued" | "pending" | "submitted" | "starting"
-        ) {
-            return Ok(VideoJobState::Pending);
-        }
-        if matches!(status.as_str(), "running" | "in_progress" | "processing") {
-            return Ok(VideoJobState::Running);
-        }
-        if matches!(
-            status.as_str(),
-            "completed" | "complete" | "succeeded" | "success" | "done"
-        ) {
-            if let Some(result) = self.decode_result(&v, Some(job_id.to_string())).await? {
-                return Ok(VideoJobState::Completed(result));
+        match decode_job_status(&v)? {
+            VideoJobStatus::Pending => Ok(VideoJobState::Pending),
+            VideoJobStatus::Running => Ok(VideoJobState::Running),
+            VideoJobStatus::Failed(message) => Ok(VideoJobState::Failed(message)),
+            VideoJobStatus::Cancelled => Ok(VideoJobState::Failed("New API 视频任务已取消".into())),
+            VideoJobStatus::Completed => self
+                .decode_result(&v, Some(job_id.to_string()))
+                .await?
+                .map(VideoJobState::Completed)
+                .ok_or_else(|| {
+                    AppError::Internal(
+                        "New API 视频任务已完成，但响应缺少可下载视频 URL 或 b64_json".into(),
+                    )
+                }),
+            VideoJobStatus::NotFound => {
+                unreachable!("provider status body cannot indicate HTTP 404")
             }
-            return Err(AppError::Internal(
-                "New API 视频任务已完成，但响应缺少可下载视频 URL 或 b64_json".to_string(),
-            ));
         }
-        if matches!(
-            status.as_str(),
-            "failed" | "failure" | "cancelled" | "canceled" | "expired"
-        ) {
-            return Ok(VideoJobState::Failed(extract_failure_message(&v)));
-        }
-
-        Err(AppError::Internal(format!(
-            "未知 New API 视频任务 status={status}"
-        )))
     }
 
     async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError> {
@@ -240,32 +243,6 @@ impl VideoProvider for NewApiVideoProvider {
         let Some(value) = value else {
             return Ok(VideoJobStatus::NotFound);
         };
-        let status = extract_status(&value)
-            .ok_or_else(|| AppError::Internal("New API 视频任务响应缺少 status".to_string()))?
-            .to_ascii_lowercase();
-        if matches!(
-            status.as_str(),
-            "queued" | "pending" | "submitted" | "starting"
-        ) {
-            return Ok(VideoJobStatus::Pending);
-        }
-        if matches!(status.as_str(), "running" | "in_progress" | "processing") {
-            return Ok(VideoJobStatus::Running);
-        }
-        if matches!(status.as_str(), "cancelled" | "canceled") {
-            return Ok(VideoJobStatus::Cancelled);
-        }
-        if matches!(status.as_str(), "failed" | "failure" | "expired" | "error") {
-            return Ok(VideoJobStatus::Failed(extract_failure_message(&value)));
-        }
-        if matches!(
-            status.as_str(),
-            "completed" | "complete" | "succeeded" | "success" | "done"
-        ) {
-            return Ok(VideoJobStatus::Completed);
-        }
-        Err(AppError::Internal(format!(
-            "未知 New API 视频任务 status={status}"
-        )))
+        decode_job_status(&value)
     }
 }

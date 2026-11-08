@@ -11,9 +11,9 @@ class ModelCallCoverageTest(unittest.TestCase):
         self.root=Path(self.temporary.name)
         source=self.root/"crates/host/a4n-orchestrator/src/run.rs"
         source.parent.mkdir(parents=True);source.write_text("fn run() {}")
-        self.ast={"schema_version":2,"scanner":"syn-workspace","calls":[{"file":"crates/host/a4n-orchestrator/src/run.rs","function":"run","callee":"chat_stream"}],"implementations":[{"trait":"LlmProvider"}],"catalogs":{key:[{"id":key}] for key in ("text","image","video")}}
+        self.ast={"schema_version":2,"scanner":"syn-workspace","calls":[{"file":"crates/host/a4n-orchestrator/src/run.rs","function":"run","callee":"chat_stream"}],"implementations":[{"trait":"LlmProvider"}],"catalogs":{key:[{"id":key}] for key in ("text","image","video","search")}}
         self.baseline=copy.deepcopy(self.ast)
-        self.ledger={"schema_version":2,"scope":"registration only","structured":[{"calls":["task"],"owners":["run.rs"],"validators":["run.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/run.rs","branches":["run"]}],"shared_scenarios":{key:["normal","invalid"] for key in ("text","image","video")}}
+        self.ledger={"schema_version":2,"scope":"registration only","structured":[{"calls":["task"],"owners":["run.rs"],"validators":["run.rs"],"contract_owner":"crates/host/a4n-orchestrator/src/run.rs","branches":["run"]}],"shared_scenarios":{key:["normal","invalid"] for key in ("text","tools","image","video","embedding","search")}}
 
     def check(self):return inspect(self.root,self.ledger,self.ast,self.baseline)
 
@@ -38,13 +38,31 @@ class ModelCallCoverageTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"不存在"):self.check()
 
     def test_free_text_identifiers_and_search_execution_scenarios_cannot_disappear(self):
-        row={"call_id":"text","owner":"run.rs","validator":"validate_text","branches":["run"]}
+        row={"call_id":"text","owner":"run.rs","validator":"validate_text","branches":["run"],"scenarios":["valid"]}
         self.ledger["free_text"]=[row,row.copy()]
         with self.assertRaisesRegex(ValueError,"重复"):self.check()
         self.ledger["free_text"]=[row]
-        self.ast["catalogs"]["search"]=[{"id":"anthropic"}]
-        self.baseline["catalogs"]["search"]=[{"id":"anthropic"}]
+        del self.ledger["shared_scenarios"]["search"]
         with self.assertRaisesRegex(ValueError,"必测异常"):self.check()
+
+    def test_missing_catalogs_and_scenarios_do_not_use_legacy_defaults(self):
+        for capability in ("search", "embedding", "tools"):
+            original = self.ledger["shared_scenarios"].pop(capability)
+            with self.subTest(capability=capability), self.assertRaisesRegex(ValueError, "必测异常"):
+                self.check()
+            self.ledger["shared_scenarios"][capability] = original
+        del self.ast["catalogs"]["search"]
+        del self.baseline["catalogs"]["search"]
+        with self.assertRaisesRegex(ValueError, "能力目录"):
+            self.check()
+
+    def test_free_text_scenarios_must_be_explicit(self):
+        row = {"call_id":"text","owner":"run.rs","validator":"validate_text","branches":["run"]}
+        self.ledger["free_text"] = [row]
+        for scenarios in (None, [], [""], ["valid", "valid"]):
+            row["scenarios"] = scenarios
+            with self.subTest(scenarios=scenarios), self.assertRaisesRegex(ValueError, "显式登记"):
+                self.check()
 
     def test_missing_owner_duplicate_id_and_catalog_drift_fail(self):
         self.ledger["structured"][0]["owners"]=["other.rs"]

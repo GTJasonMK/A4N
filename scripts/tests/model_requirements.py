@@ -19,7 +19,7 @@ def adapter_case_ids(ledger:dict,inventory:dict)->set[str]:
     for row in inventory["catalogs"]["text"]:
         for scenario in ledger["shared_scenarios"]["text"]:
             result.add(f"llm.transport/{row['id']}/json/{scenario}")
-        for scenario in ledger["shared_scenarios"].get("tools",[]):
+        for scenario in ledger["shared_scenarios"]["tools"]:
             result.add(f"llm.transport/{row['id']}/tools/{scenario}")
     for row in inventory["catalogs"]["image"]:
         backend=row["id"]
@@ -45,8 +45,8 @@ def adapter_case_ids(ledger:dict,inventory:dict)->set[str]:
     for scenario in ledger["shared_scenarios"]["embedding"]:
         variant="batch" if scenario in {"order-and-identity","actual-request-order"} else "invalid-input" if scenario in {"batch","model"} else "response"
         result.add(f"embedding.embed/api/{variant}/{scenario}")
-    for row in inventory["catalogs"].get("search",[]):
-        for scenario in ledger["shared_scenarios"].get("search",[]):
+    for row in inventory["catalogs"]["search"]:
+        for scenario in ledger["shared_scenarios"]["search"]:
             if scenario in {"missing-finish","truncated"} and row["id"] not in {"anthropic","openai_responses"}:continue
             result.add(f"web_search/{row['id']}/query/{scenario}")
     # Configuration dimension failure and response dimension failure are distinct.
@@ -59,8 +59,7 @@ def adapter_case_ids(ledger:dict,inventory:dict)->set[str]:
 def required_case_ids(ledger:dict,inventory:dict,corpus:dict,profile:str)->set[str]:
     result=adapter_case_ids(ledger,inventory)
     for row in ledger.get("free_text",[]):
-        scenarios=row.get("scenarios",("valid","empty","over-limit") if row["call_id"]=="chapter_visual_plan" else ("valid","empty","structured","fenced","thinking"))
-        result.update(f"{row['call_id']}/runtime-text/output/{scenario}" for scenario in scenarios)
+        result.update(f"{row['call_id']}/runtime-text/output/{scenario}" for scenario in row["scenarios"])
         result.update(f"{row['call_id']}/runtime-text/media/{scenario}" for scenario in row.get("media_scenarios",[]))
     requests={row["call_id"] for row in ledger.get("request_contracts",[])}
     boundaries={call_id:row["boundary"] for row in ledger["structured"] if "boundary" in row for call_id in row["calls"]}

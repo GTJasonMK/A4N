@@ -277,16 +277,16 @@ fn contracts_make_canonical_category_values_explicit() {
     ] {
         let contract = character_profile_sync_stage_contract(stage);
         assert_eq!(
-            contract["field_value_rules"]["category"]["allowed_values"],
+            contract["field_types"]["category"]["enum"],
             json!(["explicit", "implicit", "social"])
         );
         assert_eq!(
-            contract["field_value_rules"]["category"]["forbidden_values"],
-            json!([
-                "explicit_attributes",
-                "implicit_attributes",
-                "social_attributes"
-            ])
+            contract["field_value_rules"]["category"]["mapping"],
+            json!({
+                "explicit": "baseline_state.explicit_attributes",
+                "implicit": "baseline_state.implicit_attributes",
+                "social": "baseline_state.social_attributes"
+            })
         );
     }
 }

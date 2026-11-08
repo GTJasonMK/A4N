@@ -317,6 +317,112 @@ async fn model_contract_matrix_video_status_delete_and_empty_job_are_explicit() 
 }
 
 #[tokio::test]
+async fn model_contract_matrix_submit_status_controls_media_adoption() {
+    for backend in ["openai-compatible-video", "newapi-video"] {
+        for status in [
+            "pending",
+            "processing",
+            "failed",
+            "canceled",
+            "alien-state",
+            "completed",
+        ] {
+            let server = LocalProvider::start(move |request| {
+                if request.method == "GET" {
+                    return ProviderResponse::bytes("video/mp4", VALID_VIDEO_MP4.to_vec());
+                }
+                let url = format!("http://{}/fixture.mp4", request.headers["host"]);
+                let mut value = json!({
+                    "id":"submit-job", "status":status,
+                    "error_message":"injected submit failure", "error":{"message":"injected submit failure"}
+                });
+                if backend == "openai-compatible-video" {
+                    value["data"] = json!([{"url":url,"format":"mp4"}]);
+                } else {
+                    value["url"] = json!(url);
+                    value["format"] = json!("mp4");
+                }
+                ProviderResponse::json(200, value)
+            }).await;
+            let provider = super::pick_video_provider(backend, &server.base_url, "key").unwrap();
+            let result = provider.generate(request("text"), None).await;
+            match status {
+                "pending" | "processing" => {
+                    let result = result.unwrap();
+                    assert!(result.bytes.is_empty());
+                    assert_eq!(result.provider_job_id.as_deref(), Some("submit-job"));
+                }
+                "completed" => assert_eq!(result.unwrap().bytes, VALID_VIDEO_MP4),
+                _ => assert!(result.is_err(), "{backend}/{status}"),
+            }
+            assert_eq!(
+                server.requests().len(),
+                if status == "completed" { 2 } else { 1 },
+                "{backend}/{status}"
+            );
+        }
+        for status in ["completed", "done"] {
+            let server = LocalProvider::start(move |_| {
+                ProviderResponse::json(200, json!({"id":"job","status":status}))
+            })
+            .await;
+            let provider = super::pick_video_provider(backend, &server.base_url, "key").unwrap();
+            assert!(provider.generate(request("text"), None).await.is_err());
+            assert_eq!(server.requests().len(), 1);
+        }
+    }
+}
+
+#[tokio::test]
+async fn model_contract_matrix_poll_and_status_share_state_rules() {
+    for backend in ["openai-compatible-video", "newapi-video"] {
+        for status in ["queued", "processing", "error", "canceled", "alien-state"] {
+            let server = LocalProvider::start(move |_| ProviderResponse::json(200, json!({
+                "status":status, "error_message":"provider failed", "error":{"message":"provider failed"}
+            }))).await;
+            let provider = super::pick_video_provider(backend, &server.base_url, "key").unwrap();
+            let polled = provider.poll("job").await;
+            let metadata = provider.status("job").await;
+            match status {
+                "queued" => {
+                    assert!(matches!(polled.unwrap(), VideoJobState::Pending));
+                    assert!(matches!(metadata.unwrap(), VideoJobStatus::Pending));
+                }
+                "processing" => {
+                    assert!(matches!(polled.unwrap(), VideoJobState::Running));
+                    assert!(matches!(metadata.unwrap(), VideoJobStatus::Running));
+                }
+                "error" | "canceled" => {
+                    assert!(matches!(polled.unwrap(), VideoJobState::Failed(_)));
+                    assert!(matches!(
+                        metadata.unwrap(),
+                        VideoJobStatus::Failed(_) | VideoJobStatus::Cancelled
+                    ));
+                }
+                _ => assert!(polled.is_err() && metadata.is_err()),
+            }
+            assert_eq!(server.requests().len(), 2);
+        }
+    }
+}
+
+#[tokio::test]
+async fn model_contract_matrix_rejects_duplicate_video_envelope_fields() {
+    for backend in ["openai-compatible-video", "newapi-video"] {
+        let server = LocalProvider::start(move |_| {
+            ProviderResponse::bytes(
+                "application/json",
+                br#"{"id":"job","status":"failed","status":"pending"}"#.to_vec(),
+            )
+        })
+        .await;
+        let provider = super::pick_video_provider(backend, &server.base_url, "key").unwrap();
+        assert!(provider.generate(request("text"), None).await.is_err());
+        assert_eq!(server.requests().len(), 1);
+    }
+}
+
+#[tokio::test]
 async fn model_contract_matrix_video_provider_failure_and_job_states() {
     for capability in VIDEO_PROVIDER_CAPABILITIES {
         for scenario in [

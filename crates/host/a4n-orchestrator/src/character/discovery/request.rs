@@ -138,7 +138,7 @@ fn character_discovery_payload(input: Value) -> Value {
                 "social_attributes": {"type":"object"},
                 "evidence_anchor_id": positive_i64_schema(),
             },
-            "character_required_fields": [
+            "item_required_fields": [
                 "name", "aliases", "importance", "role", "explicit_attributes",
                 "implicit_attributes", "social_attributes", "evidence_anchor_id"
             ],

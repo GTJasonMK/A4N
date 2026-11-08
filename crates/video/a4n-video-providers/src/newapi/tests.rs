@@ -33,6 +33,16 @@ fn builds_newapi_request_body() {
 }
 
 #[test]
+fn malformed_status_is_not_ignored_in_favor_of_another_field() {
+    for value in [
+        json!({"status":1,"state":"completed"}),
+        json!({"status":" ","state":"completed"}),
+    ] {
+        assert!(extract_status(&value).is_err());
+    }
+}
+
+#[test]
 fn rejects_nonpositive_dimensions_instead_of_clamping_them() {
     let mut req = request();
     req.width = 0;
@@ -128,7 +138,7 @@ fn prefers_nested_done_status_over_outer_failure() {
         }
     });
 
-    assert_eq!(extract_status(&value), Some("done"));
+    assert_eq!(extract_status(&value).unwrap(), Some("done"));
     let payload = find_video_url(&value).unwrap().expect("has video url");
     assert_eq!(payload.url, "https://vidgen.x.ai/video.mp4");
     assert_eq!(payload.format, None);
@@ -143,7 +153,7 @@ fn extracts_official_completed_response() {
         "format": "webm"
     });
 
-    assert_eq!(extract_status(&value), Some("completed"));
+    assert_eq!(extract_status(&value).unwrap(), Some("completed"));
     let payload = find_video_url(&value).unwrap().expect("has video url");
     assert_eq!(payload.url, "https://example.com/result.webm");
     assert_eq!(payload.format, Some("webm"));

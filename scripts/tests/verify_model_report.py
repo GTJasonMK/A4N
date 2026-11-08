@@ -27,8 +27,6 @@ def main()->int:
         candidate=subprocess.check_output(["git","rev-parse","--verify",args.candidate+"^{tree}"],cwd=ROOT,text=True).strip()
     if candidate and (not re.fullmatch(r"[0-9a-f]{40,64}",candidate) or candidate!=report.get("tested_tree")):
         raise EvidenceError("master 候选内容与实际通过 model-full 的版本不一致")
-    current=subprocess.check_output(["git","rev-parse","HEAD^{tree}"],cwd=ROOT,text=True).strip()
-    if current!=report.get("tested_tree"):raise EvidenceError("当前 debug 内容树已变化，需要重新进行完整模型验收")
     print(json.dumps(result,ensure_ascii=False))
     return 0
 

@@ -22,58 +22,23 @@ pub fn array_output_contract_schema(contract: &Value) -> Result<Value, String> {
         .as_str()
         .filter(|root| !root.is_empty())
         .ok_or("数组输出合同缺少 required_root_field")?;
-    let mut properties = match contract.get("field_types") {
-        None => Map::new(),
-        Some(Value::Object(fields)) => fields.clone(),
-        Some(_) => return Err("输出合同 field_types 必须为对象".into()),
-    };
-    let mut required = Vec::new();
-    for key in [
-        "item_required_fields",
-        "character_required_fields",
-        "object_required_fields",
-        "object_fields",
-    ] {
-        let Some(fields) = contract.get(key) else {
-            continue;
-        };
-        for field in fields
-            .as_array()
-            .ok_or_else(|| format!("{key} 必须为数组"))?
-        {
-            let field = field
-                .as_str()
-                .ok_or_else(|| format!("{key} 必须只包含字段名称"))?;
-            if !required
-                .iter()
-                .any(|item: &Value| item.as_str() == Some(field))
-            {
-                required.push(json!(field));
-            }
-            properties.entry(field.to_string()).or_insert(json!({}));
+    let properties = contract["field_types"]
+        .as_object()
+        .ok_or("输出合同 field_types 必须为对象")?;
+    let required = contract["item_required_fields"]
+        .as_array()
+        .ok_or("输出合同 item_required_fields 必须为数组")?;
+    let mut seen = std::collections::HashSet::new();
+    for field in required {
+        let field = field
+            .as_str()
+            .filter(|field| !field.trim().is_empty())
+            .ok_or("item_required_fields 必须只包含非空字段名称")?;
+        if !seen.insert(field) {
+            return Err(format!("item_required_fields 包含重复字段：{field}"));
         }
-    }
-    if let Some(rules) = contract.get("field_value_rules") {
-        for (name, rule) in rules.as_object().ok_or("field_value_rules 必须是对象")? {
-            let Some(values) = rule.get("allowed_values") else {
-                continue;
-            };
-            if values.as_array().is_none_or(|values| values.is_empty()) {
-                return Err(format!("{name}.allowed_values 必须是非空数组"));
-            }
-            let property = properties
-                .get_mut(name)
-                .ok_or_else(|| format!("{name} 枚举缺少字段类型合同"))?;
-            if property
-                .get("enum")
-                .is_some_and(|declared| declared != values)
-            {
-                return Err(format!("{name} 枚举与 field_value_rules 冲突"));
-            }
-            property
-                .as_object_mut()
-                .ok_or_else(|| format!("{name} 枚举必须使用对象 Schema"))?
-                .insert("enum".into(), values.clone());
+        if !properties.contains_key(field) {
+            return Err(format!("{field} 缺少 field_types 合同"));
         }
     }
     Ok(json!({
@@ -140,8 +105,8 @@ mod tests {
     #[test]
     fn array_schema_preserves_shared_id_constraints_and_required_fields() {
         let schema = array_output_contract_schema(&json!({
-            "required_root_field":"characters", "character_required_fields":["name","evidence_anchor_id"],
-            "field_types":{"evidence_anchor_id":super::super::positive_i64_schema()}
+            "required_root_field":"characters", "item_required_fields":["name","evidence_anchor_id"],
+            "field_types":{"name":{"type":"string"},"evidence_anchor_id":super::super::positive_i64_schema()}
         })).unwrap();
         assert_eq!(
             schema["properties"]["characters"]["items"]["properties"]["evidence_anchor_id"],
@@ -157,6 +122,33 @@ mod tests {
             array_output_contract_schema(&json!({"required_root_field":"events","field_types":[]}))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn array_schema_rejects_incomplete_or_ambiguous_field_declarations() {
+        let contract = json!({
+            "required_root_field":"items", "item_required_fields":["kind"],
+            "field_types":{"kind":{"type":"string","enum":["primary","minor"]}}
+        });
+        let schema = array_output_contract_schema(&contract).unwrap();
+        assert_eq!(
+            schema["properties"]["items"]["items"]["properties"],
+            contract["field_types"]
+        );
+        for fields in [
+            json!(null),
+            json!(["missing"]),
+            json!(["kind", "kind"]),
+            json!([""]),
+            json!([1]),
+        ] {
+            let mut invalid = contract.clone();
+            invalid["item_required_fields"] = fields;
+            assert!(array_output_contract_schema(&invalid).is_err());
+        }
+        let mut missing_types = contract;
+        missing_types.as_object_mut().unwrap().remove("field_types");
+        assert!(array_output_contract_schema(&missing_types).is_err());
     }
 
     #[test]

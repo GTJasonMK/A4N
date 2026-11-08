@@ -33,10 +33,10 @@
   ],
   "free_text": [
     {"call_id":"canvas_text_asset_draft","owner":"crates/host/a4n-runtime/src/actions/canvas_workflow/text_asset_draft.rs","validator":"validate_text_response","branches":["draft","source-asset-version"],"scenarios":["valid","empty","missing-finish","truncated","refusal"]},
-    {"call_id":"chapter_generation","owner":"chapter_generation/application/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"]},
-    {"call_id":"chapter_scene_generation","owner":"chapter_scene/execution.rs","validator":"validate_text_content","branches":["generate","resume"]},
-    {"call_id":"chapter_visual_plan","owner":"chapter_visual_plan/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"]},
-    {"call_id":"portrait_prompt","owner":"portrait/application/workflow.rs","validator":"validate_text_content","branches":["initial","regenerate","resume"]},
+    {"call_id":"chapter_generation","owner":"chapter_generation/application/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"],"scenarios":["valid","empty","structured","fenced","thinking"]},
+    {"call_id":"chapter_scene_generation","owner":"chapter_scene/execution.rs","validator":"validate_text_content","branches":["generate","resume"],"scenarios":["valid","empty","structured","fenced","thinking"]},
+    {"call_id":"chapter_visual_plan","owner":"chapter_visual_plan/generation.rs","validator":"validate_text_content","branches":["generate","cancel","resume"],"scenarios":["valid","empty","over-limit"]},
+    {"call_id":"portrait_prompt","owner":"portrait/application/workflow.rs","validator":"validate_text_content","branches":["initial","regenerate","resume"],"scenarios":["valid","empty","structured","fenced","thinking"]},
     {"call_id":"canvas_text_generation","owner":"canvas/text_generation/execution.rs","validator":"validate_canvas_llm_text_content","branches":["generate","cancel","resume"],"scenarios":["valid","empty","missing-finish","truncated","refusal"]},
     {"call_id":"image_analysis","owner":"crates/host/a4n-runtime/src/actions/image_records/reading.rs","validator":"validated_image_analysis","branches":["inspect","multiple-images"],"scenarios":["valid","empty","missing-finish","truncated","refusal","unexpected-tool"],"media_scenarios":["valid","corrupt","truncated","mismatched-format"]}
   ],

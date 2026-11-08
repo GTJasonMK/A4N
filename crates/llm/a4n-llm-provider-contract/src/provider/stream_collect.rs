@@ -57,12 +57,16 @@ impl ChatStreamAccumulator {
                 .as_deref()
                 .is_some_and(|text| !text.is_empty())
                 || chunk
+                    .reasoning_content
+                    .as_deref()
+                    .is_some_and(|text| !text.is_empty())
+                || chunk
                     .tool_calls
                     .as_ref()
                     .is_some_and(|calls| !calls.is_empty()))
         {
             return Err(AppError::LlmError(
-                "模型在结束标记之后继续返回正文或工具调用".into(),
+                "模型在结束标记之后继续返回正文、推理或工具调用".into(),
             ));
         }
         if let Some(delta) = chunk.content.filter(|text| !text.is_empty()) {
@@ -82,6 +86,13 @@ impl ChatStreamAccumulator {
             self.usage = chunk.usage;
         }
         if let Some(reason) = chunk.finish_reason {
+            if self
+                .finish_reason
+                .as_ref()
+                .is_some_and(|previous| previous != &reason)
+            {
+                return Err(AppError::LlmError("模型返回冲突的 finish_reason".into()));
+            }
             self.finish_reason = Some(reason);
         }
         Ok(())
@@ -138,13 +149,7 @@ struct ToolCallCollection {
 }
 
 impl ToolCallCollection {
-    fn append(&mut self, mut call: ToolCall) -> Result<(), AppError> {
-        if call
-            .stream_index
-            .is_some_and(|index| call.id == format!("__stream_tool_{index}"))
-        {
-            call.id.clear();
-        }
+    fn append(&mut self, call: ToolCall) -> Result<(), AppError> {
         let key = match call.stream_index {
             Some(index) => ToolCallKey::Index(index),
             None if !call.id.trim().is_empty() => ToolCallKey::Id(call.id.clone()),
@@ -203,6 +208,9 @@ impl ToolCallAccumulator {
             self.id = call.id;
         }
         if !call.name.trim().is_empty() {
+            if !self.name.is_empty() && self.name != call.name {
+                return Err(AppError::LlmError("同一 tool call 收到冲突工具名称".into()));
+            }
             self.name = call.name;
         }
         match call.arguments {
@@ -257,6 +265,84 @@ mod tests {
     use futures::{Stream, stream};
 
     use super::*;
+
+    fn text_chunk(reason: Option<&str>) -> ChatChunk {
+        ChatChunk {
+            content: None,
+            reasoning_content: None,
+            tool_calls: None,
+            finish_reason: reason.map(str::to_string),
+            index: 0,
+            usage: None,
+        }
+    }
+
+    #[test]
+    fn a_later_terminal_cannot_replace_a_truncated_or_failed_terminal() {
+        for reason in ["length", "content_filter", "stop"] {
+            let mut accumulator = ChatStreamAccumulator::default();
+            let mut first = text_chunk(Some(reason));
+            first.content = Some("answer".into());
+            accumulator.push(first).unwrap();
+            let replacement = if reason == "stop" {
+                "tool_calls"
+            } else {
+                "stop"
+            };
+            assert!(accumulator.push(text_chunk(Some(replacement))).is_err());
+            assert_eq!(accumulator.finish_reason(), Some(reason));
+        }
+        let mut accumulator = ChatStreamAccumulator::default();
+        accumulator.push(text_chunk(Some("stop"))).unwrap();
+        accumulator.push(text_chunk(Some("stop"))).unwrap();
+        let mut late_reasoning = text_chunk(None);
+        late_reasoning.reasoning_content = Some("late output".into());
+        assert!(accumulator.push(late_reasoning).is_err());
+    }
+
+    #[test]
+    fn tool_ids_are_never_synthesized_or_treated_as_reserved_strings() {
+        for id in ["__stream_tool_0", "call-real-id", ""] {
+            let mut accumulator = ChatStreamAccumulator::default();
+            let mut chunk = text_chunk(Some("tool_calls"));
+            chunk.tool_calls = Some(vec![ToolCall {
+                id: id.into(),
+                name: "read".into(),
+                arguments: serde_json::json!({}),
+                stream_index: Some(0),
+                provider_metadata: None,
+            }]);
+            accumulator.push(chunk).unwrap();
+            let result = accumulator.finish();
+            if id.is_empty() {
+                assert!(result.is_err());
+            } else {
+                assert_eq!(result.unwrap().message.tool_calls.unwrap()[0].id, id);
+            }
+        }
+    }
+
+    #[test]
+    fn a_tool_name_cannot_change_during_the_same_call() {
+        let mut accumulator = ToolCallAccumulator::default();
+        let call = ToolCall {
+            id: "call".into(),
+            name: "read".into(),
+            arguments: Value::Null,
+            stream_index: Some(0),
+            provider_metadata: None,
+        };
+        accumulator.append(call.clone()).unwrap();
+        accumulator.append(call.clone()).unwrap();
+        assert!(
+            accumulator
+                .append(ToolCall {
+                    name: "delete".into(),
+                    ..call
+                })
+                .is_err()
+        );
+    }
 
     #[test]
     fn completed_tool_stream_preserves_reasoning_through_message_snapshot() {
@@ -483,7 +569,7 @@ mod tests {
                 content: None,
                 reasoning_content: None,
                 tool_calls: Some(vec![ToolCall {
-                    id: "__stream_tool_1".into(),
+                    id: String::new(),
                     name: String::new(),
                     arguments: Value::String("1}".into()),
                     stream_index: Some(1),
