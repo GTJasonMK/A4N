@@ -15,8 +15,62 @@ impl OutputSchemaValidator {
     pub fn validate(&self, value: &Value) -> Result<(), String> {
         self.0
             .validate(value)
-            .map_err(|error| format!("输出不符合合同 {}：{error}", error.instance_path()))
+            .map_err(|error| validation_message(&error, value))
     }
+}
+
+fn property_path(path: &mut String, property: &str) {
+    let mut chars = property.chars();
+    let identifier = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if identifier {
+        if !path.is_empty() {
+            path.push('.');
+        }
+        path.push_str(property);
+    } else {
+        path.push_str(&format!(
+            "[{}]",
+            serde_json::to_string(property).expect("property string")
+        ));
+    }
+}
+
+fn validation_message(error: &jsonschema::ValidationError<'_>, value: &Value) -> String {
+    use jsonschema::{
+        JsonType,
+        error::{TypeKind, ValidationErrorKind},
+    };
+    let mut path = String::new();
+    let mut current = Some(value);
+    for token in error.instance_path().as_str().split('/').skip(1) {
+        let property = token.replace("~1", "/").replace("~0", "~");
+        if let Some(Value::Array(items)) = current {
+            let index = property.parse::<usize>().expect("validated array index");
+            path.push_str(&format!("[{index}]"));
+            current = items.get(index);
+        } else {
+            property_path(&mut path, &property);
+            current = current.and_then(|value| value.get(&property));
+        }
+    }
+    if let ValidationErrorKind::Required {
+        property: Value::String(property),
+    } = error.kind()
+    {
+        property_path(&mut path, property);
+        return format!("输出不符合合同：{path} 缺少字段");
+    }
+    let path = if path.is_empty() { "输出" } else { &path };
+    if let ValidationErrorKind::Type {
+        kind: TypeKind::Single(JsonType::Integer),
+    } = error.kind()
+    {
+        return format!("输出不符合合同：{path} 必须是 JSON 整数数字");
+    }
+    format!("输出不符合合同 {path}：{}", error.masked())
 }
 
 fn reject_external_refs(value: &Value) -> Result<(), String> {
@@ -47,6 +101,40 @@ fn reject_external_refs(value: &Value) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn reports_stable_required_and_integer_paths_without_exposing_model_values() {
+        let schema = json!({"type":"object","properties":{"characters":{"type":"array","items":{"type":"object","required":["evidence_anchor_id","exit_state"],"properties":{"evidence_anchor_id":{"type":"integer"},"exit_state":{"type":"object"}}}}}});
+        let validator = OutputSchemaValidator::new(&schema).unwrap();
+        let error = validator
+            .validate(
+                &json!({"characters":[{"evidence_anchor_id":"secret-source","exit_state":{}}]}),
+            )
+            .unwrap_err();
+        assert!(
+            error.contains("characters[0].evidence_anchor_id 必须是 JSON 整数数字"),
+            "{error}"
+        );
+        assert!(!error.contains("secret-source"));
+        let error = validator
+            .validate(&json!({"characters":[{"evidence_anchor_id":1}]}))
+            .unwrap_err();
+        assert!(
+            error.contains("characters[0].exit_state 缺少字段"),
+            "{error}"
+        );
+        let validator = OutputSchemaValidator::new(
+            &json!({"properties":{"a/b":{"properties":{"0":{"type":"integer"}}}}}),
+        )
+        .unwrap();
+        let error = validator
+            .validate(&json!({"a/b":{"0":"secret"}}))
+            .unwrap_err();
+        assert!(
+            error.contains("[\"a/b\"][\"0\"] 必须是 JSON 整数数字"),
+            "{error}"
+        );
+    }
 
     #[test]
     fn enforces_nested_required_optional_nullable_enum_bounds_and_unique_arrays() {

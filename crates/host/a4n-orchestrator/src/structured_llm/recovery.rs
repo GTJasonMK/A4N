@@ -42,9 +42,7 @@ where
         if let Some(validator) = schema_validator.as_ref() {
             let value = a4n_domain::json_contract::parse_strict_json_value(raw)
                 .map_err(|error| AppError::LlmError(format!("模型输出必须是严格 JSON：{error}")))?;
-            validator
-                .validate(&value)
-                .map_err(AppError::InvalidArgument)?;
+            validator.validate(&value).map_err(AppError::LlmError)?;
         }
         validate(raw)
     };
