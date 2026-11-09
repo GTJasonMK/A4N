@@ -239,9 +239,70 @@ try {
   await browser.$(".director-agent-inspector").waitForDisplayed();
   await browser.$(".agent-message-collapsible").waitForDisplayed();
   assert.equal(await browser.$(".agent-message-collapsible").getAttribute("open"), null, "long Agent replies stay collapsed until requested");
+  const agentControl = (label) => browser.$(`.director-agent-console [aria-label="${label}"]`);
+  await agentControl("继续").waitForEnabled();
+  await agentControl("继续").click();
+  await agentControl("暂停").waitForEnabled();
   await browser.$(".agent-console-stop-action").waitForDisplayed();
-  assert.equal(await browser.$(".agent-console-stop-action").getAttribute("aria-label"), "取消");
-  assert.equal(await browser.$("[aria-label=\"发送给领域 Agent 的消息\"]").isExisting(), false, "an active Run uses the send slot for stop");
+  assert.equal(await agentControl("停止").getText(), "停止");
+  assert.equal(await agentControl("暂停").getText(), "暂停");
+  assert.match(await agentControl("暂停").getAttribute("title"), /之后可以继续/);
+  assert.match(await agentControl("停止").getAttribute("title"), /无法继续本轮执行/);
+  assert.equal(await agentControl("发送给领域 Agent").isExisting(), false, "an active Run uses the send slot for stop");
+  for (const width of [1440, 1024, 390]) {
+    await setViewport(width, 900);
+    await agentControl("暂停").waitForDisplayed();
+    const layout = await browser.execute(() => {
+      const textarea = document.querySelector(".director-agent-console textarea");
+      const controls = [...document.querySelectorAll(".director-agent-console .agent-console-run-action, .director-agent-console .agent-console-stop-action")];
+      const nodes = [textarea, ...controls];
+      return {
+        width: innerWidth,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        controls: controls.map((node) => node.textContent),
+        inputWidth: textarea.getBoundingClientRect().width,
+        targets: nodes.map((node) => {
+          const { left, right, top, bottom, width, height } = node.getBoundingClientRect();
+          return { left, right, top, bottom, width, height, reachable: node.contains(document.elementFromPoint(left + width / 2, top + height / 2)) };
+        }),
+      };
+    });
+    measurements.push({ state: "labelled Agent controls", ...layout });
+    assert.equal(layout.overflow, 0, `${width}px: Agent labels must not cause horizontal overflow`);
+    assert.deepEqual(layout.controls, ["暂停", "停止"]);
+    assert.ok(layout.inputWidth >= 80, `${width}px: message input must remain usable`);
+    for (const target of layout.targets) {
+      assert.ok(target.left >= 0 && target.right <= width && target.top >= 0 && target.bottom <= 900 && target.reachable,
+        `${width}px: input and Agent controls must stay visible and clickable`);
+    }
+    assert.ok(layout.targets[0].right <= layout.targets[1].left && layout.targets[1].right <= layout.targets[2].left,
+      `${width}px: message input, Pause and Stop must not overlap`);
+    await browser.saveScreenshot(path.join(artifacts, `agent-controls-${width}.png`));
+  }
+  await setViewport(1440, 900);
+  await browser.$(".director-agent-inspector").waitForDisplayed();
+  await agentControl("暂停").waitForEnabled();
+  await browser.$(".director-agent-console textarea").click();
+  await browser.waitUntil(() => browser.execute(() => document.activeElement === document.querySelector(".director-agent-console textarea")));
+  await browser.keys("Tab");
+  assert.equal(await browser.execute(() => document.activeElement.getAttribute("aria-label")), "暂停", "Pause must be reachable from the message input by keyboard");
+  await browser.keys("Enter");
+  await agentControl("继续").waitForEnabled();
+  assert.equal(await browser.execute(() => window.directorCommands.filter((call) => call.command === "control_agent_run").at(-1).input.action), "pause");
+  assert.equal(await agentControl("继续").getText(), "继续");
+  assert.equal(await agentControl("停止").isEnabled(), true, "paused tasks can still be stopped");
+  await browser.$(".director-agent-console textarea").click();
+  await browser.keys("Tab");
+  assert.equal(await browser.execute(() => document.activeElement.getAttribute("aria-label")), "继续", "replaced Pause must remain reachable by keyboard");
+  await browser.keys("Enter");
+  await agentControl("暂停").waitForEnabled();
+  assert.equal(await browser.execute(() => window.directorCommands.filter((call) => call.command === "control_agent_run").at(-1).input.action), "resume");
+  await browser.execute((node) => node.focus(), await agentControl("停止"));
+  await browser.keys(" ");
+  await agentControl("发送给领域 Agent").waitForDisplayed();
+  assert.equal(await browser.execute(() => window.directorCommands.filter((call) => call.command === "control_agent_run").at(-1).input.action), "cancel");
+  assert.equal(await agentControl("继续").isExisting(), false, "a stopped run must not offer Resume");
+  assert.equal(await agentControl("停止").isExisting(), false, "Stop must be replaced by Send after cancellation");
   await browser.saveScreenshot(path.join(artifacts, "agent-compact.png"));
   const agentPanel = await browser.execute(() => ({
     dialogs: document.querySelectorAll('[role="dialog"]').length,
@@ -576,12 +637,14 @@ try {
   assert.equal(await browser.$(".director-viewer").isExisting(), false, "a failed chapter load must never display the previous chapter's plan");
   const report = { passed: true, cases: ["all four frame aspect ratios", "viewport fitting inside the real chapter workspace", "compact timeline reserves preview space", "shared track hit targets", "timing dialog and cancelled edits", "default desktop inspector", "container resize without viewport resize", "read-only controls", "points independent of segments", "play/pause", "prompt autosave payload", "proportional retime request", "responsive overflow", "mobile dialog and Escape", "mobile media, size and candidate actions clear of footer", "mobile bottom actions reachable", "dialog keyboard isolation", "point and segment boundary pointer gestures", "chapter switch during pending mutation", "chapter load failure never displays the previous plan"], measurements };
   report.nativeEditingChecks = ["one edit settles after a reordered JSON acknowledgement without repeated saves or confirmation flicker", "late save preserves newer manual input", "SSE receipts apply without editor reload or remount", "selection, playhead and focus survive receipt application", "batch undo preserves intervening manual edits", "overlapping changes pause autosave and preserve both versions", "conflict resolution merges unaffected fields"];
+  report.agentControlChecks = ["visible Pause and Stop labels with distinct explanations", "1440/1024/390px labels, input, hit targets and overflow", "keyboard Pause, Resume and Stop send distinct actions", "paused run can resume or stop; stopped run returns to Send"];
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } catch (error) {
   if (browser) {
     await browser.saveScreenshot(path.join(artifacts, "failure.png"));
     await writeFile(path.join(artifacts, "failure.html"), await browser.getPageSource());
+    await writeFile(path.join(artifacts, "failure-commands.json"), JSON.stringify(await browser.execute(() => window.directorCommands), null, 2));
   }
   throw error;
 } finally {

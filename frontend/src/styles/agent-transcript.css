@@ -526,16 +526,16 @@
     gap: 4px;
   }
 
-  .agent-console-run-action {
-    width: 32px;
-    min-height: 32px !important;
-    padding-inline: 0 !important;
+  .agent-console-run-action,
+  .agent-console-stop-action {
+    flex: none;
+    gap: 4px;
+    padding-inline: 8px !important;
+    white-space: nowrap;
   }
 
-  .agent-console-stop-action {
-    width: 36px;
-    min-width: 36px !important;
-    padding-inline: 0 !important;
+  .agent-console-run-action {
+    min-height: 32px !important;
   }
 
   @keyframes agent-message-status-pulse {

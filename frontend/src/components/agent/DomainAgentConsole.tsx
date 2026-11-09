@@ -1341,11 +1341,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                       variant="warning"
                       className="agent-console-run-action"
                       aria-label={t("agent.domain.pause")}
-                      title={t("agent.domain.pause")}
+                      title={t("agent.domain.pauseHint")}
                       onClick={() => void control("pause")}
                       disabled={operationsForBinding.length > 0}
                     >
-                      <Pause size={13} />
+                      <Pause size={13} aria-hidden="true" />
+                      <span>{t("agent.domain.pause")}</span>
                     </BookButton>
                   ) : null}
                   {["paused", "pausing"].includes(currentRun.status) ? (
@@ -1354,11 +1355,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                       variant="secondary"
                       className="agent-console-run-action"
                       aria-label={t("agent.domain.resume")}
-                      title={t("agent.domain.resume")}
+                      title={t("agent.domain.resumeHint")}
                       onClick={() => void control("resume")}
                       disabled={operationsForBinding.length > 0}
                     >
-                      <Play size={13} />
+                      <Play size={13} aria-hidden="true" />
+                      <span>{t("agent.domain.resume")}</span>
                     </BookButton>
                   ) : null}
                   {controlBusy ? (
@@ -1376,7 +1378,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   variant="danger"
                   className="agent-console-stop-action"
                   aria-label={t("agent.domain.cancel")}
-                  title={t("agent.domain.cancel")}
+                  title={t("agent.domain.cancelHint")}
                   onClick={() => void control("cancel")}
                   disabled={
                     operationsForBinding.length > 0 ||
@@ -1386,8 +1388,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   {controlBusy === "cancel" ? (
                     <LoadingSpinner size="sm" />
                   ) : (
-                    <Square size={13} />
+                    <Square size={13} aria-hidden="true" />
                   )}
+                  <span>{t("agent.domain.cancel")}</span>
                 </BookButton>
               ) : (
                 <BookIconButton

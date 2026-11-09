@@ -115,8 +115,13 @@ const originalFetch = window.fetch.bind(window);
 window.fetch = async (resource, options) => {
   const url = new URL(typeof resource === "string" ? resource : resource instanceof URL ? resource.href : resource.url, location.href);
   if (url.pathname === "/api/agent-runs/director-agent-run/control") {
-    commands.push({ command: "control_agent_run", input: JSON.parse(String(options?.body)) });
-    return new Response(JSON.stringify({ ...agentSnapshot.runs[0], status: "paused" }), { status: 200, headers: { "content-type": "application/json" } });
+    const input = JSON.parse(String(options?.body));
+    commands.push({ command: "control_agent_run", input });
+    const statuses: Record<string, string> = { pause: "paused", resume: "running", cancel: "cancelled" };
+    const status = statuses[input.action];
+    if (!status) return new Response("Unknown Agent control action", { status: 400 });
+    agentSnapshot.runs[0].status = status;
+    return new Response(JSON.stringify(agentSnapshot.runs[0]), { status: 200, headers: { "content-type": "application/json" } });
   }
   if (url.pathname === "/api/visual-plan-edits") {
     return new Response(new ReadableStream({ start(controller) {
