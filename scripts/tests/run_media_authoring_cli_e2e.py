@@ -308,6 +308,29 @@ def main():
                     assert len(call("list_manga_page_prompts", {"project_id": deletion_project, "chapter_id": chapter_id})) == 2
             passed("删除章节分页及预处理后页面投影仍可读取，工作区可打开，分页可以重新生成")
 
+            unaffected_slots = call("list_manga_pipeline_artifacts", {"project_id": parallel_project, "chapter_id": chapter_id})
+            retained_documents = workspace(deletion_project)["documents"]
+            call("delete_manga_by_chapter", {"project_id": deletion_project, "chapter_id": chapter_id}, destructive=True)
+            assert call("list_manga_page_prompts", {"project_id": deletion_project, "chapter_id": chapter_id}) == []
+            assert call("list_manga_pipeline_artifacts", {"project_id": deletion_project, "chapter_id": chapter_id}) == []
+            assert [item["record"] for item in workspace(deletion_project)["documents"]] == [item["record"] for item in retained_documents]
+            assert call("list_manga_pipeline_artifacts", {"project_id": parallel_project, "chapter_id": chapter_id}) == unaffected_slots
+            call("delete_manga_by_chapter", {"project_id": deletion_project, "chapter_id": chapter_id}, destructive=True)
+            manga_run(deletion_project, run_stage="preprocessing")
+            assert [item["stage"] for item in call("list_manga_pipeline_artifacts", {"project_id": deletion_project, "chapter_id": chapter_id})] == ["preprocessing"]
+            passed("本章全部删除可重复执行，清空页面和阶段产物，保留改编文档及其他项目，并可重新预处理")
+
+            failed_deletion_project = planning_project("失败分页全部删除后重建")
+            preprocessing_model("a4n-page-planning-fail-content")
+            manga_run(failed_deletion_project, run_stage="page_slots", expected_error="第 2 页剧情内容")
+            assert call("get_manga_pipeline_status", {"project_id": failed_deletion_project, "chapter_id": chapter_id})["can_resume"]
+            call("delete_manga_by_chapter", {"project_id": failed_deletion_project, "chapter_id": chapter_id}, destructive=True)
+            reset_status = call("get_manga_pipeline_status", {"project_id": failed_deletion_project, "chapter_id": chapter_id})
+            assert not reset_status["can_resume"] and not reset_status["has_checkpoint"], reset_status
+            preprocessing_model("a4n-virtual-text")
+            manga_run(failed_deletion_project, run_stage="preprocessing")
+            passed("失败任务全部删除后清理旧续跑检查点，状态不再误导为可续跑，能够重新开始预处理")
+
             preview = call("preview_resume_manga_pipeline_request", {"project_id": recover_project, "chapter_number": 1, "run_stage": "preprocessing"})
             assert [step["state"] for step in preview["steps"]] == ["reused", "ready", "reused", "waiting_dependencies"]
             before = len(llm_calls())

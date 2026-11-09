@@ -94,6 +94,7 @@ import {
   type MangaTabProps,
 } from "./manga/mangaPipelineProgress";
 import {
+  chapterHeading,
   countStaleMangaPagePrompts,
   isMangaPageWorkspaceStage,
   mangaDeletionDownstreamSummary,
@@ -1562,14 +1563,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     }
 
     const requestProjectId = projectId;
+    if (!await confirmLeaveStage() || !isChapterCurrent(requestProjectId, chapter.id)) return;
     const actionKey = `delete-${chapter.id}`;
     if (!beginAction(actionKey)) return;
     let actionSeq: number | null = null;
     try {
       const confirmed = await confirmDialog({
         title: t("comic.deleteArtifactsTitle"),
-        message: t("comic.deleteArtifactsMessage"),
-        confirmText: t("common.delete"),
+        message: t("comic.deleteArtifactsMessage", { chapter: chapterHeading(chapter, t) }),
+        confirmText: t("comic.deleteAllArtifacts"),
         dialogType: "danger",
       });
       if (
@@ -1591,8 +1593,21 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         return;
       }
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (isChapterCurrent(requestProjectId, chapter.id)) {
+        setSelectedPageNumber(null);
+        discardStageDrafts();
+      }
       addToast(t("comic.deletedArtifacts"), "success");
-      void refreshPipelineTarget(chapter.id, requestProjectId);
+      const refreshed = await Promise.allSettled([
+        refreshPipelineTarget(chapter.id, requestProjectId),
+        ...(staged ? [authoring.reload()] : []),
+      ]);
+      if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      for (const result of refreshed) {
+        if (result.status === "rejected") {
+          addToast(extractErrorMessage(result.reason, t("comic.operationFailed")), "error");
+        }
+      }
     } finally {
       if (actionSeq != null && isActionCurrent(requestProjectId, actionSeq)) {
         setActing(null);
@@ -1944,6 +1959,18 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     );
   }
 
+  const deleteAllArtifactsButton = canEditManga && selectedChapter ? (
+    <BookButton
+      size="sm"
+      variant="danger"
+      onClick={() => void handleDeleteManga()}
+      disabled={acting != null || isMutationBusy() || selectedStatus?.pipeline_status === "running" || isChapterGenerating(selectedChapter) || snapshotChapterLoading}
+    >
+      {acting === `delete-${selectedChapter.id}` ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
+      {t("comic.deleteAllArtifacts")}
+    </BookButton>
+  ) : null;
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-3">
       {staged && <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
@@ -1953,7 +1980,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           if (!await confirmLeaveStage()) return false;
           setWorkspaceStage(stage);
           return true;
-        }} />}
+        }}>
+          {deleteAllArtifactsButton}
+        </MediaStageHeader>}
+      {!staged && deleteAllArtifactsButton ? (
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">{deleteAllArtifactsButton}</div>
+      ) : null}
       {outputState?.stale && (workspaceStage === "visual_design" || workspaceStage === "image_creation") && (
         <p role="status" className="shrink-0 rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-small text-warning">
           {t("common.mediaAuthoring.outputsStale")}
@@ -2038,6 +2070,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         onChanged={loadProjectImages} onBeforeKindChange={confirmLeaveStage} onTextDirtyChange={setTextMaterialsDirty} selectedTextSource={standalone ? selectedTextSource : null} onSelectTextSource={standalone ? (selection) => void selectMangaTextSource(selection) : undefined} onNext={async () => { if (!await reloadMangaAssets()) return; if (!await confirmLeaveStage()) return; setWorkspaceStage("adaptation"); }} /> : !isMangaPageWorkspaceStage(workspaceStage) ? (
         selectedChapter ? (
           <MangaChapterArtifactPanel
+            key={`${projectId}:${selectedChapter.id}:preprocessing:${discardVersion}`}
             projectId={projectId}
             chapterId={selectedChapter.id}
             stage="preprocessing"
@@ -2133,7 +2166,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           if (!ensureChapterReadCurrent() || !ensurePipelineStatusCurrent(chapter.id)) return;
           void requestPipelineCancellation(chapter.id, handle);
         }}
-        onDeleteManga={() => void handleDeleteManga()}
         onPagePromptsChanged={async () => {
           const [promptsOk, imagesOk] = await Promise.all([
             selectedChapter

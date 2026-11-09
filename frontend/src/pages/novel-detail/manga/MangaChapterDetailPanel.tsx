@@ -7,7 +7,6 @@ import {
   PauseCircle,
   Play,
   RefreshCw,
-  Trash2,
 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
@@ -127,7 +126,6 @@ interface MangaChapterDetailPanelProps {
   ) => void;
   onGenerateMissingPortraits?: () => void;
   onCancelPipeline: () => void;
-  onDeleteManga: () => void;
   onPagePromptsChanged: () => Promise<boolean>;
   onPagePromptChanged: (prompt: MangaPagePromptSummary) => void;
   onPagePromptDeleted: (pageNumber: number) => void;
@@ -200,7 +198,6 @@ export function MangaChapterDetailPanel({
   onRunPipeline,
   onGenerateMissingPortraits,
   onCancelPipeline,
-  onDeleteManga,
   onPagePromptsChanged,
   onPagePromptChanged,
   onPagePromptDeleted,
@@ -1407,19 +1404,6 @@ export function MangaChapterDetailPanel({
           characterAssetsLoading ||
           characterAssetsError != null,
         onClick: () => onGenerateMissingPortraits?.(),
-      });
-    }
-    if (
-      !detailBusy &&
-      acting !== `delete-${selectedChapter.id}` &&
-      !selectedChapterGenerating
-    ) {
-      pipelineMenuItems.push({ type: "divider" });
-      pipelineMenuItems.push({
-        label: t("comic.prompt.deleteChapter"),
-        icon: <Trash2 size={12} />,
-        danger: true,
-        onClick: onDeleteManga,
       });
     }
   }

@@ -5,6 +5,7 @@ use crate::manga::{
     validate_manga_page_prompt_layout,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
 use a4n_db_models::models::{chapter::manga_pipeline_artifact, project::novel_project};
 use a4n_domain::manga::MangaPagePromptRecord;
 use chrono::Utc;
@@ -28,7 +29,47 @@ pub async fn delete_manga_prompts_by_chapter(
         .await
         .map_err(manga_record_database("开启漫画提示词删除事务失败"))?;
     lock_manga_project(&txn, project_id).await?;
+    let runs = workflow_run::Entity::find()
+        .filter(workflow_run::Column::ProjectId.eq(project_id))
+        .filter(workflow_run::Column::ChapterId.eq(chapter_id))
+        .filter(workflow_run::Column::WorkflowKind.eq("manga_pipeline"))
+        .lock_exclusive()
+        .all(&txn)
+        .await
+        .map_err(manga_record_database("锁定待清理漫画工作流失败"))?;
+    if runs
+        .iter()
+        .any(|run| run.status == crate::workflow::WORKFLOW_STATUS_RUNNING)
+    {
+        return Err(MangaPromptRecordError::InvalidArgument(
+            "漫画流水线正在运行，不能删除全部产物".into(),
+        ));
+    }
     let deleted = delete_manga_prompt_outputs(&txn, project_id, chapter_id, None).await?;
+    let run_ids = runs.into_iter().map(|run| run.id).collect::<Vec<_>>();
+    if !run_ids.is_empty() {
+        // Keep call history and billing, but never restore outputs explicitly deleted by the user.
+        workflow_checkpoint::Entity::delete_many()
+            .filter(workflow_checkpoint::Column::WorkflowRunId.is_in(run_ids.iter().copied()))
+            .exec(&txn)
+            .await
+            .map_err(manga_record_database("清理漫画续跑检查点失败"))?;
+        workflow_run::Entity::update_many()
+            .col_expr(workflow_run::Column::CanResume, Expr::value(false))
+            .col_expr(
+                workflow_run::Column::ResumeBlockReason,
+                Expr::value("本章漫画产物已全部删除，请重新生成"),
+            )
+            .col_expr(
+                workflow_run::Column::UpdatedAt,
+                Expr::value(Utc::now().naive_utc()),
+            )
+            .filter(workflow_run::Column::Id.is_in(run_ids))
+            .filter(workflow_run::Column::CanResume.eq(true))
+            .exec(&txn)
+            .await
+            .map_err(manga_record_database("更新漫画续跑状态失败"))?;
+    }
     txn.commit()
         .await
         .map_err(manga_record_database("提交漫画提示词删除事务失败"))?;

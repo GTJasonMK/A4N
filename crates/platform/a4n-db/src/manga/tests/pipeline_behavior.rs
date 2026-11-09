@@ -789,6 +789,10 @@ async fn manga_pipeline_run_blocks_manual_artifact_writes_in_the_db_owner() {
         matches!(result, Err(MangaPromptRecordError::InvalidArgument(message)) if message.contains("漫画流水线正在运行"))
     );
     assert!(
+        matches!(delete_manga_prompts_by_chapter(&db, project_id, chapter_id).await,
+            Err(MangaPromptRecordError::InvalidArgument(message)) if message.contains("漫画流水线正在运行"))
+    );
+    assert!(
         manga_pipeline_artifact(
             &db,
             project_id,
@@ -925,7 +929,12 @@ async fn deleting_manga_pages_removes_their_images_and_queues_file_cleanup() {
             image_prompt: Set(format!("第 {page_number} 页")),
             dialogue_text: Set(None),
             characters_in_frame: Set(Some(json!([]))),
-            layout: Set(Some(page_layout(page_number))),
+            layout: Set(Some(if page_number == 2 {
+                // Bulk recovery must not depend on parsing a damaged page projection.
+                json!({"schema_version":"manga_page_generation_v4", "pipeline":{"stage":"slots","status":"pending"}})
+            } else {
+                page_layout(page_number)
+            })),
             generated_image_id: Set(Some(image.id)),
             status: Set("completed".into()),
             created_at: Set(now),
@@ -951,6 +960,21 @@ async fn deleting_manga_pages_removes_their_images_and_queues_file_cleanup() {
         .await
         .unwrap();
     }
+    upsert_manga_pipeline_artifact(
+        &db,
+        MangaPipelineArtifactDraft {
+            project_id,
+            chapter_id,
+            stage: MangaPipelineArtifactStage::Preprocessing,
+            page_number: None,
+            input_fingerprint: "chapter-preprocessing".into(),
+            payload: json!({"fixture": "chapter-preprocessing"}),
+            stale: false,
+        },
+        now,
+    )
+    .await
+    .unwrap();
 
     delete_manga_page_by_number(&db, project_id, chapter_id, 1)
         .await
@@ -1013,6 +1037,27 @@ async fn deleting_manga_pages_removes_their_images_and_queues_file_cleanup() {
     assert_eq!(
         cleanup_outbox::Entity::find().all(&db).await.unwrap().len(),
         2
+    );
+    assert!(
+        chapter_manga_prompt::Entity::find()
+            .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+            .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
+            .all(&db)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        delete_manga_prompts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap(),
+        0
     );
 }
 

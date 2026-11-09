@@ -21,22 +21,25 @@ async function setModel(model) {
   }, model);
 }
 
-async function choosePlanning() {
+async function chooseStage(label) {
   await $('[role="tablist"]').waitForExist();
   const select = await $('[role="combobox"][id$="-select"]');
   if (await select.isDisplayed()) {
     await select.click();
     await $('[role="listbox"]').waitForDisplayed();
     for (const option of await $('[role="listbox"]').$$('[role="option"]')) {
-      if ((await option.getText()).includes("页数与页面规划")) {
+      if ((await option.getText()).includes(label)) {
         await option.click();
         return;
       }
     }
-    throw new Error("Missing page planning stage");
+    throw new Error(`Missing stage ${label}`);
   }
-  await $('//button[@role="tab" and contains(.,"页数与页面规划")]').click();
+  await $(`//button[@role="tab" and contains(.,"${label}")]`).click();
 }
+
+const choosePlanning = () => chooseStage("页数与页面规划");
+const deleteAllButton = () => $('//button[normalize-space(.)="删除本章全部产物"]');
 
 async function openProject(id) {
   await browser.url(`/comic-project/${id}`);
@@ -119,6 +122,7 @@ describe("Per-page manga planning against the real Host", () => {
       await browser.waitUntil(() => preview.isFocused(), { timeout: 3000, interval: 50 });
       await $('//button[normalize-space(.)="生成至页数与页面规划"]').click();
       await waitText(/第 [12] 页剧情内容：生成中/);
+      assert.equal(await deleteAllButton().isEnabled(), false);
       await capture("running", width);
       if (width === 390) {
         await clickButton("取消流水线", await dialog());
@@ -192,6 +196,42 @@ describe("Per-page manga planning against the real Host", () => {
     await capture("regenerated-after-delete", 1440);
     await closeDialog();
     checks.push("Deleting pagination keeps the workspace readable after refresh and allows fresh regeneration");
+    const scope = { input: { project_id: failed.projectId, chapter_id: failed.chapterId } };
+    const beforeDeleteAll = await callBrowserApiCommand("list_manga_pipeline_artifacts", scope);
+    assert.ok(beforeDeleteAll.some((item) => item.stage === "preprocessing"));
+    assert.ok(beforeDeleteAll.some((item) => item.stage === "page_slots"));
+    for (const width of [1440, 1024, 390]) {
+      await browser.setWindowSize(width, 1000);
+      await chooseStage("漫画预处理");
+      await deleteAllButton().waitForEnabled();
+      await capture("delete-all-entry", width);
+      await deleteAllButton().execute((element) => element.focus());
+      await browser.keys("Enter");
+      await waitText(/删除本章全部漫画产物/);
+      assert.match(await dialog().getText(), /第 1 章.*旧车站/);
+      assert.match(await dialog().getText(), /原文、改编计划和基础素材会保留/);
+      assert.match(await dialog().getText(), /不可撤销/);
+      await capture("delete-all-confirm", width);
+      await closeDialog();
+      await browser.waitUntil(() => deleteAllButton().isFocused(), { timeout: 3000, interval: 50 });
+      assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", scope), beforeDeleteAll);
+    }
+    checks.push("Delete-all is disabled during generation; its chapter-scoped confirmation works by keyboard, restores focus, and cancellation preserves artifacts at all three widths");
+    await deleteAllButton().click();
+    await waitText(/删除本章全部漫画产物/);
+    await clickButton("删除本章全部产物", await dialog());
+    await waitForNoDialog();
+    await browser.waitUntil(async () => (await callBrowserApiCommand("list_manga_pipeline_artifacts", scope)).length === 0, { timeout: 30_000, interval: 100 });
+    assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", scope), []);
+    await deleteAllButton().waitForEnabled();
+    await capture("delete-all-empty", 390);
+    await choosePlanning();
+    await browser.refresh();
+    await choosePlanning();
+    assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", scope), []);
+    assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", scope), []);
+    await capture("delete-all-refreshed", 390);
+    checks.push("Confirming delete-all clears the chapter pages and artifacts; the empty workspace stays readable after refresh");
     complete = true;
   });
 });
