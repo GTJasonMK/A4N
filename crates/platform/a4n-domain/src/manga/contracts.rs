@@ -24,8 +24,9 @@ pub use pipeline::{
     MangaPageImageArtifactV1, MangaPagePipelineErrorV1, MangaPagePipelineStage,
     MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPageReferenceDiscoveryV1,
     MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaPageReferenceTargetKind,
-    MangaPageSlotV1, MangaPageSlotsV1, MangaPipelineArtifactStage, MangaPreprocessingV3,
-    manga_preprocessing_input_fingerprint,
+    MangaPageSlotV1, MangaPageSlotsV1, MangaPipelineArtifactStage, MangaPreprocessingFacts,
+    MangaPreprocessingSpeech, MangaPreprocessingStep, MangaPreprocessingSynthesis,
+    MangaPreprocessingV3, MangaPreprocessingVisuals, manga_preprocessing_input_fingerprint,
 };
 pub use text::{MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2};
 pub use versions::{

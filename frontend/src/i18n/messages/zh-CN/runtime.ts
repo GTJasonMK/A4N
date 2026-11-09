@@ -242,6 +242,7 @@ export const a11y = {
 } as const;
 
 export const feedback = {
+  waitingDependencies: "等待上游资料",
   confirmTitle: "确认",
   confirm: "确认",
   cancel: "取消",

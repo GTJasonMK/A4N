@@ -92,7 +92,7 @@ function shouldFlushImmediately(
 ): boolean {
   return (action.type === "event"
       && action.event.event.kind === "progress"
-      && action.event.event.data.phase_kind === "save"
+      && ["save", "validate"].includes(action.event.event.data.phase_kind)
       && action.event.event.data.item_key != null)
     || action.type === "snapshot"
     || action.type === "summary"

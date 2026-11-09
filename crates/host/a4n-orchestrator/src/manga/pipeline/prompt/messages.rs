@@ -13,4 +13,4 @@ pub(in crate::manga) use page_pipeline::{
     manga_page_reference_discovery_user_message, manga_page_slots_user_message,
     manga_page_storyboard_user_message,
 };
-pub(in crate::manga) use preprocessing::manga_preprocessing_user_message;
+pub(in crate::manga) use preprocessing::MangaPreprocessingMessages;

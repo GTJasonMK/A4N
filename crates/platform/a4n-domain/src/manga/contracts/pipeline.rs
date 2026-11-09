@@ -8,6 +8,8 @@ use super::super::MangaBoundReferenceAsset;
 use super::{MangaPageDrawingPromptV2, MangaPageSlotsSchemaVersion, MangaPageV4};
 use crate::media_authoring::AdaptationBeatRef;
 mod preprocessing_schema;
+mod preprocessing_steps;
+pub use preprocessing_steps::*;
 
 pub const MANGA_PAGE_PIPELINE_STATE_V1: &str = "manga_page_pipeline_state_v1";
 pub const MANGA_PAGE_SLOT_LIMIT: usize = 100;
@@ -75,39 +77,57 @@ impl MangaPreprocessingV3 {
             &crate::json_contract::typed_output_schema::<Self>(),
         )?
         .validate(&serde_json::to_value(self).map_err(|error| error.to_string())?)?;
-        let events = self
-            .source_events
-            .get("events")
-            .and_then(Value::as_array)
-            .ok_or_else(|| "source_events.events 必须是数组".to_string())?;
-        let mut event_ids = std::collections::HashSet::with_capacity(events.len());
-        for (index, event) in events.iter().enumerate() {
-            let path = format!("source_events.events[{index}]");
-            let event_id = event
-                .get("event_id")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| format!("{path}.event_id 必须是非空字符串"))?;
-            if !event_ids.insert(event_id) {
-                return Err(format!("{path}.event_id 不能重复"));
-            }
-        }
-        let event_ids = event_ids
-            .into_iter()
-            .map(str::to_owned)
-            .collect::<std::collections::HashSet<_>>();
-        validate_event_references(&self.speech, "dialogues", "source_event_id", &event_ids)?;
-        validate_event_references(&self.speech, "narrations", "source_event_id", &event_ids)?;
-        validate_event_id_arrays(&self.visual_anchors, "scenes", &event_ids)?;
-        validate_event_references(
-            &self.items,
-            "items",
-            "first_appearance_source_event_id",
-            &event_ids,
-        )?;
+        let event_ids = preprocessing_event_ids(&self.source_events)?;
+        validate_preprocessing_speech(&self.speech, &event_ids)?;
+        validate_preprocessing_visuals(&self.visual_anchors, &self.items, &event_ids)?;
         Ok(())
     }
+}
+
+fn preprocessing_event_ids(
+    source_events: &Value,
+) -> Result<std::collections::HashSet<String>, String> {
+    let events = source_events
+        .get("events")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "source_events.events 必须是数组".to_string())?;
+    let mut event_ids = std::collections::HashSet::with_capacity(events.len());
+    for (index, event) in events.iter().enumerate() {
+        let path = format!("source_events.events[{index}]");
+        let event_id = event
+            .get("event_id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| format!("{path}.event_id 必须是非空字符串"))?;
+        if !event_ids.insert(event_id) {
+            return Err(format!("{path}.event_id 不能重复"));
+        }
+    }
+    Ok(event_ids.into_iter().map(str::to_owned).collect())
+}
+
+fn validate_preprocessing_speech(
+    speech: &Value,
+    event_ids: &std::collections::HashSet<String>,
+) -> Result<(), String> {
+    validate_event_references(speech, "dialogues", "source_event_id", event_ids)?;
+    validate_event_references(speech, "narrations", "source_event_id", event_ids)
+}
+
+fn validate_preprocessing_visuals(
+    visual_anchors: &Value,
+    items: &Value,
+    event_ids: &std::collections::HashSet<String>,
+) -> Result<(), String> {
+    validate_event_id_arrays(visual_anchors, "scenes", event_ids)?;
+    validate_event_references(
+        items,
+        "items",
+        "first_appearance_source_event_id",
+        event_ids,
+    )?;
+    Ok(())
 }
 
 fn validate_event_references(

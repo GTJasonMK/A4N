@@ -25,8 +25,6 @@ pub(crate) fn workflow_json_request(
         a4n_domain::json_contract::typed_output_schema::<
             a4n_domain::media_authoring::AdaptationPlanV1,
         >()
-    } else if prompt_name == "manga_preprocessing" {
-        a4n_domain::json_contract::typed_output_schema::<a4n_domain::manga::MangaPreprocessingV3>()
     } else {
         crate::galgame::galgame_output_schema(prompt_name)?
     };

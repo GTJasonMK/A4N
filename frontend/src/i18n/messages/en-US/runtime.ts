@@ -242,6 +242,7 @@ export const a11y = {
 } as const;
 
 export const feedback = {
+  waitingDependencies: "Waiting for upstream data",
   confirmTitle: "Confirm",
   confirm: "Confirm",
   cancel: "Cancel",

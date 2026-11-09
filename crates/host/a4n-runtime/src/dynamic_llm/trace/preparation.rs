@@ -29,7 +29,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
         .unwrap_or(0)
         .saturating_add(request.output_schema_tokens(|text| provider.count_tokens(text)));
     let Some(mut trace_context) = request.trace_context.clone() else {
-        ContextBudgetPlanner::default().plan_requirements_adaptive(
+        let plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
             caps.max_context_tokens,
             output_reserve,
             Vec::new(),
@@ -37,6 +37,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 .count_messages_tokens(&request.messages)
                 .saturating_add(protocol_tokens),
         )?;
+        request.max_tokens = Some(plan.output_token_reserve);
         return Ok(None);
     };
     complete_llm_trace_project_scope(facade, &mut trace_context).await?;
@@ -110,6 +111,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             )?
         }
     };
+    request.max_tokens = Some(plan.output_token_reserve);
     let mut plan_json = serde_json::to_value(&plan).map_err(AppError::Serialization)?;
     if let Some(history_watermark) = history_watermark {
         plan_json["history_watermark"] = json!(history_watermark);

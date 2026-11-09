@@ -136,8 +136,8 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   const barCountLabel =
     display.countLabel && !barDetail.includes(display.countLabel) ? display.countLabel : null;
   const isMangaPipeline =
-    meta?.taskKind === "manga_pipeline" ||
-    events.some((event) => event.meta?.taskKind === "manga_pipeline");
+    meta?.taskKind === "manga_generation" ||
+    events.some((event) => event.meta?.taskKind === "manga_generation");
   const mangaImageRunning =
     displayStatus === "running" &&
     isMangaPipeline &&
@@ -349,7 +349,7 @@ const ProgressTimelineRow: React.FC<{
           ? "bg-warning"
           : "bg-book-primary";
   const pageLabel =
-    item.meta?.taskKind === "manga_pipeline" &&
+    item.meta?.taskKind === "manga_generation" &&
     display.countLabel &&
     !display.detail?.startsWith(display.countLabel)
       ? display.countLabel

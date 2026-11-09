@@ -8,7 +8,7 @@ from typing import Any
 
 from mock_openai.fixtures.entities import source_marker_pairs, source_span_id
 from mock_openai.fixtures.reverse import embedded_json_objects
-from mock_openai.prompt_parsing import json_task_payload
+from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
 from mock_openai.protocol import UnhandledPromptError
 
 
@@ -377,6 +377,12 @@ def manga_beat_ref(adaptation: dict[str, Any]) -> dict[str, str]:
 
 
 def manga_preprocessing_response(combined: str) -> dict[str, Any]:
+    synthesis = {
+        "chapter_summary": "林岚用怀表确认车站的时间异常，并察觉周衡隐瞒过去。",
+        "mood_progression": ["警觉观察", "异常坐实", "主动查证"],
+    }
+    if current_task_prompt_name(combined) == "manga_preprocessing_synthesis":
+        return {"comic_synthesis": synthesis}
     source_id = source_span_id(combined, "林岚")
     return {
         "schema_version": "manga_preprocessing_v3",
@@ -427,10 +433,7 @@ def manga_preprocessing_response(combined: str) -> dict[str, Any]:
             }],
         },
         "items": {"items": []},
-        "comic_synthesis": {
-            "chapter_summary": "林岚用怀表确认车站的时间异常，并察觉周衡隐瞒过去。",
-            "mood_progression": ["警觉观察", "异常坐实", "主动查证"],
-        },
+        "comic_synthesis": synthesis,
     }
 
 

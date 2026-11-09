@@ -62,8 +62,10 @@ export async function runGenerationProgressTaskThen<T>(
       },
     },
     async (control) => {
+      let previousProgress: GenerationTaskViewState["progress"] = null;
       const task = await generationClient.waitForTerminal(handle, (current) => {
-        applyGenerationProgress(current, control.setProgress, control.setStreamText);
+        applyGenerationProgress(current, control, previousProgress);
+        previousProgress = current?.progress ?? null;
         onUpdate?.(current);
       });
       return afterTerminal(task, control);
@@ -73,15 +75,15 @@ export async function runGenerationProgressTaskThen<T>(
 
 function applyGenerationProgress(
   task: GenerationTaskViewState | null,
-  setProgress: ProgressTaskControl["setProgress"],
-  setStreamText: ProgressTaskControl["setStreamText"],
+  control: ProgressTaskControl,
+  previousProgress: GenerationTaskViewState["progress"],
 ): void {
   const progress = task?.progress;
-  if (progress) {
+  if (progress && progress !== previousProgress) {
     if (!task.started) {
       throw new Error("生成进度缺少 started.task_kind");
     }
-    setProgress(
+    control.setProgress(
       progress.message,
       progress.current ?? undefined,
       progress.total ?? undefined,
@@ -89,5 +91,5 @@ function applyGenerationProgress(
     );
   }
   const stream = task ? pickDisplayStreamText(task.streams) : null;
-  if (stream) setStreamText(stream);
+  if (stream) control.setStreamText(stream);
 }

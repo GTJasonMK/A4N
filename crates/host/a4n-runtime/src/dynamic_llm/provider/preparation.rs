@@ -36,7 +36,13 @@ impl DynamicLlmProvider {
         )?);
         let already_prepared = request.context_manifest_json.is_some()
             && request.trace_context.as_ref().is_some_and(|trace| {
-                trace.context_plan_json.is_some() && trace.context_pack_refs_json.is_some()
+                trace.context_pack_refs_json.is_some()
+                    && trace.context_plan_json.as_ref().is_some_and(|plan| {
+                        plan["model_context_tokens"].as_u64()
+                            == Some(model.capabilities.max_context_tokens as u64)
+                            && plan["output_token_reserve"].as_u64()
+                                == request.max_tokens.map(|tokens| tokens as u64)
+                    })
             });
         let trace = if already_prepared {
             request.trace_context.clone()

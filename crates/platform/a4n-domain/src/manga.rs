@@ -22,9 +22,10 @@ pub use contracts::{
     MangaPageReferenceDiscoveryV1, MangaPageReferenceImageV1, MangaPageReferenceNeedV1,
     MangaPageReferenceTargetKind, MangaPageRoleV2, MangaPageSlotV1, MangaPageSlotsSchemaVersion,
     MangaPageSlotsV1, MangaPageV4, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2,
-    MangaPipelineArtifactStage, MangaPreprocessingV3, MangaReadingFlowV2, MangaShotScaleV2,
-    MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
-    manga_preprocessing_input_fingerprint,
+    MangaPipelineArtifactStage, MangaPreprocessingFacts, MangaPreprocessingSpeech,
+    MangaPreprocessingStep, MangaPreprocessingSynthesis, MangaPreprocessingV3,
+    MangaPreprocessingVisuals, MangaReadingFlowV2, MangaShotScaleV2, MangaTextLayerKindV2,
+    MangaTextLayerV2, MangaTextPlacementV2, manga_preprocessing_input_fingerprint,
 };
 pub use validation::MangaPlanValidationError;
 

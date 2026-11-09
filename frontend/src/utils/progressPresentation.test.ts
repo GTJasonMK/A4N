@@ -86,7 +86,7 @@ describe("progress presentation", () => {
   it("labels Manga pipeline stages and page progress precisely", () => {
     const mangaMeta: ProgressMeta = {
       ...meta,
-      taskKind: "manga_pipeline",
+      taskKind: "manga_generation",
       stageCode: "manga_storyboard",
       phaseKind: "structured_output",
       detail: null,

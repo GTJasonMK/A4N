@@ -4,9 +4,7 @@ use a4n_domain::{manga::MangaPreprocessingV3, source_spans::source_spans_for_con
 use a4n_error::AppError;
 use serde_json::json;
 
-use super::super::super::pipeline::prompt::{
-    manga_pipeline_prompt_assembly_call_key, manga_preprocessing_user_message,
-};
+use super::super::super::pipeline::prompt::MangaPreprocessingMessages;
 use super::super::super::reference_assets::manga_reference_assets_json;
 use super::super::super::{MangaPipelineRequestPreviewInput, OrchestratorContext};
 use super::super::json::required_array_field;
@@ -57,31 +55,21 @@ impl OrchestratorContext {
             let source_spans =
                 source_spans_for_content(chapter_id, source.chapter_number, &source.content);
             let source_markers = SourceMarkerMap::from_source_spans(&source_spans)?;
-            let user = manga_preprocessing_user_message(
-                &source.content,
-                &source_spans,
-                &source_markers,
-                manga_reference_assets_json(&character_portraits),
-            )?;
-            let system = prompt_renderer
-                .render_prompt_for_call(
-                    manga_pipeline_prompt_assembly_call_key("manga_preprocessing")?,
-                    "manga_preprocessing",
-                    &HashMap::new(),
-                    Some(project_id),
-                )
-                .await?;
-            return Ok(vec![MangaPipelineRequestPreviewStep::ready(
-                "manga_preprocessing",
-                "漫画预处理",
-                "manga_preprocessing",
-                None,
-                crate::workflow::workflow_json_request(
-                    system,
-                    serde_json::to_string(&user)?,
-                    "manga_preprocessing",
-                )?,
-            )]);
+            return super::preprocessing::preview_preprocessing(
+                self,
+                project_id,
+                chapter_id,
+                prompt_renderer,
+                workflow_run_id,
+                resume_from_checkpoint,
+                &MangaPreprocessingMessages {
+                    chapter_content: &source.content,
+                    source_spans: &source_spans,
+                    source_markers: &source_markers,
+                    reference_assets: &reference_assets,
+                },
+            )
+            .await;
         }
         let preprocessing = preprocessing
             .filter(|artifact| {

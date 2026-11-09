@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CheckCircle2, Clipboard, Copy, RotateCcw, XCircle } from "lucide-react";
+import { CheckCircle2, Clipboard, Clock3, Copy, RotateCcw, XCircle } from "lucide-react";
 import type {
   ModelRequestPreview,
   ModelRequestPreviewMessage,
@@ -61,6 +61,7 @@ const jsonTextValue = (value: unknown): string => {
 const stateLabel = (state: string, t: MessageTranslator): string => {
   if (state === "ready") return t("feedback.previewReady");
   if (state === "reused") return t("feedback.reused");
+  if (state === "waiting_dependencies") return t("feedback.waitingDependencies");
   return t("feedback.unavailable");
 };
 
@@ -87,6 +88,7 @@ const stateTextClass = (state: string): string => {
 const stateIcon = (state: string) => {
   if (state === "ready") return <CheckCircle2 size={12} />;
   if (state === "reused") return <RotateCcw size={12} />;
+  if (state === "waiting_dependencies") return <Clock3 size={12} />;
   return <XCircle size={12} />;
 };
 
@@ -278,7 +280,7 @@ const StepView: React.FC<{
         />
       ) : null}
 
-      <section className="min-w-0 space-y-3">
+      {hasPromptText || requestJson.trim() ? <section className="min-w-0 space-y-3">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <h3 className="text-xs font-semibold text-book-text-main">{t("feedback.promptMessages")}</h3>
           {messages.length > 0 ? (
@@ -328,7 +330,7 @@ const StepView: React.FC<{
             {t("feedback.noPromptText")}
           </p>
         )}
-      </section>
+      </section> : null}
 
       {requestJson.trim() ? (
         <details open={recorded} className="min-w-0 border-t border-book-border/40 pt-3 text-small">
@@ -396,7 +398,7 @@ const StepView: React.FC<{
         </details>
       ) : null}
 
-      {!hasPromptText && !requestJson.trim() && !hasContextDetails ? (
+      {!hasPromptText && !requestJson.trim() && !hasContextDetails && step.state !== "waiting_dependencies" && step.state !== "reused" ? (
         <div className="border-t border-book-border/40 pt-3 text-small text-book-text-muted">
           {t("feedback.noPreviewData")}
         </div>

@@ -54,7 +54,21 @@ impl OrchestratorContext {
     pub(in crate::manga) async fn render_and_validate_manga_call<T, F>(
         &self,
         input: MangaRenderTraceInput<'_>,
+        validate: F,
+    ) -> Result<(MangaPromptGenerationTrace, T), AppError>
+    where
+        T: serde::Serialize,
+        F: FnMut(&Value) -> Result<T, AppError>,
+    {
+        self.render_and_validate_manga_call_observed(input, validate, None)
+            .await
+    }
+
+    pub(in crate::manga) async fn render_and_validate_manga_call_observed<T, F>(
+        &self,
+        input: MangaRenderTraceInput<'_>,
         mut validate: F,
+        on_correction: Option<&(dyn Fn() + Send + Sync)>,
     ) -> Result<(MangaPromptGenerationTrace, T), AppError>
     where
         T: serde::Serialize,
@@ -131,6 +145,7 @@ impl OrchestratorContext {
                 )
             };
         let mut trace = MangaPromptGenerationTrace {
+            restored_from_checkpoint: restored_parsed_output.is_some(),
             prompt_name: prompt_name.to_string(),
             request_json: prepared.request_json,
             messages_json: prepared.messages_json,
@@ -167,14 +182,28 @@ impl OrchestratorContext {
                 finish_reason: trace.finish_reason.clone(),
                 reasoning_content: None,
             };
-            self.validate_llm_response(&prepared.request, initial, prompt_name, cancel_token, parse)
-                .await
-                .map(|(response, parsed)| {
-                    trace.response_text = response.message.content;
-                    trace.usage = response.usage;
-                    trace.finish_reason = response.finish_reason;
-                    parsed
-                })
+            let correction_stream_id = format!("{stream_id}.correction");
+            let correction_sink = |delta: &str| {
+                if let Some(reporter) = stream_reporter {
+                    reporter(&correction_stream_id, delta);
+                }
+            };
+            self.validate_llm_response_observed(
+                &prepared.request,
+                initial,
+                prompt_name,
+                cancel_token,
+                parse,
+                on_correction,
+                stream_reporter.map(|_| &correction_sink as &(dyn Fn(&str) + Send + Sync)),
+            )
+            .await
+            .map(|(response, parsed)| {
+                trace.response_text = response.message.content;
+                trace.usage = response.usage;
+                trace.finish_reason = response.finish_reason;
+                parsed
+            })
         };
         let (output, parsed_output) = if restored_parsed_output.is_some() {
             self.validate_llm_call_output(

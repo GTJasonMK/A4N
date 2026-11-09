@@ -88,7 +88,7 @@ ANCHOR_OUTPUT_FIELDS = {
 
 def normal_fixture_model(model: str) -> str:
     if model=="a4n-fact-feedback-invalid":return "a4n-fact-feedback"
-    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-","a4n-scene-sync-")):return "a4n-virtual-text"
+    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-","a4n-scene-sync-","a4n-preprocessing-")):return "a4n-virtual-text"
     return model
 
 
@@ -137,6 +137,16 @@ def response_for(body: dict[str, Any]) -> str:
     if len(original_messages) != len(messages):
         return response_for({**body, "messages": original_messages, "_a4n_correction": True})
     model = str(body.get("model", ""))
+    if model.startswith("a4n-preprocessing-"):
+        raw = response_for({**body, "model": "a4n-virtual-text"})
+        combined = "\n".join(message_text(message.get("content", "")) for message in body.get("messages", []))
+        step = current_task_prompt_name(combined)
+        if step == "manga_preprocessing_speech" and (
+            model == "a4n-preprocessing-fail-speech"
+            or (model == "a4n-preprocessing-recover-speech" and not body.get("_a4n_correction"))
+        ):
+            return json.dumps({"speech": {"dialogues": [], "narrations": [{"source_event_id": "missing-event"}]}}, ensure_ascii=False)
+        return raw
     if model.startswith("a4n-output-recover-"):
         fault = model.removeprefix("a4n-output-recover-")
         if fault not in {"string_ids", "missing_anchor", "unknown_anchor"}:
@@ -263,8 +273,18 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(galgame_visual_planning_response(combined), ensure_ascii=False)
 
     manga_prompt_name = prompt_name
-    if manga_prompt_name == "manga_preprocessing":
-        return json.dumps(manga_preprocessing_response(combined), ensure_ascii=False)
+    if manga_prompt_name in {
+        "manga_preprocessing_facts", "manga_preprocessing_speech",
+        "manga_preprocessing_visuals", "manga_preprocessing_synthesis",
+    }:
+        fields = {
+            "manga_preprocessing_facts": ("source_events", "characters"),
+            "manga_preprocessing_speech": ("speech",),
+            "manga_preprocessing_visuals": ("visual_anchors", "items"),
+            "manga_preprocessing_synthesis": ("comic_synthesis",),
+        }[manga_prompt_name]
+        result = manga_preprocessing_response(combined)
+        return json.dumps({field: result[field] for field in fields}, ensure_ascii=False)
     if manga_prompt_name == "manga_page_slots":
         return json.dumps(manga_page_slots_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_adaptation_plan":

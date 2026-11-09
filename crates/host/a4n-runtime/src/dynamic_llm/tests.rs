@@ -163,29 +163,133 @@ async fn already_prepared_requests_still_apply_provider_cache_capabilities() {
     config.model = "gpt-6-luna".into();
     let model = ResolvedLlmModel::new(config).expect("resolved model");
     let mut request = test_chat_request();
-    request.cache_scope_key = Some("preset-cache-key".into());
-    request.add_cache_breakpoint(0, 3).unwrap();
-    request.context_manifest_json = Some(json!({}));
+    request.context_manifest_json = Some(budget_test_manifest("ping"));
     request.trace_context = Some(LlmTraceContext {
-        project_id: Some(7),
-        root_project_id: Some(7),
+        project_id: None,
+        root_project_id: None,
         workflow: "agent".into(),
         step_key: "model-call:1".into(),
         generation_run_id: None,
         workflow_run_id: None,
         call_key: Some("model-call:1".into()),
         input_fingerprint_sha256: None,
-        context_plan_json: Some(json!({})),
-        context_pack_refs_json: Some(json!({})),
+        context_plan_json: None,
+        context_pack_refs_json: None,
     });
+    let (_, mut request, trace) = provider
+        .prepare_request(model.clone(), request)
+        .await
+        .expect("first preparation");
+    let original_plan = trace.unwrap().context_plan_json;
+    request.cache_scope_key = Some("preset-cache-key".into());
+    let breakpoint = request.messages[0].content.len();
+    request.add_cache_breakpoint(0, breakpoint).unwrap();
 
-    let (_, prepared, _) = provider
+    let (_, prepared, trace) = provider
         .prepare_request(model, request)
         .await
         .expect("prepared request");
 
     assert!(prepared.cache_breakpoints.is_empty());
     assert!(prepared.cache_scope_key.is_none());
+    assert_eq!(trace.unwrap().context_plan_json, original_plan);
+}
+
+fn budget_test_manifest(dynamic_content: &str) -> serde_json::Value {
+    json!({
+        "schema_version": 1,
+        "packs": [{
+            "scope_kind": "workflow", "pack_kind": "required_context",
+            "source_refs_json": null, "config_hash": "budget-test:v1",
+            "required": true, "stable_prefix": true,
+            "variants": [{"compression_level": "full_raw", "canonical_content_json": {"instruction":"required context"}}]
+        }],
+        "dynamic_user_content": dynamic_content, "output_contract": null
+    })
+}
+
+#[tokio::test]
+async fn runtime_writes_adaptive_budget_to_the_wire_and_replans_stale_preparation() {
+    let facade = crate::provider_runtime::DynamicProviderFacade::new(
+        Arc::new(TestProviderPort::default()),
+        crate::RuntimeRole::Host,
+    );
+    let provider = DynamicLlmProvider::new(facade);
+    let mut config = test_llm_model();
+    config.max_context_tokens = 16_000;
+    config.max_output_tokens = 12_000;
+    let model = ResolvedLlmModel::new(config.clone()).unwrap();
+    let mut request = ChatRequest::new(
+        vec![ChatMessage::system("system"), ChatMessage::user("initial")],
+        None,
+        None,
+    );
+    request.context_manifest_json = Some(budget_test_manifest(&"正文".repeat(1000)));
+    request.trace_context = Some(LlmTraceContext {
+        project_id: None,
+        root_project_id: None,
+        workflow: "budget_test".into(),
+        step_key: "test".into(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: None,
+        input_fingerprint_sha256: None,
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    });
+    let mut preview = request.clone();
+    let preview_plan = a4n_llm_context::preview_context_aware_chat_request(
+        &mut preview,
+        config.max_context_tokens as usize,
+        config.max_output_tokens as usize,
+    )
+    .unwrap()
+    .unwrap();
+    let (_, prepared, trace) = provider.prepare_request(model, request).await.unwrap();
+    let plan = trace.unwrap().context_plan_json.unwrap();
+    assert!(prepared.max_tokens.unwrap() < config.max_output_tokens as usize);
+    assert_eq!(
+        plan["output_token_reserve"],
+        json!(prepared.max_tokens.unwrap())
+    );
+    assert_eq!(preview.max_tokens, prepared.max_tokens);
+    assert_eq!(
+        preview_plan.plan_json["output_token_reserve"],
+        plan["output_token_reserve"]
+    );
+    config.max_context_tokens = 32_000;
+    let mut changed = prepared;
+    changed.max_tokens = None;
+    let (_, replanned, trace) = provider
+        .prepare_request(ResolvedLlmModel::new(config.clone()).unwrap(), changed)
+        .await
+        .unwrap();
+    assert_eq!(
+        replanned.max_tokens,
+        Some(config.max_output_tokens as usize)
+    );
+    assert_eq!(
+        trace.unwrap().context_plan_json.unwrap()["model_context_tokens"],
+        config.max_context_tokens
+    );
+}
+
+#[tokio::test]
+async fn untraced_runtime_requests_also_use_the_final_adaptive_budget() {
+    let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(
+        Arc::new(TestProviderPort::default()),
+        crate::RuntimeRole::Host,
+    ));
+    let mut config = test_llm_model();
+    config.max_context_tokens = 16_000;
+    config.max_output_tokens = 12_000;
+    let request = ChatRequest::new(vec![ChatMessage::user("正文".repeat(1000))], None, None);
+    let (_, prepared, trace) = provider
+        .prepare_request(ResolvedLlmModel::new(config.clone()).unwrap(), request)
+        .await
+        .unwrap();
+    assert!(trace.is_none());
+    assert!(prepared.max_tokens.unwrap() < config.max_output_tokens as usize);
 }
 
 #[tokio::test]

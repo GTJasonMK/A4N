@@ -190,6 +190,7 @@ mod tests {
             updated_at: now,
         };
         let trace = MangaPromptGenerationTrace {
+            restored_from_checkpoint: false,
             prompt_name: "manga_page_adaptation_plan".to_string(),
             request_json: json!({}),
             messages_json: json!([]),

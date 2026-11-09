@@ -14,6 +14,7 @@ from pathlib import Path
 
 from mock_openai.fixtures.story import chapter_body_response
 from mock_openai.protocol import PNG_1X1_BASE64
+from mock_openai.prompt_parsing import current_task_prompt_name
 from run_cli_contract_e2e import checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
@@ -111,7 +112,7 @@ def main():
             comic, game = derive("comic"), derive("galgame")
             assert call("list_video_adaptation_references", {"project_id": comic, "chapter_id": chapter_id}) == []
 
-            def manga_run(project_id=comic, stop_after=None, page_number=None, run_stage=None, expected_error=None):
+            def manga_run(project_id=comic, stop_after=None, page_number=None, run_stage=None, expected_error=None, resume=False):
                 pipeline_input = {
                     "meta": {"start_request_id": str(uuid.uuid4())},
                     "project_id": project_id,
@@ -124,7 +125,7 @@ def main():
                     pipeline_input["page_number"] = page_number
                 if run_stage is not None:
                     pipeline_input["run_stage"] = run_stage
-                handle = call("start_manga_pipeline", pipeline_input)
+                handle = call("resume_manga_pipeline" if resume else "start_manga_pipeline", pipeline_input)
                 if expected_error is None:
                     checked(
                         cli,
@@ -147,7 +148,87 @@ def main():
                     assert expected_error in json.dumps(task, ensure_ascii=False), task
                 return task
 
+            def preprocessing_model(name):
+                snapshot = copy.deepcopy(mock_runtime)
+                snapshot["llm"]["model"] = name
+                snapshot["llm"]["max_output_tokens"] = 20000
+                secure_json(work / "runtime.json", snapshot)
+                checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "preprocessing model")
+
+            preprocessing_names = ["manga_preprocessing_" + step for step in ("facts", "speech", "visuals", "synthesis")]
+
+            def new_preprocessing_calls(offset):
+                result = []
+                for row in llm_calls()[offset:]:
+                    body = row["body"]
+                    text = "\n".join(message.get("content", "") for message in body["messages"] if isinstance(message.get("content"), str))
+                    name = current_task_prompt_name(text)
+                    if name in preprocessing_names:
+                        result.append((name, body))
+                return result
+
+            preprocessing_model("a4n-preprocessing-parallel")
+            preview = call("preview_start_manga_pipeline_request", {"project_id": comic, "chapter_number": 1, "run_stage": "preprocessing"})
+            assert [step["prompt_name"] for step in preview["steps"]] == preprocessing_names
+            assert [step["state"] for step in preview["steps"]] == ["ready", "waiting_dependencies", "waiting_dependencies", "waiting_dependencies"]
+            assert preview["steps"][0]["request"]["max_tokens"] == 20000
+            before = len(llm_calls())
             manga_run(comic, run_stage="preprocessing")
+            initial_calls = new_preprocessing_calls(before)
+            assert len(initial_calls) == 4, [name for name, _ in initial_calls]
+            assert initial_calls[0][0] == preprocessing_names[0] and initial_calls[-1][0] == preprocessing_names[-1]
+            assert {name for name, _ in initial_calls[1:3]} == set(preprocessing_names[1:3])
+            assert all(body.get("max_tokens") == 20000 for _, body in initial_calls)
+            passed("漫画预处理恰好四次调用，两个提取分支通过 Provider 并发屏障，实际请求和预览均保留 20000 输出额度")
+
+            recover_project = derive("comic", "漫画预处理局部续跑")
+            preprocessing_model("a4n-preprocessing-fail-speech")
+            before = len(llm_calls())
+            failed = manga_run(recover_project, run_stage="preprocessing", expected_error="输出纠正仍未完成")
+            failed_calls = new_preprocessing_calls(before)
+            assert [name for name, _ in failed_calls].count(preprocessing_names[1]) == 2
+            assert not any(name == preprocessing_names[3] for name, _ in failed_calls)
+            assert not any(item["stage"] == "preprocessing" for item in call("list_manga_pipeline_artifacts", {"project_id": recover_project, "chapter_id": chapter_id}))
+            preprocessing_model("a4n-virtual-text")
+            preview = call("preview_resume_manga_pipeline_request", {"project_id": recover_project, "chapter_number": 1, "run_stage": "preprocessing"})
+            assert [step["state"] for step in preview["steps"]] == ["reused", "ready", "reused", "waiting_dependencies"]
+            before = len(llm_calls())
+            manga_run(recover_project, run_stage="preprocessing", resume=True)
+            assert [name for name, _ in new_preprocessing_calls(before)] == [preprocessing_names[1], preprocessing_names[3]]
+            artifacts = call("list_manga_pipeline_artifacts", {"project_id": recover_project, "chapter_id": chapter_id})
+            assert len([item for item in artifacts if item["stage"] == "preprocessing"]) == 1
+            passed("对白步骤仅纠正一次；失败不发布整包，保留事实与视觉检查点，续跑只补对白和综合两次调用")
+
+            corrected_project = derive("comic", "漫画预处理单步纠正")
+            preprocessing_model("a4n-preprocessing-recover-speech")
+            before = len(llm_calls())
+            manga_run(corrected_project, run_stage="preprocessing")
+            corrected_calls = new_preprocessing_calls(before)
+            assert len(corrected_calls) == 5 and [name for name, _ in corrected_calls].count(preprocessing_names[1]) == 2
+            passed("单步字段或引用错误经过唯一纠正后可完成，其他步骤不重调")
+
+            cancelled_project = derive("comic", "漫画预处理取消")
+            preprocessing_model("a4n-preprocessing-slow")
+            before = len(llm_calls())
+            handle = call("start_manga_pipeline", {"project_id": cancelled_project, "chapter_number": 1, "run_stage": "preprocessing", "meta": {"start_request_id": str(uuid.uuid4())}})
+            deadline = time.monotonic() + 20
+            while len(new_preprocessing_calls(before)) < 3:
+                assert time.monotonic() < deadline, "parallel preprocessing branches did not start"
+                time.sleep(0.05)
+            checked(cli, ["task", "cancel", handle["task_id"], "--attempt", str(handle["attempt"]), "--yes"], "cancel isolated preprocessing")
+            deadline = time.monotonic() + 20
+            while True:
+                cancelled = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "cancelled preprocessing")[0]["data"]
+                status = call("get_manga_pipeline_status", {"project_id": cancelled_project, "chapter_id": chapter_id})
+                if cancelled["handle"]["status"] == "cancelled" and status["pipeline_status"] == "cancelled":
+                    break
+                assert time.monotonic() < deadline, (cancelled, status)
+                time.sleep(0.05)
+            assert cancelled["handle"]["status"] == "cancelled", cancelled
+            assert not any(item["stage"] == "preprocessing" for item in call("list_manga_pipeline_artifacts", {"project_id": cancelled_project, "chapter_id": chapter_id}))
+            assert not any(name == preprocessing_names[3] for name, _ in new_preprocessing_calls(before))
+            passed("取消同时停止在途提取分支，不启动综合，也不发布不完整预处理产物")
+            preprocessing_model("a4n-virtual-text")
             comic_adaptation = adopt(generate(comic))
             game_adaptation = adopt(generate(game))
             assert comic_adaptation["document"]["target"] == "manga" and game_adaptation["document"]["target"] == "galgame"
@@ -398,6 +479,7 @@ def main():
             assert workspace(comic)["documents"] and call("get_galgame_script", {"project_id": game})["id"] == script["id"]
             passed("删除制作者或其他副本、分离项目及重置原作均保留派生创作和固定原文")
             imported_root = next(project for project in imported if project["project_kind"] == "text")
+            report["ui_root_id"] = imported_root["id"]
             report["ui_mutation_project_ids"] = {}
             for purpose in ("draft", "image"):
                 current = call("create_derived_project", {

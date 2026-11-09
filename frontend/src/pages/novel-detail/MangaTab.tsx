@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Clapperboard, FileText, ImagePlus, Images, PanelTop, Pencil, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Clapperboard, Eye, FileText, ImagePlus, Images, PanelTop, Pencil, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -236,9 +236,11 @@ const MangaChapterArtifactPanel: React.FC<{
   artifact: import("../../api/generated/host").MangaPipelineArtifactRecord | null;
   canEdit: boolean;
   onGenerate?: () => void;
+  onPreview?: () => void;
+  resumable?: boolean;
   onChanged: (change: MangaChapterArtifactChange) => Promise<void>;
   compact?: boolean;
-}> = ({ projectId, chapterId, stage, artifact, canEdit, onGenerate, onChanged, compact = false }) => {
+}> = ({ projectId, chapterId, stage, artifact, canEdit, onGenerate, onPreview, resumable = false, onChanged, compact = false }) => {
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const [editing, setEditing] = useState(false);
@@ -395,9 +397,16 @@ const MangaChapterArtifactPanel: React.FC<{
         {canEdit ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {stage === "preprocessing" && onGenerate && !artifact ? (
-              <BookButton size="sm" variant="primary" onClick={onGenerate} disabled={busy}>
-                <RefreshCw size={12} /> {t("comic.prompt.generatePreprocessing")}
-              </BookButton>
+              <>
+                {onPreview ? (
+                  <BookButton size="sm" variant="secondary" onClick={onPreview} disabled={busy}>
+                    <Eye size={12} /> {t(resumable ? "comic.prompt.viewContinueRequest" : "comic.prompt.viewGenerateRequest")}
+                  </BookButton>
+                ) : null}
+                <BookButton size="sm" variant="primary" onClick={onGenerate} disabled={busy}>
+                  <RefreshCw size={12} /> {resumable ? t("comic.continueToStage", { stage: label }) : t("comic.prompt.generatePreprocessing")}
+                </BookButton>
+              </>
             ) : null}
             {editing ? (
               <>
@@ -1857,10 +1866,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const selectedStatus = selectedChapter ? statuses[selectedChapter.id] : null;
   const assetsError = [characterAssetsError, projectImagesError].filter(Boolean).join(" · ") || null;
   useEffect(() => {
-    if (staged && selectedStatus?.pipeline_status === "completed") {
+    if (staged && selectedChapter && selectedStatus?.pipeline_status === "completed") {
+      // A reloaded view may have read artifacts before the background task finished.
+      void loadChapterArtifacts(selectedChapter.id, projectId);
       void authoring.reload().catch(() => { /* Stage read errors are shown by the authoring panel. */ });
     }
-  }, [staged, selectedStatus?.pipeline_status, authoring.reload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staged, projectId, selectedChapter?.id, selectedStatus?.pipeline_status, authoring.reload]);
 
   // fixedChapter 变化时联动
   useEffect(() => {
@@ -2030,8 +2042,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             chapterId={selectedChapter.id}
             stage="preprocessing"
             artifact={preprocessingArtifact ?? null}
-            canEdit={canEditManga && !chapterArtifactsLoading && chapterArtifactsLoadError == null}
-            onGenerate={() => void handleRunPipeline("start", null, true, null, "preprocessing")}
+            canEdit={canEditManga && !chapterArtifactsLoading && chapterArtifactsLoadError == null && !isChapterGenerating(selectedChapter)}
+            resumable={selectedStatus?.can_resume === true}
+            onGenerate={() => void handleRunPipeline(selectedStatus?.can_resume ? "resume" : "start", null, true, null, "preprocessing")}
+            onPreview={() => void handlePreviewPipeline(selectedStatus?.can_resume ? "resume" : "start", null, null, "preprocessing")}
             onChanged={async (change) => {
               setChapterArtifacts((current) => applyMangaChapterArtifactChange(current, change));
               await Promise.all([

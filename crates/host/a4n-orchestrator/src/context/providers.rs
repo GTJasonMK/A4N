@@ -19,6 +19,28 @@ impl OrchestratorContext {
         cancel_token: Option<&CancellationToken>,
         validate: impl FnMut(&str) -> Result<T, AppError>,
     ) -> Result<(ChatResponse, T), AppError> {
+        self.validate_llm_response_observed(
+            request,
+            response,
+            context,
+            cancel_token,
+            validate,
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub(crate) async fn validate_llm_response_observed<T>(
+        &self,
+        request: &ChatRequest,
+        response: ChatResponse,
+        context: &str,
+        cancel_token: Option<&CancellationToken>,
+        validate: impl FnMut(&str) -> Result<T, AppError>,
+        on_correction: Option<&(dyn Fn() + Send + Sync)>,
+        correction_sink: Option<&(dyn Fn(&str) + Send + Sync)>,
+    ) -> Result<(ChatResponse, T), AppError> {
         crate::structured_llm::correct_llm_response(
             request,
             response,
@@ -26,6 +48,9 @@ impl OrchestratorContext {
             cancel_token,
             validate,
             |corrective_request| async move {
+                if let Some(notify) = on_correction {
+                    notify();
+                }
                 let workflow_run_id = corrective_request
                     .trace_context
                     .as_ref()
@@ -37,7 +62,11 @@ impl OrchestratorContext {
                     return Err(AppError::Cancelled);
                 }
                 let response = self
-                    .stream_complete_llm_with_sink(corrective_request, None, cancel_token)
+                    .stream_complete_llm_with_sink(
+                        corrective_request,
+                        correction_sink,
+                        cancel_token,
+                    )
                     .await?;
                 if let Some(id) = workflow_run_id
                     && self.workflow_run_status_record_by_id(id).await?.status

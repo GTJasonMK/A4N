@@ -96,7 +96,12 @@ fn manga_pipeline_prompts_for_run(
     }
     if let Some(stage) = run_stage {
         return match stage {
-            MangaPipelineArtifactStage::Preprocessing => vec!["manga_preprocessing"],
+            MangaPipelineArtifactStage::Preprocessing => {
+                a4n_domain::manga::MangaPreprocessingStep::ALL
+                    .into_iter()
+                    .map(|step| step.prompt_name())
+                    .collect()
+            }
             MangaPipelineArtifactStage::PageSlots => vec!["manga_page_slots"],
             MangaPipelineArtifactStage::PageAdaptation => {
                 vec!["manga_page_adaptation_plan"]

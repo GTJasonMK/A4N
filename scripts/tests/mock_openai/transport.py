@@ -29,6 +29,7 @@ from mock_openai.protocol import (
     VideoIdempotencyConflict,
 )
 from mock_openai.response import response_for, validated_fixture_response
+from mock_openai.prompt_parsing import current_task_prompt_name
 from mock_openai.contract_guard import split_output_contracts, unique_object, validate_business_request
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
@@ -329,9 +330,19 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return
         if agent_fixture is None:
             try:
+                if body.get("model") in {"a4n-preprocessing-parallel", "a4n-preprocessing-slow"}:
+                    combined = "\n".join(message_text(row.get("content", "")) for row in body.get("messages", []))
+                    if current_task_prompt_name(combined) in {"manga_preprocessing_speech", "manga_preprocessing_visuals"}:
+                        if body["model"] == "a4n-preprocessing-parallel":
+                            self.server.preprocessing_barrier.wait(timeout=10)
+                        else:
+                            time.sleep(2)
                 # Deliberate fault responses must reach the production recovery path.
                 # Validate their normal fixture, then send the injected response unchanged.
                 content = validated_fixture_response(body)
+            except threading.BrokenBarrierError:
+                self._json(422, {"error": {"message": "preprocessing branches did not overlap", "type": "parallelism_required"}})
+                return
             except (UnhandledPromptError, ValueError) as error:
                 self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
                 return
@@ -568,6 +579,7 @@ class ProviderServer(ThreadingHTTPServer):
         self.embedding_dimension = embedding_dimension
         self.log_lock = threading.Lock()
         self.request_index = 0
+        self.preprocessing_barrier = threading.Barrier(2)
         self.video_lock = threading.Lock()
         self.video_jobs: dict[str, dict[str, Any]] = {}
         self.video_idempotency: dict[str, tuple[str, str]] = {}

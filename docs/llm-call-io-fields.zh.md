@@ -245,7 +245,10 @@ system 来自对应 `prompt_name` 模板；user 由 manifest 渲染。builder �
 
 | prompt 阶段 | 实际业务 `input` |
 | --- | --- |
-| 改编前预处理 | `{chapter:{content},reference_assets}`；`content` 是带来源标记的完整正文。一次输出事件、角色、对白/旁白、视觉锚点、物品和章节综合。 |
+| 预处理：事件与人物 | `{chapter:{content},reference_assets}`；`content` 是带来源标记的完整正文。 |
+| 预处理：对白与旁白 | `{chapter:{content},facts:{source_events,characters}}`；与场景道具并行，共用同一事件索引。 |
+| 预处理：场景与道具 | `{chapter:{content},facts:{source_events,characters}}`。 |
+| 预处理：章节综合 | `{source_events,characters:[人物名],speech,scenes:[{location,source_event_ids}],items:[{name,first_appearance_source_event_id}]}`；只用上游真实投影，无正文和人物外观。 |
 | 页面槽位规划 | `{extraction_summary:{source_events,characters,speech,visual_anchors,items,comic_synthesis},adaptation_plan,source}`；`source` 是带标记正文。 |
 | 页面改编 | `{page_number,total_pages,page_content,adaptation_beats,previous_page_content,next_page_content}`。 |
 | 页面分镜 | `{page_number,total_pages,page_content,page_adaptation,adaptation_beats,neighboring_pages:{previous_content,next_content},characters,reference_assets:{character_portraits},source_context:{source,source_events,speech:{dialogues,narrations}}}`；立绘资料按本次 adaptation 的参与者筛选，原文、事件和文字候选按当前页 `source_span_ids` 投影，执行与预览共用构建。 |
@@ -256,7 +259,10 @@ system 来自对应 `prompt_name` 模板；user 由 manifest 渲染。builder �
 
 | 位置 | prompt_name | 模型输出字段 |
 | --- | --- | --- |
-| [改编前预处理](../crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs#L87) | `manga_preprocessing` | `MangaPreprocessingV3 {schema_version,source_events,characters,speech,visual_anchors,items,comic_synthesis}`。 |
+| [预处理：事件与人物](../crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs) | `manga_preprocessing_facts` | `{source_events,characters}`。 |
+| 预处理：对白与旁白 | `manga_preprocessing_speech` | `{speech}`。 |
+| 预处理：场景与道具 | `manga_preprocessing_visuals` | `{visual_anchors,items}`。 |
+| 预处理：章节综合 | `manga_preprocessing_synthesis` | `{comic_synthesis}`；服务端校验组装为 `MangaPreprocessingV3 {schema_version,source_events,characters,speech,visual_anchors,items,comic_synthesis}`，下游合同保持不变。 |
 | [页面槽位规划](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots.rs#L32) | `manga_page_slots` | `MangaPageSlotsV1 {schema_version,pages:[{page_number,content:{summary,source_span_ids[],beat_refs[],action,reaction?,dialogue_intent?,entry_state,exit_state}}]}`；`pages.length` 必须等于改编计划的 `page_count`。 |
 | [页面改编](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L602) | `manga_page_adaptation_plan` | `MangaPageAdaptationV1 {visual_intent,continuity_requirements[],retained_details[],omitted_details[],beat_refs[]}`。 |
 | [页面分镜](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L714) | `manga_page_storyboard` | `MangaPageV4 {page_number,beat_refs[],role,pacing,importance,reading_flow,page_goal,visual_thesis,entry_state,exit_state,dominant_panel_number,panels[]:MangaPanelV2}`。 |

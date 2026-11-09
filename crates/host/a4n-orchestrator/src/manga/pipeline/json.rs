@@ -2,6 +2,7 @@ mod fields;
 mod page_pipeline;
 mod page_plan;
 mod page_prompts;
+use a4n_domain::manga::MangaPreprocessingStep;
 
 pub(crate) use fields::required_array_field;
 pub(crate) use page_pipeline::{
@@ -16,9 +17,15 @@ mod tests;
 pub(in crate::manga) fn output_schema(
     prompt_name: &str,
 ) -> Result<serde_json::Value, a4n_error::AppError> {
-    use a4n_domain::{json_contract::typed_output_schema, manga::*};
+    use a4n_domain::{
+        json_contract::typed_output_schema,
+        manga::{MangaPageAdaptationV1, MangaPageDrawingPromptV2, MangaPageSlotsV1},
+    };
     Ok(match prompt_name {
-        "manga_preprocessing" => typed_output_schema::<MangaPreprocessingV3>(),
+        "manga_preprocessing_facts" => MangaPreprocessingStep::Facts.output_schema(),
+        "manga_preprocessing_speech" => MangaPreprocessingStep::Speech.output_schema(),
+        "manga_preprocessing_visuals" => MangaPreprocessingStep::Visuals.output_schema(),
+        "manga_preprocessing_synthesis" => MangaPreprocessingStep::Synthesis.output_schema(),
         "manga_page_slots" => typed_output_schema::<MangaPageSlotsV1>(),
         "manga_page_adaptation_plan" => typed_output_schema::<MangaPageAdaptationV1>(),
         "manga_page_storyboard" => page_pipeline::storyboard_output_schema(),
@@ -37,14 +44,17 @@ pub(in crate::manga) fn output_schema(
 #[cfg(test)]
 #[test]
 fn model_contract_matrix() {
-    for name in [
-        "manga_preprocessing",
-        "manga_page_slots",
-        "manga_page_adaptation_plan",
-        "manga_page_storyboard",
-        "manga_page_reference_discovery",
-        "manga_page_drawing_prompt",
-    ] {
+    for name in MangaPreprocessingStep::ALL
+        .map(|step| step.prompt_name())
+        .into_iter()
+        .chain([
+            "manga_page_slots",
+            "manga_page_adaptation_plan",
+            "manga_page_storyboard",
+            "manga_page_reference_discovery",
+            "manga_page_drawing_prompt",
+        ])
+    {
         a4n_test_support::model_contract::emit_schema(name, output_schema(name).unwrap());
     }
 }

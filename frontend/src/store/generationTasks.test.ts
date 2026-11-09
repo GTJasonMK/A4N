@@ -141,4 +141,39 @@ describe("generation task store", () => {
     expect(getGenerationTaskViewState(task.task_id, task.attempt)).toBeNull();
     expect(store.dispatch(key, { type: "recovery_state", state: "failed" })).toBeNull();
   });
+
+  it("keeps correction and checkpoint milestones when model events arrive within one flush", () => {
+    vi.useFakeTimers();
+    const task = handle("523e4567-e89b-42d3-a456-426614174000");
+    const key = generationTaskKey(task.task_id, task.attempt);
+    const store = useGenerationTasksStore.getState();
+    store.retain(task);
+    const observed: string[] = [];
+    const unsubscribe = useGenerationTasksStore.subscribe((next, previous) => {
+      if (next.tasks[key] !== previous.tasks[key] && next.tasks[key]?.progress) {
+        observed.push(next.tasks[key].progress!.message);
+      }
+    });
+    try {
+      for (const [index, phase] of ["validate", "model_stream", "save"].entries()) {
+        const action = progress(task.task_id, index + 1);
+        if (action.type !== "event" || action.event.event.kind !== "progress") throw new Error("invalid progress fixture");
+        action.event.sequence = index + 1;
+        action.event.event.data = {
+          ...action.event.event.data,
+          phase_kind: phase as "validate" | "model_stream" | "save",
+          item_key: "manga_preprocessing_speech",
+          message: phase,
+        };
+        store.dispatch(key, action);
+      }
+      expect(observed).toEqual(["validate", "save"]);
+      expect(getGenerationTaskViewState(task.task_id, task.attempt)?.progress?.message).toBe("save");
+      vi.advanceTimersByTime(50);
+      expect(observed).toEqual(["validate", "save"]);
+    } finally {
+      unsubscribe();
+      store.clear(key);
+    }
+  });
 });

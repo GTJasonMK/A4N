@@ -145,7 +145,7 @@ export function progressDisplayModel({
     t,
   );
   const etaMode =
-    status !== "running" || normalizedMeta?.taskKind === "manga_pipeline"
+    status !== "running" || normalizedMeta?.taskKind === "manga_generation"
       ? "hidden"
       : phaseKind && LINEAR_PHASES.has(phaseKind)
         ? "linear"
@@ -201,7 +201,7 @@ function progressCountLabel(
   t: MessageTranslator,
 ): string | null {
   if (meta?.itemIndex != null && meta.itemTotal != null) {
-    if (meta.taskKind === "manga_pipeline") {
+    if (meta.taskKind === "manga_generation") {
       return t("comic.prompt.pageProgress", {
         current: formatNumber(meta.itemIndex + 1, locale),
         total: formatNumber(meta.itemTotal, locale),

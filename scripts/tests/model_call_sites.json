@@ -1,6 +1,4 @@
 {
-  "schema_version": 2,
-  "scanner": "syn-workspace",
   "calls": [
     {
       "callee": "analyze_and_store_chapter",
@@ -2787,20 +2785,28 @@
       "receiver": "service"
     },
     {
+      "callee": "render_and_validate_manga_call_observed",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
+      "function": "render_and_validate_manga_call",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "render_and_validate_manga_call_observed",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs",
+      "function": "run_step",
+      "ordinal": 1,
+      "receiver": "context"
+    },
+    {
       "callee": "render_and_validate_manga_call_with_markers",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots.rs",
       "function": "run_page_slots",
       "ordinal": 1,
       "receiver": "service"
-    },
-    {
-      "callee": "render_and_validate_manga_call_with_markers",
-      "crate": "a4n-orchestrator",
-      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs",
-      "function": "run_manga_preprocessing",
-      "ordinal": 1,
-      "receiver": "context"
     },
     {
       "callee": "render_boundary_frame_checkpoint",
@@ -3883,6 +3889,22 @@
       "receiver": "self"
     },
     {
+      "callee": "run_step",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs",
+      "function": "run_manga_preprocessing",
+      "ordinal": 1,
+      "receiver": null
+    },
+    {
+      "callee": "run_step",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs",
+      "function": "run_manga_preprocessing",
+      "ordinal": 2,
+      "receiver": null
+    },
+    {
       "callee": "run_video",
       "crate": "a4n-runtime",
       "file": "crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/video.rs",
@@ -4198,7 +4220,7 @@
       "callee": "stream_complete_llm_with_sink",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
-      "function": "validate_llm_response",
+      "function": "validate_llm_response_observed",
       "ordinal": 1,
       "receiver": "self"
     },
@@ -4206,7 +4228,7 @@
       "callee": "stream_complete_llm_with_sink",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
-      "function": "render_and_validate_manga_call",
+      "function": "render_and_validate_manga_call_observed",
       "ordinal": 1,
       "receiver": "self"
     },
@@ -4581,14 +4603,6 @@
     {
       "callee": "validate_llm_response",
       "crate": "a4n-orchestrator",
-      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
-      "function": "render_and_validate_manga_call",
-      "ordinal": 1,
-      "receiver": "self"
-    },
-    {
-      "callee": "validate_llm_response",
-      "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs",
       "function": "run_manga_prompt_optimization_call",
       "ordinal": 1,
@@ -4643,6 +4657,22 @@
       "receiver": "service"
     },
     {
+      "callee": "validate_llm_response_observed",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/context/providers.rs",
+      "function": "validate_llm_response",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
+      "callee": "validate_llm_response_observed",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
+      "function": "render_and_validate_manga_call_observed",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
       "callee": "validate_video_trace",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/video/prompts/generation/frame_prompts/render_restore.rs",
@@ -4673,128 +4703,6 @@
       "function": "process_claimed_provider_job_cleanup",
       "ordinal": 1,
       "receiver": null
-    }
-  ],
-  "implementations": [
-    {
-      "crate": "a4n-embedding-fastembed",
-      "file": "crates/embedding/a4n-embedding-fastembed/src/provider.rs",
-      "trait": "EmbeddingProvider"
-    },
-    {
-      "crate": "a4n-embedding-providers",
-      "file": "crates/embedding/a4n-embedding-providers/src/http.rs",
-      "trait": "EmbeddingProvider"
-    },
-    {
-      "crate": "a4n-embedding-providers",
-      "file": "crates/embedding/a4n-embedding-providers/src/local.rs",
-      "trait": "EmbeddingProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/chat.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/cliproxy.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/comfyui.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/factory.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/openai.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/openai_edit.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-image-providers",
-      "file": "crates/image/a4n-image-providers/src/sd_webui.rs",
-      "trait": "ImageProvider"
-    },
-    {
-      "crate": "a4n-llm-http",
-      "file": "crates/llm/a4n-llm-http/src/anthropic.rs",
-      "trait": "LlmProvider"
-    },
-    {
-      "crate": "a4n-llm-http",
-      "file": "crates/llm/a4n-llm-http/src/output_format.rs",
-      "trait": "LlmProvider"
-    },
-    {
-      "crate": "a4n-llm-http",
-      "file": "crates/llm/a4n-llm-http/src/provider/trait_impl.rs",
-      "trait": "LlmProvider"
-    },
-    {
-      "crate": "a4n-runtime",
-      "file": "crates/host/a4n-runtime/src/dynamic_embedding.rs",
-      "trait": "EmbeddingProvider"
-    },
-    {
-      "crate": "a4n-runtime",
-      "file": "crates/host/a4n-runtime/src/dynamic_llm/contracts/model.rs",
-      "trait": "LlmProvider"
-    },
-    {
-      "crate": "a4n-runtime",
-      "file": "crates/host/a4n-runtime/src/dynamic_llm/llm_provider.rs",
-      "trait": "LlmProvider"
-    },
-    {
-      "crate": "a4n-runtime",
-      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/provider/sidecar.rs",
-      "trait": "EmbeddingProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/chat.rs",
-      "trait": "VideoProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/cliproxy_openai.rs",
-      "trait": "VideoProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/factory.rs",
-      "trait": "VideoProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/gemini_veo.rs",
-      "trait": "VideoProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/http.rs",
-      "trait": "VideoProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/newapi.rs",
-      "trait": "VideoProvider"
-    },
-    {
-      "crate": "a4n-video-providers",
-      "file": "crates/video/a4n-video-providers/src/seedance2.rs",
-      "trait": "VideoProvider"
     }
   ],
   "catalogs": {
@@ -4974,5 +4882,129 @@
         "status_query": false
       }
     ]
-  }
+  },
+  "implementations": [
+    {
+      "crate": "a4n-embedding-fastembed",
+      "file": "crates/embedding/a4n-embedding-fastembed/src/provider.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-embedding-providers",
+      "file": "crates/embedding/a4n-embedding-providers/src/http.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-embedding-providers",
+      "file": "crates/embedding/a4n-embedding-providers/src/local.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/chat.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/cliproxy.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/comfyui.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/factory.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/openai.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/openai_edit.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-image-providers",
+      "file": "crates/image/a4n-image-providers/src/sd_webui.rs",
+      "trait": "ImageProvider"
+    },
+    {
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/anthropic.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/output_format.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-llm-http",
+      "file": "crates/llm/a4n-llm-http/src/provider/trait_impl.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_embedding.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_llm/contracts/model.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/dynamic_llm/llm_provider.rs",
+      "trait": "LlmProvider"
+    },
+    {
+      "crate": "a4n-runtime",
+      "file": "crates/host/a4n-runtime/src/sidecar_clients/embedding/provider/sidecar.rs",
+      "trait": "EmbeddingProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/chat.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/cliproxy_openai.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/factory.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/gemini_veo.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/http.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/newapi.rs",
+      "trait": "VideoProvider"
+    },
+    {
+      "crate": "a4n-video-providers",
+      "file": "crates/video/a4n-video-providers/src/seedance2.rs",
+      "trait": "VideoProvider"
+    }
+  ],
+  "scanner": "syn-workspace",
+  "schema_version": 2
 }

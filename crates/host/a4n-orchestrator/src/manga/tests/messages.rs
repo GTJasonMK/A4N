@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use a4n_domain::manga::{MangaPageAdaptationV1, MangaPageContentV1};
+use a4n_domain::manga::{
+    MangaPageAdaptationV1, MangaPageContentV1, MangaPreprocessingFacts, MangaPreprocessingSpeech,
+    MangaPreprocessingStep, MangaPreprocessingVisuals,
+};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
@@ -8,7 +11,8 @@ use serde_json::Value;
 
 use super::*;
 use crate::manga::pipeline::prompt::{
-    MangaLlmCallInput, manga_page_storyboard_user_message, prepare_manga_llm_call,
+    MangaLlmCallInput, MangaPreprocessingMessages, manga_page_storyboard_user_message,
+    prepare_manga_llm_call,
 };
 use crate::source_markers::SourceMarkerMap;
 use a4n_llm_context::{
@@ -19,6 +23,119 @@ fn render_manifest(manifest: LlmContextManifest) -> String {
     let mut request = context_aware_system_user_request("system", manifest, None, None).unwrap();
     preview_context_aware_chat_request(&mut request, 1_000_000, 8192).unwrap();
     request.messages[1].content.clone()
+}
+
+#[test]
+fn preprocessing_requests_share_contracts_and_only_carry_their_real_dependencies() {
+    let source = "原文独有标记：她推开木门。";
+    let spans = a4n_domain::source_spans::source_spans_for_content(7, 1, source);
+    let markers = SourceMarkerMap::from_source_spans(&spans).unwrap();
+    let assets = json!({"reference_only_marker": "参考人物资料"});
+    let messages = MangaPreprocessingMessages {
+        chapter_content: source,
+        source_spans: &spans,
+        source_markers: &markers,
+        reference_assets: &assets,
+    };
+    let facts = MangaPreprocessingFacts {
+        source_events: json!({"events":[{
+            "event_id":"event-1", "type":"action", "description":"推门",
+            "participants":[], "source_span_ids":[spans[0].id]
+        }]}),
+        characters: json!({"未具名主角":{
+            "name":"未具名主角", "appearance":"外观独有标记", "personality":"原文未说明",
+            "role":"protagonist", "gender":"female", "age_description":"原文未说明",
+            "source_span_ids":[spans[0].id]
+        }}),
+    };
+    facts.validate().unwrap();
+    let speech = MangaPreprocessingSpeech {
+        speech: json!({"dialogues":[],"narrations":[]}),
+    };
+    let visuals = MangaPreprocessingVisuals {
+        visual_anchors: json!({"scenes":[]}),
+        items: json!({"items":[]}),
+    };
+    for step in MangaPreprocessingStep::ALL {
+        let manifest = messages
+            .build(step, Some(&facts), Some(&speech), Some(&visuals))
+            .unwrap();
+        let contract = manifest
+            .packs
+            .iter()
+            .find_map(|pack| {
+                pack.variants[0]
+                    .canonical_content_json
+                    .get("output_contract")
+            })
+            .unwrap();
+        assert_eq!(contract["output_schema"], step.output_schema());
+        assert_eq!(
+            crate::manga::pipeline::json::output_schema(step.prompt_name()).unwrap(),
+            step.output_schema()
+        );
+        let mut request =
+            context_aware_system_user_request("system", manifest, None, None).unwrap();
+        assert!(
+            request.max_tokens.is_none(),
+            "business steps must inherit the configured output budget"
+        );
+        preview_context_aware_chat_request(&mut request, 1_000_000, 20_000).unwrap();
+        assert_eq!(request.max_tokens, Some(20_000));
+        let sent = request
+            .messages
+            .iter()
+            .map(|message| message.content.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(
+            sent.matches("原文独有标记").count(),
+            usize::from(step != MangaPreprocessingStep::Synthesis)
+        );
+        assert_eq!(
+            sent.contains("reference_only_marker"),
+            step == MangaPreprocessingStep::Facts
+        );
+        if step == MangaPreprocessingStep::Synthesis {
+            assert!(sent.contains("event-1"));
+            assert!(sent.contains("未具名主角"));
+            assert!(!sent.contains("外观独有标记"));
+        }
+        assert!(
+            !sent.contains(&spans[0].id),
+            "source ids must stay encoded as short markers"
+        );
+    }
+    messages
+        .build(MangaPreprocessingStep::Facts, None, None, None)
+        .unwrap();
+    for step in [
+        MangaPreprocessingStep::Speech,
+        MangaPreprocessingStep::Visuals,
+        MangaPreprocessingStep::Synthesis,
+    ] {
+        assert!(messages.build(step, None, None, None).is_err());
+    }
+    assert!(
+        messages
+            .build(
+                MangaPreprocessingStep::Synthesis,
+                Some(&facts),
+                Some(&speech),
+                None
+            )
+            .is_err()
+    );
+    assert!(
+        messages
+            .build(
+                MangaPreprocessingStep::Synthesis,
+                Some(&facts),
+                None,
+                Some(&visuals)
+            )
+            .is_err()
+    );
 }
 
 #[test]
@@ -208,7 +325,7 @@ impl PromptRenderer for TestPromptRenderer {
         _variables: &HashMap<String, Value>,
         _project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        assert_eq!(template_name, "manga_preprocessing");
+        assert_eq!(template_name, "manga_preprocessing_facts");
         Ok("system prompt".to_string())
     }
 
@@ -230,14 +347,14 @@ async fn manga_llm_request_sends_dynamic_payload_once() {
     let variables = HashMap::new();
     let mut prepared = prepare_manga_llm_call(MangaLlmCallInput {
         prompt_renderer: &TestPromptRenderer,
-        prompt_name: "manga_preprocessing",
+        prompt_name: "manga_preprocessing_facts",
         project_id: 7,
         workflow_run_id: None,
         call_key: "manga:test".to_string(),
         call_order: 1,
         variables: &variables,
         user_content: build_manga_step_user_message(
-            "manga_preprocessing",
+            "manga_preprocessing_facts",
             "绑定角色",
             json!({"chapter": marker}),
             json!({"format": "json_object"}),
@@ -263,7 +380,7 @@ async fn manga_llm_request_sends_dynamic_payload_once() {
 #[test]
 fn build_manga_step_user_message_uses_json_payload() {
     let message = build_manga_step_user_message(
-        "manga_preprocessing",
+        "manga_preprocessing_speech",
         "选择漫画对白与旁白",
         json!({
             "chapter": {"content": "章节正文"}
@@ -278,7 +395,7 @@ fn build_manga_step_user_message_uses_json_payload() {
         a4n_prompt::request::json_user_message_payload(&message.dynamic_user_content).unwrap(),
     )
     .unwrap();
-    assert_eq!(payload["task"]["prompt_name"], "manga_preprocessing");
+    assert_eq!(payload["task"]["prompt_name"], "manga_preprocessing_speech");
     assert!(payload["input"].is_object());
     assert!(payload["output_contract"].is_object());
     assert!(render_manifest(message).contains("章节正文"));

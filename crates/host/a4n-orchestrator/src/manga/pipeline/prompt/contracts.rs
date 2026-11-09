@@ -9,7 +9,10 @@ use a4n_prompt::rendering::PromptRenderer;
 
 pub(in crate::manga) const MANGA_PIPELINE_WORKFLOW: &str = "manga_pipeline";
 pub(in crate::manga) const MANGA_PIPELINE_PROMPT_NAMES: &[&str] = &[
-    "manga_preprocessing",
+    "manga_preprocessing_facts",
+    "manga_preprocessing_speech",
+    "manga_preprocessing_visuals",
+    "manga_preprocessing_synthesis",
     "manga_page_slots",
     "manga_page_adaptation_plan",
     "manga_page_storyboard",
@@ -21,7 +24,10 @@ pub(in crate::manga) fn manga_pipeline_prompt_assembly_call_key(
     prompt_name: &str,
 ) -> Result<&'static str, AppError> {
     match prompt_name {
-        "manga_preprocessing" => Ok("OrchestratorContext.run_manga_preprocessing"),
+        "manga_preprocessing_facts"
+        | "manga_preprocessing_speech"
+        | "manga_preprocessing_visuals"
+        | "manga_preprocessing_synthesis" => Ok("OrchestratorContext.run_manga_preprocessing"),
         "manga_page_slots" => Ok("MangaPipeline.generate_page_prompts"),
         "manga_page_adaptation_plan"
         | "manga_page_storyboard"
@@ -35,6 +41,7 @@ pub(in crate::manga) fn manga_pipeline_prompt_assembly_call_key(
 
 #[derive(Debug, Clone, Serialize)]
 pub(in crate::manga) struct MangaPromptGenerationTrace {
+    pub(in crate::manga) restored_from_checkpoint: bool,
     pub(in crate::manga) prompt_name: String,
     pub(in crate::manga) request_json: Value,
     pub(in crate::manga) messages_json: Value,

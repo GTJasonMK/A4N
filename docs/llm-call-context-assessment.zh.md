@@ -326,10 +326,11 @@
 
 ### C28 漫画改编前预处理
 
-- **功能/时机/产物：** 在改编计划之前一次性整理原文事件、人物、对白/旁白、视觉锚点、物品和章节情绪/篇幅估计；不生成改编节拍或分页。
-- **实际输入：** 带来源标记的整章正文和角色参考资料文本；输出中的来源 span 与事件引用由合同校验。
-- **结论：合并合理。** 五类旧抽取/综合调用有共同的全文事实来源，合并后少了重复上下文和中间请求。职责仍由单一预处理产物统一提供给改编计划与分页。
-- **证据：** [调用](../crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs#L38)、[上下文](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/preprocessing.rs#L9)、[合同](../crates/platform/a4n-domain/src/manga/contracts/pipeline.rs#L49)、[提示词](../prompts/novel/06_manga/manga_preprocessing.md#L1)。
+- **功能/时机/产物：** 改编前以四次模型调用、三轮执行整理预处理资料：事件与人物 → 对白/旁白及场景/道具并行 → 章节概括与情绪。最终仍组装同一个 `MangaPreprocessingV3`，不生成改编节拍、页数或分页。
+- **实际输入：** 事实步骤接收带标记的完整正文和角色参考；两个提取步骤接收完整正文及已校验事实；综合只接收事件、人物名、对白及场景/道具投影，不重复发送正文或人物外观。
+- **预算与恢复：** 每次请求继承模型配置的最大输出，由共享上下文规划器按必需输入自适应，不设置业务小配额、不拆正文或新增步骤超时。步骤各自校验及保存匹配检查点；失败仅纠正一次，续跑复用成功步骤，失败不发布整包。预览中的未完成依赖显示“等待前置步骤”，不构造占位请求。
+- **取舍：** 正文在三个提取调用中出现，输入总量可能增加；单次输出职责变小，独立失败可恢复，并行受现有模型并发队列限制。不能据此保证外部模型时延或质量。
+- **证据：** [执行](../crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs)、[请求构建](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/preprocessing.rs)、[分步合同](../crates/platform/a4n-domain/src/manga/contracts/pipeline/preprocessing_steps.rs)、[模板及依赖](../prompts/_registry.yaml)。
 
 ### C29 单页参考图发现
 

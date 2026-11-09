@@ -959,15 +959,18 @@ class MockOpenAIProviderTest(unittest.TestCase):
             shooting_span_ids("旧文本中出现 ch1:s1:f1，但没有 source_spans 对象")
 
     def test_manga_preprocessing_uses_current_contract_and_source_ids(self) -> None:
-        body = {"messages": [{
-            "role": "user",
-            "content": json.dumps({
-                "task": {"prompt_name": "manga_preprocessing"},
+        response = {}
+        for step, fields in {
+            "facts": {"source_events", "characters"}, "speech": {"speech"},
+            "visuals": {"visual_anchors", "items"}, "synthesis": {"comic_synthesis"},
+        }.items():
+            body = {"messages": [{"role": "user", "content": json.dumps({
+                "task": {"prompt_name": "manga_preprocessing_" + step},
                 "input": {"source": "#0 林岚在旧车站检查怀表。"},
-            }, ensure_ascii=False),
-        }]}
-        response = json.loads(response_for(body))
-        self.assertEqual(response["schema_version"], "manga_preprocessing_v3")
+            }, ensure_ascii=False)}]}
+            partial = json.loads(response_for(body))
+            self.assertEqual(set(partial), fields)
+            response.update(partial)
         self.assertEqual(
             response["source_events"]["events"][0]["source_span_ids"],
             ["#0"],
@@ -976,6 +979,21 @@ class MockOpenAIProviderTest(unittest.TestCase):
             response["visual_anchors"]["scenes"][0]["source_event_ids"],
             ["event-1"],
         )
+
+    def test_preprocessing_faults_are_scoped_to_speech_and_recovery_attempt(self) -> None:
+        messages = [{"role": "user", "content": json.dumps({
+            "task": {"prompt_name": "manga_preprocessing_speech"},
+            "input": {"source": "#0 林岚检查怀表。"},
+        }, ensure_ascii=False)}]
+        normal = json.loads(response_for({"messages": messages}))
+        correction = {"role": "user", "content": json.dumps({"kind": "model_output_correction"})}
+        for model, recovers in (("a4n-preprocessing-fail-speech", False), ("a4n-preprocessing-recover-speech", True)):
+            initial = json.loads(response_for({"model": model, "messages": messages}))
+            self.assertNotEqual(initial, normal)
+            corrected = json.loads(response_for({"model": model, "messages": [*messages, correction]}))
+            self.assertEqual(corrected, normal if recovers else initial)
+            facts_messages = [{"role": "user", "content": messages[0]["content"].replace("manga_preprocessing_speech", "manga_preprocessing_facts")}]
+            self.assertEqual(response_for({"model": model, "messages": facts_messages}), response_for({"messages": facts_messages}))
 
     def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
         def request(page_number: int | None, assets: list[dict[str, object]] | None) -> str:

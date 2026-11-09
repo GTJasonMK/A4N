@@ -19,7 +19,7 @@ const startedFor = (
 describe("runGenerationProgressTaskThen", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("shows canonical raw_json text while the task is running", async () => {
+  it("updates stream text without duplicating unchanged progress in the history", async () => {
     const setProgress = vi.fn();
     const setStreamText = vi.fn();
     const handle: GenerationTaskHandle = {
@@ -53,6 +53,7 @@ describe("runGenerationProgressTaskThen", () => {
     vi.spyOn(generationClient, "waitForTerminal").mockImplementation(
       async (_handle, onUpdate) => {
         onUpdate?.(state);
+        onUpdate?.({ ...state, streams: { raw_json: { text: '{"shot_number":1}', nextOffset: 19, version: 4 } } });
         return state;
       },
     );
@@ -81,6 +82,8 @@ describe("runGenerationProgressTaskThen", () => {
       }),
     );
     expect(setStreamText).toHaveBeenCalledWith("{\"shot_number\":1");
+    expect(setStreamText).toHaveBeenLastCalledWith('{"shot_number":1}');
+    expect(setProgress).toHaveBeenCalledTimes(1);
     expect(cancel).toHaveBeenCalledWith(handle);
   });
 
