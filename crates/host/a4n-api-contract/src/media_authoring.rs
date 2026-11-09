@@ -8,9 +8,9 @@ pub use a4n_domain::media_authoring::{
     AdaptationTarget, AdaptationUnit, AdaptationUnitRef, AuthoringDocumentDeletionDependency,
     AuthoringDocumentDeletionImpact, AuthoringDocumentInputs, AuthoringDocumentKind,
     AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
-    AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion, AuthoringSourceRef,
-    GalgameBranchDesign, GalgamePipelineChoiceOptionPlan, GalgamePipelineChoicePlan,
-    VideoAdaptationReference,
+    AuthoringGalgameScriptDeletion, AuthoringMangaChapterArtifactDeletion,
+    AuthoringMangaPageDeletion, AuthoringSourceRef, GalgameBranchDesign,
+    GalgamePipelineChoiceOptionPlan, GalgamePipelineChoicePlan, VideoAdaptationReference,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

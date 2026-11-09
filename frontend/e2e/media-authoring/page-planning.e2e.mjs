@@ -73,6 +73,18 @@ async function freshProject(model, width) {
   return { projectId: project.id, chapterId };
 }
 
+async function generateManga(target) {
+  await callBrowserApiCommand("start_manga_pipeline", { runtime_config_snapshot: fixture.runtime_config_snapshot, input: {
+    project_id: target.projectId, chapter_number: 1, image_size: { width: 1024, height: 1024 },
+    meta: { start_request_id: randomUUID() },
+  } });
+  await browser.waitUntil(async () => {
+    const status = await callBrowserApiCommand("get_manga_pipeline_status", { input: { project_id: target.projectId, chapter_id: target.chapterId } });
+    assert.notEqual(status.pipeline_status, "failed", JSON.stringify(status));
+    return status.pipeline_status === "completed";
+  }, { timeout: 60_000, interval: 100 });
+}
+
 async function waitText(pattern) {
   await browser.waitUntil(async () => await dialog().isDisplayed() && pattern.test(await dialog().getText()), {
     timeout: 60_000, interval: 100, timeoutMsg: `Page planning dialog missing ${pattern}`,
@@ -232,6 +244,95 @@ describe("Per-page manga planning against the real Host", () => {
     assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", scope), []);
     await capture("delete-all-refreshed", 390);
     checks.push("Confirming delete-all clears the chapter pages and artifacts; the empty workspace stays readable after refresh");
+
+    await browser.execute((config) => {
+      const key = "a4n:local-runtime-settings:v1";
+      const settings = JSON.parse(localStorage.getItem(key));
+      settings.image = [config];
+      settings.default_source.image = "local";
+      settings.next_id = Math.max(settings.next_id, config.id + 1);
+      localStorage.setItem(key, JSON.stringify(settings));
+    }, fixture.runtime_config_snapshot.image);
+    const deletion = await freshProject("a4n-virtual-text", 1440);
+    await generateManga(deletion);
+    await openProject(deletion.projectId);
+    const deletionScope = { input: { project_id: deletion.projectId, chapter_id: deletion.chapterId } };
+    const originalPages = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
+    assert.equal(originalPages.length, 2);
+    assert.ok(originalPages.every((page) => page.generated_image_id));
+    const promptSection = () => $('//section[./div/h3[normalize-space(.)="整页提示词"]]');
+    const selectedPage = () => $('nav[aria-label="漫画页列表"] button[aria-current="true"]');
+    for (const width of [1440, 1024, 390]) {
+      await browser.setWindowSize(width, 1000);
+      await chooseStage("提示词与成图");
+      await promptSection().$('button[aria-haspopup="menu"]').waitForEnabled();
+      await promptSection().$('button[aria-haspopup="menu"]').click();
+      await clickButton("删除 · 整页提示词");
+      await waitText(/删除阶段产物/);
+      assert.match(await dialog().getText(), /整页成图/);
+      await capture("drawing-delete-confirm", width);
+      await closeDialog();
+      assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", deletionScope), originalPages);
+    }
+    await promptSection().$('button[aria-haspopup="menu"]').click();
+    await clickButton("删除 · 整页提示词");
+    await waitText(/删除阶段产物/);
+    await clickButton("删除", await dialog());
+    await waitForNoDialog();
+    await browser.waitUntil(async () => (await promptSection().getText()).includes("整页绘图提示词尚未生成"), { timeout: 30_000 });
+    assert.match(await selectedPage().getText(), /第 1 页/);
+    const afterDrawing = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
+    assert.deepEqual(afterDrawing.map((page) => page.id), originalPages.map((page) => page.id));
+    assert.ok(afterDrawing[0].page_plan);
+    assert.equal(afterDrawing[0].drawing_prompt, null);
+    assert.equal(afterDrawing[0].generated_image_id, null);
+    assert.deepEqual(afterDrawing[1], originalPages[1]);
+    await capture("drawing-deleted-page-retained", 390);
+    checks.push("Drawing deletion cascades to the image, retains both page identities and selection, refreshes immediately, and cancellation preserves data at three widths");
+
+    await browser.setWindowSize(1440, 1000);
+    await chooseStage("分镜与参考图");
+    const storyboardSection = () => $('//section[./div/h3[normalize-space(.)="单页分镜"]]');
+    await clickButton("删除", await storyboardSection());
+    await waitText(/删除阶段产物/);
+    assert.match(await dialog().getText(), /参考图/);
+    await clickButton("删除", await dialog());
+    await waitForNoDialog();
+    await browser.waitUntil(async () => (await storyboardSection().getText()).includes("分镜尚未生成"), { timeout: 30_000 });
+    const afterStoryboard = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
+    assert.equal(afterStoryboard[0].page_plan, null);
+    assert.equal(afterStoryboard[0].reference_discovery, null);
+    assert.deepEqual(afterStoryboard[1], originalPages[1]);
+    await capture("storyboard-deleted", 1440);
+    checks.push("Storyboard deletion refreshes its dependent reference discovery and preserves the other page without a reload");
+
+    await generateManga(deletion);
+    await openProject(deletion.projectId);
+    await chooseStage("改编计划");
+    for (const width of [1440, 1024, 390]) {
+      await browser.setWindowSize(width, 1000);
+      await $('//button[normalize-space(.)="删除"]').waitForEnabled();
+      await $('//button[normalize-space(.)="删除"]').click();
+      await waitText(/漫画章节阶段产物/);
+      assert.match(await dialog().getText(), /页数与/);
+      assert.match(await dialog().getText(), /第 1 页/);
+      await capture("adaptation-delete-cascade", width);
+      await closeDialog();
+    }
+    await $('//button[normalize-space(.)="删除"]').click();
+    await waitText(/漫画章节阶段产物/);
+    await clickButton("删除", await dialog());
+    await waitForNoDialog();
+    await browser.waitUntil(async () => (await callBrowserApiCommand("list_manga_page_prompts", deletionScope)).length === 0, { timeout: 30_000 });
+    const remaining = await callBrowserApiCommand("list_manga_pipeline_artifacts", deletionScope);
+    assert.deepEqual(remaining.map((artifact) => artifact.stage), ["preprocessing"]);
+    await choosePlanning();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("生成至页数与页面规划"), { timeout: 30_000 });
+    await capture("adaptation-deleted-workspace-refreshed", 390);
+    await browser.refresh();
+    await choosePlanning();
+    assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", deletionScope), []);
+    checks.push("Adaptation confirmation shows chapter pagination and both pages at all widths; deleting it clears the workspace and pagination while preserving preprocessing after refresh");
     complete = true;
   });
 });

@@ -34,7 +34,12 @@ impl MangaPagePlanningStep {
     }
 
     pub(in crate::manga) fn call_key(self, chapter_id: i64) -> String {
-        format!("manga_pipeline:{chapter_id}:{}:v1", self.key())
+        use a4n_domain::manga::MangaModelCall;
+        match self {
+            Self::Outline => MangaModelCall::Outline,
+            Self::Content(index) => MangaModelCall::PageContent(index as u32 + 1),
+        }
+        .call_key(chapter_id)
     }
 
     pub(in crate::manga) fn call_order(self) -> Result<i32, AppError> {

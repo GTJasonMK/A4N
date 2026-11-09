@@ -246,6 +246,7 @@ impl OrchestratorContext {
                     post_commit: ImageGenerationPostCommitAction::MangaPage {
                         page_prompt_id: prepared.page_prompt.id,
                         page_number,
+                        expected_prompt_updated_at: prepared.page_prompt.updated_at,
                     },
                 },
                 progress,
@@ -565,6 +566,7 @@ impl OrchestratorContext {
             "panel_id": panel_id,
             "prompt_type": MANGA_PAGE_PROMPT_TYPE,
             "page_prompt_id": page_prompt.id,
+            "page_prompt_updated_at": page_prompt.updated_at.to_string(),
             "generation_mode": "direct_page",
             "reference_bindings": reference_bindings,
             "system_reference_images": system_reference_images,

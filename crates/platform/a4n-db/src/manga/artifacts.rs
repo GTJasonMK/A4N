@@ -1,6 +1,5 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_db_models::models::chapter::manga_pipeline_artifact::{self, Column as ArtifactColumn};
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::manga::{
     MangaPagePromptArtifactMetadata, MangaPagePromptRecord, MangaPipelineArtifactDraft,
     MangaPipelineArtifactRecord, MangaPipelineArtifactStage,
@@ -15,6 +14,7 @@ use sea_orm::{
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
+use super::workflows::{invalidate_deleted_manga_checkpoints, lock_manga_manual_write_scope};
 use super::{
     MangaPromptRecordError, manga_record_database, manga_video_error,
     records::update_manga_page_prompt_layout_expected, require_positive_manga_id,
@@ -37,6 +37,12 @@ pub struct MangaPipelineArtifactProjectionUpdate {
     pub page_prompt: MangaPagePromptRecord,
     pub layout: serde_json::Value,
     pub expected_updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct MangaPipelineArtifactDeletionPlan {
+    pub artifacts: Vec<MangaPipelineArtifactRecord>,
+    pub fingerprint: String,
 }
 
 pub async fn manga_pipeline_artifacts_by_chapter(
@@ -291,28 +297,7 @@ pub async fn save_manga_pipeline_artifact_with_projection(
         .begin()
         .await
         .map_err(manga_record_database("开启漫画阶段产物保存事务失败"))?;
-    crate::generation::require_project_owner_lifecycle_active_for_update(&txn, draft.project_id)
-        .await
-        .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
-    let mut running_query = workflow_run::Entity::find()
-        .filter(workflow_run::Column::WorkflowKind.eq("manga_pipeline"))
-        .filter(workflow_run::Column::ProjectId.eq(draft.project_id))
-        .filter(workflow_run::Column::ChapterId.eq(draft.chapter_id))
-        .order_by_desc(workflow_run::Column::UpdatedAt)
-        .order_by_desc(workflow_run::Column::Id);
-    if txn.get_database_backend() != DbBackend::Sqlite {
-        running_query = running_query.lock_exclusive();
-    }
-    let running = running_query
-        .one(&txn)
-        .await
-        .map_err(manga_record_database("读取漫画流水线运行状态失败"))?
-        .is_some_and(|run| run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING);
-    if running {
-        return Err(MangaPromptRecordError::InvalidArgument(
-            "漫画流水线正在运行，不能保存阶段产物".into(),
-        ));
-    }
+    lock_manga_manual_write_scope(&txn, draft.project_id, draft.chapter_id).await?;
 
     let updated = upsert_manga_pipeline_artifact_in_transaction(
         &txn,
@@ -435,7 +420,7 @@ pub async fn manga_pipeline_artifact_deletion_plan(
     chapter_id: i64,
     stage: MangaPipelineArtifactStage,
     page_number: Option<u32>,
-) -> Result<Vec<MangaPipelineArtifactRecord>, MangaPromptRecordError> {
+) -> Result<MangaPipelineArtifactDeletionPlan, MangaPromptRecordError> {
     require_positive_manga_id(project_id, "project_id")?;
     require_positive_manga_id(chapter_id, "chapter_id")?;
     let page_number = artifact_scope(stage, page_number)?;
@@ -455,17 +440,16 @@ pub async fn delete_manga_pipeline_artifact(
     chapter_id: i64,
     stage: MangaPipelineArtifactStage,
     page_number: Option<u32>,
-    expected_artifact_ids: &[i64],
+    expected_impact_fingerprint: &str,
     projection_resets: &[MangaPipelineArtifactProjectionReset],
 ) -> Result<Vec<MangaPipelineArtifactRecord>, MangaPromptRecordError> {
     require_positive_manga_id(project_id, "project_id")?;
     require_positive_manga_id(chapter_id, "chapter_id")?;
     let page_number = artifact_scope(stage, page_number)?;
-    let mut expected_ids = expected_artifact_ids.to_vec();
-    expected_ids.sort_unstable();
-    if expected_ids.is_empty()
-        || expected_ids.iter().any(|id| *id <= 0)
-        || expected_ids.windows(2).any(|ids| ids[0] == ids[1])
+    if expected_impact_fingerprint.len() != 64
+        || !expected_impact_fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
     {
         return Err(MangaPromptRecordError::InvalidArgument(
             "漫画阶段产物删除范围无效，请重新预览".into(),
@@ -476,11 +460,30 @@ pub async fn delete_manga_pipeline_artifact(
             .map_err(|_| MangaPromptRecordError::InvalidArgument("漫画页面页码超出范围".into()))?;
         validate_manga_page_prompt_layout(page_number, Some(&reset.layout))
             .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+        let layout: a4n_domain::manga::MangaPageGenerationLayoutV4 =
+            serde_json::from_value(reset.layout.clone())
+                .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+        let mut cleared = layout.clone();
+        cleared.clear_deleted_stage(stage);
+        if layout != cleared
+            || reset.image_prompt
+                != layout
+                    .pipeline
+                    .drawing_prompt
+                    .as_ref()
+                    .map(|prompt| prompt.image_prompt.as_str())
+                    .unwrap_or_default()
+        {
+            return Err(MangaPromptRecordError::InvalidArgument(
+                "漫画页面未完整清理所删除阶段及其下游投影".into(),
+            ));
+        }
     }
     let txn = db
         .begin()
         .await
         .map_err(manga_record_database("开启漫画阶段产物删除事务失败"))?;
+    let run_ids = lock_manga_manual_write_scope(&txn, project_id, chapter_id).await?;
     lock_manga_pipeline_artifact_chapter(&txn, project_id, chapter_id).await?;
     let plan = manga_pipeline_artifact_deletion_plan_in_connection(
         &txn,
@@ -490,27 +493,56 @@ pub async fn delete_manga_pipeline_artifact(
         page_number,
     )
     .await?;
-    let mut actual_ids = plan.iter().map(|artifact| artifact.id).collect::<Vec<_>>();
-    actual_ids.sort_unstable();
-    if actual_ids != expected_ids {
+    if plan.fingerprint != expected_impact_fingerprint {
         return Err(MangaPromptRecordError::InvalidArgument(
             "漫画阶段产物范围已变化，请重新预览后再删除".into(),
         ));
     }
+    let artifacts = plan.artifacts;
+    let actual_ids = artifacts
+        .iter()
+        .map(|artifact| artifact.id)
+        .collect::<Vec<_>>();
     let mut reset_page_numbers = projection_resets
         .iter()
         .map(|reset| reset.page_number)
         .collect::<Vec<_>>();
     reset_page_numbers.sort_unstable();
+    let mut page_query = chapter_manga_prompt::Entity::find()
+        .select_only()
+        .column(chapter_manga_prompt::Column::Id)
+        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
+        .filter(
+            chapter_manga_prompt::Column::PromptType
+                .eq(chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE),
+        );
+    if stage.page_scoped() {
+        page_query = page_query.filter(chapter_manga_prompt::Column::PageNumber.eq(page_number));
+    }
+    let mut expected_prompt_ids = page_query
+        .into_tuple::<i64>()
+        .all(&txn)
+        .await
+        .map_err(manga_record_database("读取漫画页面删除范围失败"))?;
+    expected_prompt_ids.sort_unstable();
+    let mut reset_prompt_ids = projection_resets
+        .iter()
+        .map(|reset| reset.page_prompt_id)
+        .collect::<Vec<_>>();
+    reset_prompt_ids.sort_unstable();
     if reset_page_numbers
         .windows(2)
         .any(|pages| pages[0] == pages[1])
+        || reset_prompt_ids != expected_prompt_ids
         || projection_resets.iter().any(|reset| {
             reset.page_prompt_id <= 0
                 || reset.page_number == 0
-                || !plan
-                    .iter()
-                    .any(|artifact| artifact.page_number == Some(reset.page_number))
+                || (stage.page_scoped()
+                    && Some(reset.page_number) != u32::try_from(page_number).ok())
+                || reset.clear_generated_image
+                    != (stage == MangaPipelineArtifactStage::Image
+                        || MangaPipelineArtifactStage::Image.depends_on(stage))
         })
     {
         return Err(MangaPromptRecordError::InvalidArgument(
@@ -551,10 +583,22 @@ pub async fn delete_manga_pipeline_artifact(
                 .map_err(manga_video_error)?,
             );
         }
+        let clear_storyboard = stage == MangaPipelineArtifactStage::Storyboard
+            || MangaPipelineArtifactStage::Storyboard.depends_on(stage);
         chapter_manga_prompt::ActiveModel {
             id: Set(prompt.id),
             layout: Set(Some(reset.layout.clone())),
             image_prompt: Set(reset.image_prompt.clone()),
+            dialogue_text: Set(if clear_storyboard {
+                None
+            } else {
+                prompt.dialogue_text
+            }),
+            characters_in_frame: Set(if clear_storyboard {
+                None
+            } else {
+                prompt.characters_in_frame
+            }),
             generated_image_id: Set(if reset.clear_generated_image {
                 None
             } else {
@@ -574,18 +618,55 @@ pub async fn delete_manga_pipeline_artifact(
         .await
         .map_err(manga_record_database("清理漫画页面投影失败"))?;
     }
+    // Chapter artifacts can also own media whose page projection was never published.
+    if stage == MangaPipelineArtifactStage::Image
+        || MangaPipelineArtifactStage::Image.depends_on(stage)
+    {
+        generated_image_paths.extend(
+            if stage.page_scoped() {
+                crate::video::delete_manga_page_image_records_in(
+                    &txn,
+                    project_id,
+                    chapter_id,
+                    page_number,
+                    None,
+                )
+                .await
+            } else {
+                crate::video::delete_manga_chapter_image_records_in(
+                    &txn, project_id, chapter_id, None,
+                )
+                .await
+            }
+            .map_err(manga_video_error)?,
+        );
+    }
     let deleted = manga_pipeline_artifact::Entity::delete_many()
         .filter(ArtifactColumn::ProjectId.eq(project_id))
         .filter(ArtifactColumn::ChapterId.eq(chapter_id))
-        .filter(ArtifactColumn::Id.is_in(expected_ids.iter().copied()))
+        .filter(ArtifactColumn::Id.is_in(actual_ids))
         .exec(&txn)
         .await
         .map_err(manga_record_database("删除漫画阶段产物失败"))?;
-    if deleted.rows_affected != plan.len() as u64 {
+    if deleted.rows_affected != artifacts.len() as u64 {
         return Err(MangaPromptRecordError::InvalidArgument(
             "漫画阶段产物范围已变化，请重新预览后再删除".into(),
         ));
     }
+    invalidate_deleted_manga_checkpoints(
+        &txn,
+        &run_ids,
+        chapter_id,
+        Some((
+            stage,
+            if stage.page_scoped() {
+                Some(page_number as u32)
+            } else {
+                None
+            },
+        )),
+    )
+    .await?;
     if !generated_image_paths.is_empty() {
         let cleanup_hash = crate::generation::canonical_json_sha256(&generated_image_paths)
             .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
@@ -601,7 +682,7 @@ pub async fn delete_manga_pipeline_artifact(
     txn.commit()
         .await
         .map_err(manga_record_database("提交漫画阶段产物删除事务失败"))?;
-    Ok(plan)
+    Ok(artifacts)
 }
 
 async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>(
@@ -610,7 +691,7 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
     chapter_id: i64,
     stage: MangaPipelineArtifactStage,
     page_number: i32,
-) -> Result<Vec<MangaPipelineArtifactRecord>, MangaPromptRecordError> {
+) -> Result<MangaPipelineArtifactDeletionPlan, MangaPromptRecordError> {
     let dependent_stages = MangaPipelineArtifactStage::all()
         .iter()
         .copied()
@@ -643,15 +724,47 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
     } else {
         None
     };
-    if !records
+    let mut pages = chapter_manga_prompt::Entity::find()
+        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
+        .filter(
+            chapter_manga_prompt::Column::PromptType
+                .eq(chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE),
+        );
+    if stage.page_scoped() {
+        pages = pages.filter(chapter_manga_prompt::Column::PageNumber.eq(page_number));
+    }
+    let pages = pages
+        .order_by_asc(chapter_manga_prompt::Column::Id)
+        .lock_exclusive()
+        .all(db)
+        .await
+        .map_err(manga_record_database("读取漫画删除投影版本失败"))?;
+    let has_artifact = records
         .iter()
-        .any(|artifact| artifact.stage == stage && artifact.page_number == expected_page_number)
+        .any(|artifact| artifact.stage == stage && artifact.page_number == expected_page_number);
+    // Direct page-image generation binds the image without publishing a pipeline artifact.
+    if !has_artifact
+        && !(stage == MangaPipelineArtifactStage::Image
+            && pages.iter().any(|page| page.generated_image_id.is_some()))
     {
         return Err(MangaPromptRecordError::NotFound(
             "漫画阶段产物不存在".to_string(),
         ));
     }
-    Ok(records)
+    let fingerprint = crate::generation::canonical_json_sha256(&(
+        project_id,
+        chapter_id,
+        stage,
+        page_number,
+        &records,
+        pages,
+    ))
+    .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+    Ok(MangaPipelineArtifactDeletionPlan {
+        artifacts: records,
+        fingerprint,
+    })
 }
 
 async fn lock_manga_pipeline_artifact_chapter<C: ConnectionTrait>(

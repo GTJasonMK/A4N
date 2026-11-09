@@ -481,7 +481,11 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
           </div>
         ) : null}
         <div className="flex min-h-0 flex-1 items-center justify-center">
-          <EmptyHint text={t("comic.prompt.empty")} />
+          <EmptyHint text={t(stageMode === "page_planning"
+            ? "comic.prompt.awaitingPageContent"
+            : stageMode === "visual_design"
+              ? "comic.prompt.awaitingStoryboard"
+              : "comic.prompt.empty")} />
         </div>
       </div>
     );

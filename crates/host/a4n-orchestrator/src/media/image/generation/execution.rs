@@ -562,6 +562,7 @@ impl OrchestratorContext {
         let ImageGenerationPostCommitAction::MangaPage {
             page_prompt_id,
             page_number,
+            expected_prompt_updated_at,
         } = &input.post_commit
         else {
             return Ok(());
@@ -573,6 +574,7 @@ impl OrchestratorContext {
             .mark_manga_page_prompt_image_completed_with_image(
                 *page_prompt_id,
                 outcome.summary.id,
+                *expected_prompt_updated_at,
                 outcome.created_at,
             )
             .await
@@ -823,6 +825,7 @@ fn validate_execution_input(input: &ImageGenerationExecutionInput) -> Result<(),
     if let ImageGenerationPostCommitAction::MangaPage {
         page_prompt_id,
         page_number,
+        ..
     } = &input.post_commit
     {
         require_positive(*page_prompt_id, "page_prompt_id")?;

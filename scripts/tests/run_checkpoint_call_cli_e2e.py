@@ -483,7 +483,7 @@ def main():
             deletion = call("preview_delete_manga_pipeline_artifact", deletion_input)
             call("delete_manga_pipeline_artifact", {
                 **deletion_input,
-                "expected_artifact_ids": [entry["artifact_id"] for entry in [deletion["target"], *deletion["downstream"]]],
+                "expected_impact_fingerprint": deletion["fingerprint"],
             }, destructive=True)
             staged_request = {
                 "project_id": project_id, "chapter_number": 1, "page_number": 1,

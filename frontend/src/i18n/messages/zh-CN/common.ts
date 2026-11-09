@@ -69,6 +69,7 @@ export const common = {
     deleteCascadeHeading: "确认后将级联删除：", deleteCascadeConfirm: "删除计划及下游",
     deleteDependentDocuments: "依赖创作文档：{details}",
     deleteMangaPages: "漫画页面及其成图：{details}",
+    deleteMangaChapterArtifacts: "漫画章节阶段产物：{details}",
     deleteGalgameScript: "Galgame 剧本、叙事图版本、场景、对白、选项和生成媒体（{graphs} 个叙事图版本、{scenes} 个场景、{lines} 条对白、{choices} 个选项）",
     deletePageRef: "{chapter} / 第 {page} 页（{images} 张成图）", deleteMorePages: "另有 {count} 页",
     chapterNumber: "第 {number} 章", deleted: "改编计划及其下游产物已删除",

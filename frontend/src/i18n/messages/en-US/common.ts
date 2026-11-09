@@ -70,6 +70,7 @@ export const common = {
     deleteCascadeConfirm: "Delete plan and downstream outputs",
     deleteDependentDocuments: "Dependent authoring documents: {details}",
     deleteMangaPages: "Manga pages and their generated images: {details}",
+    deleteMangaChapterArtifacts: "Manga chapter stage artifacts: {details}",
     deleteGalgameScript: "Galgame script, story graph revisions, scenes, lines, choices, and generated media ({graphs} graph revisions, {scenes} scenes, {lines} lines, {choices} choices)",
     deletePageRef: "{chapter} / page {page} ({images} generated images)", deleteMorePages: "and {count} more pages",
     chapterNumber: "Chapter {number}", deleted: "Adaptation plan and downstream outputs deleted",

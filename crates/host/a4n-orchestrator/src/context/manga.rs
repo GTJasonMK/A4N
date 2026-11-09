@@ -6,8 +6,8 @@
 use a4n_db::{
     DbHandle,
     manga::{
-        MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate,
-        MangaPromptUpdatedAt,
+        MangaPipelineArtifactDeletionPlan, MangaPipelineArtifactProjectionReset,
+        MangaPipelineArtifactProjectionUpdate, MangaPromptUpdatedAt,
     },
 };
 use a4n_domain::manga::{
@@ -82,12 +82,14 @@ impl MangaApplication {
         &self,
         page_prompt_id: i64,
         image_id: i64,
+        expected_prompt_updated_at: MangaPromptUpdatedAt,
         updated_at: MangaPromptUpdatedAt,
     ) -> Result<(), AppError> {
         a4n_db::manga::mark_manga_page_prompt_image_completed_with_image(
             self.database.executor(),
             page_prompt_id,
             image_id,
+            expected_prompt_updated_at,
             updated_at,
         )
         .await
@@ -171,7 +173,7 @@ impl MangaApplication {
         chapter_id: i64,
         stage: MangaPipelineArtifactStage,
         page_number: Option<u32>,
-    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+    ) -> Result<MangaPipelineArtifactDeletionPlan, AppError> {
         a4n_db::manga::manga_pipeline_artifact_deletion_plan(
             self.database.executor(),
             project_id,
@@ -230,7 +232,7 @@ impl MangaApplication {
         chapter_id: i64,
         stage: MangaPipelineArtifactStage,
         page_number: Option<u32>,
-        expected_artifact_ids: &[i64],
+        expected_impact_fingerprint: &str,
         projection_resets: &[MangaPipelineArtifactProjectionReset],
     ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
         a4n_db::manga::delete_manga_pipeline_artifact(
@@ -239,7 +241,7 @@ impl MangaApplication {
             chapter_id,
             stage,
             page_number,
-            expected_artifact_ids,
+            expected_impact_fingerprint,
             projection_resets,
         )
         .await
@@ -314,10 +316,16 @@ impl OrchestratorContext {
         &self,
         page_prompt_id: i64,
         image_id: i64,
+        expected_prompt_updated_at: MangaPromptUpdatedAt,
         updated_at: MangaPromptUpdatedAt,
     ) -> Result<(), AppError> {
         self.manga
-            .mark_manga_page_prompt_image_completed_with_image(page_prompt_id, image_id, updated_at)
+            .mark_manga_page_prompt_image_completed_with_image(
+                page_prompt_id,
+                image_id,
+                expected_prompt_updated_at,
+                updated_at,
+            )
             .await
     }
 
@@ -377,7 +385,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         stage: MangaPipelineArtifactStage,
         page_number: Option<u32>,
-    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+    ) -> Result<MangaPipelineArtifactDeletionPlan, AppError> {
         self.manga
             .manga_pipeline_artifact_deletion_plan(project_id, chapter_id, stage, page_number)
             .await
@@ -413,7 +421,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         stage: MangaPipelineArtifactStage,
         page_number: Option<u32>,
-        expected_artifact_ids: &[i64],
+        expected_impact_fingerprint: &str,
         projection_resets: &[MangaPipelineArtifactProjectionReset],
     ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
         self.manga
@@ -422,7 +430,7 @@ impl OrchestratorContext {
                 chapter_id,
                 stage,
                 page_number,
-                expected_artifact_ids,
+                expected_impact_fingerprint,
                 projection_resets,
             )
             .await

@@ -710,10 +710,8 @@ async fn process_manga_page_stages(
                     prompt_name: "manga_page_adaptation_plan",
                     project_id: context.project_id,
                     workflow_run_id: context.workflow_run_id,
-                    call_key: format!(
-                        "manga_pipeline:{}:page:{}:adaptation",
-                        context.chapter_id, page_number
-                    ),
+                    call_key: a4n_domain::manga::MangaModelCall::PageAdaptation(page_number)
+                        .call_key(context.chapter_id),
                     call_order: manga_page_pipeline_call_order(work.page_index, 0)?,
                     restore_from_checkpoint: context.resume_from_checkpoint,
                     variables: &context.variables,
@@ -837,10 +835,8 @@ async fn process_manga_page_stages(
                     prompt_name: "manga_page_storyboard",
                     project_id: context.project_id,
                     workflow_run_id: context.workflow_run_id,
-                    call_key: format!(
-                        "manga_pipeline:{}:page:{}:storyboard",
-                        context.chapter_id, page_number
-                    ),
+                    call_key: a4n_domain::manga::MangaModelCall::Storyboard(page_number)
+                        .call_key(context.chapter_id),
                     call_order: manga_page_pipeline_call_order(work.page_index, 1)?,
                     restore_from_checkpoint: context.resume_from_checkpoint,
                     variables: &context.variables,
@@ -988,10 +984,8 @@ async fn process_manga_page_stages(
                     prompt_name: "manga_page_reference_discovery",
                     project_id: context.project_id,
                     workflow_run_id: context.workflow_run_id,
-                    call_key: format!(
-                        "manga_pipeline:{}:page:{}:reference_discovery",
-                        context.chapter_id, page_number
-                    ),
+                    call_key: a4n_domain::manga::MangaModelCall::ReferenceDiscovery(page_number)
+                        .call_key(context.chapter_id),
                     call_order: manga_page_pipeline_call_order(work.page_index, 2)?,
                     restore_from_checkpoint: context.resume_from_checkpoint,
                     variables: &context.variables,

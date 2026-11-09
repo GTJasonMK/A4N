@@ -81,7 +81,6 @@ import { MediaAuthoringPanel } from "../derived/MediaAuthoringPanel";
 import { useMediaAuthoring, authoringStageLabel } from "../derived/useMediaAuthoring";
 import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
 import type {
-  MangaPipelineArtifactDeletionItem,
   MangaPipelineArtifactRecord,
   MangaPipelineArtifactStage,
   MangaPipelineStopAfter,
@@ -128,32 +127,6 @@ function applyMangaPageArtifactToPrompt(
       return { ...prompt, reference_discovery: artifact.payload as MangaPagePromptSummary["reference_discovery"], stale_stages: staleStages };
     case "drawing_prompt":
       return { ...prompt, drawing_prompt: artifact.payload as MangaPagePromptSummary["drawing_prompt"], stale_stages: staleStages };
-    default:
-      return prompt;
-  }
-}
-
-function clearMangaPageArtifactFromPrompt(
-  prompt: MangaPagePromptSummary,
-  artifact: Pick<MangaPipelineArtifactDeletionItem, "page_number" | "stage">,
-): MangaPagePromptSummary {
-  if (artifact.page_number == null || prompt.page_number !== artifact.page_number) return prompt;
-  const staleStages = prompt.stale_stages.includes(artifact.stage)
-    ? prompt.stale_stages
-    : [...prompt.stale_stages, artifact.stage];
-  switch (artifact.stage) {
-    case "page_content":
-      return { ...prompt, page_content: null, stale_stages: staleStages };
-    case "page_adaptation":
-      return { ...prompt, page_adaptation: null, stale_stages: staleStages };
-    case "storyboard":
-      return { ...prompt, page_plan: null, stale_stages: staleStages };
-    case "reference_discovery":
-      return { ...prompt, reference_discovery: null, stale_stages: staleStages };
-    case "drawing_prompt":
-      return { ...prompt, drawing_prompt: null, stale_stages: staleStages };
-    case "image":
-      return { ...prompt, generated_image_id: null, stale_stages: staleStages };
     default:
       return prompt;
   }
@@ -239,14 +212,20 @@ const MangaChapterArtifactPanel: React.FC<{
   onGenerate?: () => void;
   onPreview?: () => void;
   resumable?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   onChanged: (change: MangaChapterArtifactChange) => Promise<void>;
   compact?: boolean;
-}> = ({ projectId, chapterId, stage, artifact, canEdit, onGenerate, onPreview, resumable = false, onChanged, compact = false }) => {
+}> = ({ projectId, chapterId, stage, artifact, canEdit, onGenerate, onPreview, resumable = false, onBusyChange, onChanged, compact = false }) => {
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const [editing, setEditing] = useState(false);
   const [structuredDraft, setStructuredDraft] = useState<unknown>(() => artifact?.payload ?? {});
   const [busy, setBusy] = useState(false);
+  useNovelDetailDirty(`manga-artifact:${projectId}:${chapterId}:${stage}`,
+    editing && JSON.stringify(structuredDraft) !== JSON.stringify(artifact?.payload ?? {}),
+    () => { if (busy) return false; setEditing(false); setStructuredDraft(artifact?.payload ?? {}); },
+    () => !busy);
+  useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
   const label = chapterArtifactLabel(stage, t);
   const validationError = stage === "page_slots"
     ? validateMangaPageSlotsDraft(structuredDraft, t)
@@ -317,13 +296,13 @@ const MangaChapterArtifactPanel: React.FC<{
       const artifactIds = [
         preview.target.artifact_id,
         ...preview.downstream.map((item) => item.artifact_id),
-      ];
+      ].filter((id): id is number => id != null);
       await deleteMangaPipelineArtifact({
         project_id: projectId,
         chapter_id: chapterId,
         stage,
         page_number: null,
-        expected_artifact_ids: artifactIds,
+        expected_impact_fingerprint: preview.fingerprint,
       });
       await onChanged({ type: "deleted", artifactIds });
       addToast(t("comic.prompt.deleted"), "success");
@@ -887,18 +866,22 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const refreshPipelineTarget = async (
     chapterId: number,
     requestProjectId = projectId,
-  ): Promise<void> => {
-    if (!isProjectCurrent(requestProjectId)) return;
-    await Promise.all([
+  ): Promise<boolean> => {
+    if (!isProjectCurrent(requestProjectId)) return false;
+    const results = await Promise.all([
       loadSingleStatus(chapterId, requestProjectId),
       isChapterCurrent(requestProjectId, chapterId)
         ? loadPagePrompts(chapterId, requestProjectId, { showLoading: false })
-        : Promise.resolve(),
+        : Promise.resolve(true),
       isChapterCurrent(requestProjectId, chapterId)
         ? loadChapterArtifacts(chapterId, requestProjectId)
-        : Promise.resolve(),
+        : Promise.resolve(true),
       loadProjectImages(requestProjectId),
+      ...(staged && isChapterCurrent(requestProjectId, chapterId)
+        ? [authoring.reload().then(() => true).catch(() => false)]
+        : []),
     ]);
+    return isProjectCurrent(requestProjectId) && results.every(Boolean);
   };
 
   const loadCharacterAssets = async (
@@ -1171,7 +1154,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const loadSingleStatus = async (
     chapterId: number,
     requestProjectId = projectId,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const requestSeq = statusLoadSeqRef.current + 1;
     statusLoadSeqRef.current = requestSeq;
     statusFreshRef.current.set(chapterId, false);
@@ -1186,12 +1169,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       if (
         !isProjectCurrent(requestProjectId) ||
         statusLoadSeqRef.current !== requestSeq
-      ) return;
+      ) return false;
       setStatuses((current) => ({ ...current, [chapterId]: status }));
       statusFreshRef.current.set(chapterId, true);
       setPipelineStatusError((current) =>
         current?.scope === "chapter" && current.chapterId === chapterId ? null : current,
       );
+      return true;
     } catch (error) {
       if (
         isProjectCurrent(requestProjectId) &&
@@ -1204,6 +1188,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           message: extractErrorMessage(error, t("comic.loadPipelineStatusFailed")),
         });
       }
+      return false;
     } finally {
       if (statusLoadingSeqRef.current.get(chapterId) === requestSeq) {
         statusLoadingSeqRef.current.delete(chapterId);
@@ -1484,7 +1469,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const loadChapterArtifacts = async (
     chapterId: number,
     requestProjectId = projectId,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const requestSeq = chapterArtifactsLoadSeqRef.current + 1;
     chapterArtifactsLoadSeqRef.current = requestSeq;
     if (isChapterCurrent(requestProjectId, chapterId)) {
@@ -1496,9 +1481,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       if (
         !isChapterCurrent(requestProjectId, chapterId) ||
         chapterArtifactsLoadSeqRef.current !== requestSeq
-      ) return;
+      ) return false;
       setChapterArtifacts(artifacts);
       setChapterArtifactsLoadError(null);
+      return true;
     } catch (error) {
       if (
         isChapterCurrent(requestProjectId, chapterId) &&
@@ -1506,6 +1492,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       ) {
         setChapterArtifactsLoadError(extractErrorMessage(error, t("comic.loadPagePromptsFailed")));
       }
+      return false;
     } finally {
       if (
         isChapterCurrent(requestProjectId, chapterId) &&
@@ -1598,16 +1585,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         discardStageDrafts();
       }
       addToast(t("comic.deletedArtifacts"), "success");
-      const refreshed = await Promise.allSettled([
-        refreshPipelineTarget(chapter.id, requestProjectId),
-        ...(staged ? [authoring.reload()] : []),
-      ]);
+      const refreshed = await refreshPipelineTarget(chapter.id, requestProjectId);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      for (const result of refreshed) {
-        if (result.status === "rejected") {
-          addToast(extractErrorMessage(result.reason, t("comic.operationFailed")), "error");
-        }
-      }
+      if (!refreshed) addToast(t("comic.deleteReadbackFailed"), "error");
     } finally {
       if (actionSeq != null && isActionCurrent(requestProjectId, actionSeq)) {
         setActing(null);
@@ -2060,11 +2040,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       {workspaceStage === "adaptation" ? <MediaAuthoringPanel
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`} projectId={projectId} kind="adaptation_plan"
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} chapterId={selectedChapter?.id ?? null}
-        canEdit={canEditManga} stageRunning={selectedStatus?.can_cancel === true}
+        canEdit={canEditManga} stageRunning={selectedStatus?.pipeline_status === "running"}
         preconditionError={selectedChapter && (!preprocessingArtifact || preprocessingStale)
           ? t("comic.preprocessingRequired")
           : null}
-        onReload={authoring.reload} onDirtyChange={setAuthoringDirty}
+        onReload={async () => {
+          if (selectedChapter) {
+            if (!await refreshPipelineTarget(selectedChapter.id)) throw new Error(t("common.mediaAuthoring.readbackFailed"));
+          } else await authoring.reload();
+        }} onDirtyChange={setAuthoringDirty}
         onBusyChange={setAuthoringBusy}
       /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} textProjectId={projectId} canEdit={canEditManga} showNext={!standalone} standaloneComic={standalone}
         onChanged={loadProjectImages} onBeforeKindChange={confirmLeaveStage} onTextDirtyChange={setTextMaterialsDirty} selectedTextSource={standalone ? selectedTextSource : null} onSelectTextSource={standalone ? (selection) => void selectMangaTextSource(selection) : undefined} onNext={async () => { if (!await reloadMangaAssets()) return; if (!await confirmLeaveStage()) return; setWorkspaceStage("adaptation"); }} /> : !isMangaPageWorkspaceStage(workspaceStage) ? (
@@ -2075,16 +2059,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             chapterId={selectedChapter.id}
             stage="preprocessing"
             artifact={preprocessingArtifact ?? null}
-            canEdit={canEditManga && !chapterArtifactsLoading && chapterArtifactsLoadError == null && !isChapterGenerating(selectedChapter)}
+            canEdit={canEditManga && !chapterArtifactsLoading && chapterArtifactsLoadError == null && !isChapterGenerating(selectedChapter) && selectedStatus?.pipeline_status !== "running"}
+            onBusyChange={setAuthoringBusy}
             resumable={selectedStatus?.can_resume === true}
             onGenerate={() => void handleRunPipeline(selectedStatus?.can_resume ? "resume" : "start", null, true, null, "preprocessing")}
             onPreview={() => void handlePreviewPipeline(selectedStatus?.can_resume ? "resume" : "start", null, null, "preprocessing")}
             onChanged={async (change) => {
               setChapterArtifacts((current) => applyMangaChapterArtifactChange(current, change));
-              await Promise.all([
-                loadChapterArtifacts(selectedChapter.id, projectId),
-                loadPagePrompts(selectedChapter.id, projectId, { showLoading: false }),
-              ]);
+              if (!await refreshPipelineTarget(selectedChapter.id)) throw new Error(t("common.mediaAuthoring.readbackFailed"));
             }}
           />
         ) : <EmptyHint text={t("comic.chapter.noSelection")} />
@@ -2113,14 +2095,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             chapterId={selectedChapter.id}
             stage="page_slots"
             artifact={pageSlotsArtifact}
-            canEdit={canEditManga && !chapterArtifactsLoading && chapterArtifactsLoadError == null}
+            canEdit={canEditManga && !chapterArtifactsLoading && chapterArtifactsLoadError == null && selectedStatus?.pipeline_status !== "running"}
+            onBusyChange={setAuthoringBusy}
             compact
             onChanged={async (change) => {
               setChapterArtifacts((current) => applyMangaChapterArtifactChange(current, change));
-              await Promise.all([
-                loadChapterArtifacts(selectedChapter.id, projectId),
-                loadPagePrompts(selectedChapter.id, projectId, { showLoading: false }),
-              ]);
+              if (!await refreshPipelineTarget(selectedChapter.id)) throw new Error(t("common.mediaAuthoring.readbackFailed"));
             }}
           />
         ) : null}
@@ -2166,15 +2146,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           if (!ensureChapterReadCurrent() || !ensurePipelineStatusCurrent(chapter.id)) return;
           void requestPipelineCancellation(chapter.id, handle);
         }}
-        onPagePromptsChanged={async () => {
-          const [promptsOk, imagesOk] = await Promise.all([
-            selectedChapter
-              ? loadPagePrompts(selectedChapter.id, projectId, { showLoading: false })
-              : Promise.resolve(false),
-            loadProjectImages(),
-          ]);
-          return promptsOk && imagesOk;
-        }}
+        onPagePromptsChanged={() => selectedChapter ? refreshPipelineTarget(selectedChapter.id) : Promise.resolve(false)}
         onPagePromptChanged={(prompt) => {
           setPagePrompts((current) => {
             const index = current.findIndex((item) => item.id === prompt.id);
@@ -2184,17 +2156,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             return next;
           });
         }}
-        onPagePromptDeleted={(pageNumber) => {
-          setPagePrompts((current) => current.filter((item) => item.page_number !== pageNumber));
-        }}
         onPageArtifactChanged={(artifact) => {
           setPagePrompts((current) => current.map((prompt) => applyMangaPageArtifactToPrompt(prompt, artifact)));
-        }}
-        onPageArtifactsDeleted={(artifacts) => {
-          setPagePrompts((current) => artifacts.reduce(
-            (prompts, artifact) => prompts.map((prompt) => clearMangaPageArtifactFromPrompt(prompt, artifact)),
-            current,
-          ));
         }}
         onRetryPagePrompts={() => {
           if (!selectedChapter) return;

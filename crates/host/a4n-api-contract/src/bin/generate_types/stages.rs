@@ -521,6 +521,9 @@ pub(super) fn run() {
         &typescript_interface::<authoring::AuthoringMangaPageDeletion>(
             "AuthoringMangaPageDeletion",
         ),
+        &typescript_interface::<authoring::AuthoringMangaChapterArtifactDeletion>(
+            "AuthoringMangaChapterArtifactDeletion",
+        ),
         &typescript_interface::<authoring::AuthoringGalgameScriptDeletion>(
             "AuthoringGalgameScriptDeletion",
         ),

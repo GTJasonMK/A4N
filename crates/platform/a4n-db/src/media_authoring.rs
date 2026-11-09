@@ -17,7 +17,8 @@ use a4n_domain::media_authoring::{
     AdaptationPlanV1, AdaptationTarget, AuthoringDocumentDeletionDependency,
     AuthoringDocumentDeletionImpact, AuthoringDocumentInputs, AuthoringDocumentKind,
     AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
-    AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion, AuthoringSourceRef,
+    AuthoringGalgameScriptDeletion, AuthoringMangaChapterArtifactDeletion,
+    AuthoringMangaPageDeletion, AuthoringSourceRef,
 };
 use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::{
@@ -656,6 +657,15 @@ pub async fn delete_authoring_document(
         return Err(AuthoringDocumentError::DeletionImpactChanged);
     }
 
+    let mut manga_runs = Vec::new();
+    for chapter_id in &plan.manga_chapters {
+        let runs =
+            crate::manga::workflows::lock_manga_manual_write_scope(&tx, project_id, *chapter_id)
+                .await
+                .map_err(manga_deletion_error)?;
+        manga_runs.push((*chapter_id, runs));
+    }
+
     let mut generated_image_paths = Vec::new();
     for page in &plan.manga_pages {
         crate::generation::delete_generation_run_targets_for(
@@ -688,6 +698,30 @@ pub async fn delete_authoring_document(
             .filter(manga_pipeline_artifact::Column::PageNumber.eq(page.page_number))
             .exec(&tx)
             .await?;
+    }
+    for (chapter_id, runs) in manga_runs {
+        manga_pipeline_artifact::Entity::delete_many()
+            .filter(manga_pipeline_artifact::Column::ProjectId.eq(project_id))
+            .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter_id))
+            .filter(manga_pipeline_artifact::Column::Stage.ne("preprocessing"))
+            .exec(&tx)
+            .await?;
+        generated_image_paths.extend(
+            crate::video::delete_manga_chapter_image_records_in(&tx, project_id, chapter_id, None)
+                .await
+                .map_err(video_deletion_error)?,
+        );
+        crate::manga::workflows::invalidate_deleted_manga_checkpoints(
+            &tx,
+            &runs,
+            chapter_id,
+            Some((
+                a4n_domain::manga::MangaPipelineArtifactStage::PageSlots,
+                None,
+            )),
+        )
+        .await
+        .map_err(manga_deletion_error)?;
     }
 
     if plan.galgame_script.is_some() {
@@ -753,6 +787,7 @@ struct GalgameScriptDeleteTarget {
 struct AuthoringDeletionPlan {
     document_ids: Vec<i64>,
     manga_pages: Vec<MangaPageDeleteTarget>,
+    manga_chapters: Vec<i64>,
     galgame_script: Option<GalgameScriptDeleteTarget>,
     impact: AuthoringDocumentDeletionImpact,
 }
@@ -845,6 +880,19 @@ async fn authoring_deletion_plan<C: ConnectionTrait>(
     }
 
     let mut pages = BTreeMap::<(i64, i32), BTreeSet<i64>>::new();
+    let mut manga_chapters = BTreeSet::new();
+    for record in records
+        .iter()
+        .filter(|record| document_ids.contains(&record.id))
+    {
+        if record.kind == AuthoringDocumentKind::AdaptationPlan
+            && record.status == AuthoringDocumentStatus::Adopted
+            && authoring_target(record)? == AdaptationTarget::Manga
+            && let Some(chapter_id) = record.source_chapter_id
+        {
+            manga_chapters.insert(chapter_id);
+        }
+    }
     let mut galgame_script_id = None;
     for target in targets {
         for artifact in authoring_artifact_sources(db, current.project_id, target, None).await? {
@@ -860,6 +908,7 @@ async fn authoring_deletion_plan<C: ConnectionTrait>(
                         .as_ref()
                         .is_some_and(|reference| document_ids.contains(&reference.id)) =>
                 {
+                    manga_chapters.insert(chapter_id);
                     pages
                         .entry((chapter_id, page_number))
                         .or_default()
@@ -882,6 +931,38 @@ async fn authoring_deletion_plan<C: ConnectionTrait>(
             }
         }
     }
+
+    if !manga_chapters.is_empty() {
+        for (id, chapter_id, page_number) in chapter_manga_prompt::Entity::find()
+            .select_only()
+            .column(chapter_manga_prompt::Column::Id)
+            .column(chapter_manga_prompt::Column::ChapterId)
+            .column(chapter_manga_prompt::Column::PageNumber)
+            .filter(chapter_manga_prompt::Column::ProjectId.eq(current.project_id))
+            .filter(chapter_manga_prompt::Column::ChapterId.is_in(manga_chapters.iter().copied()))
+            .into_tuple::<(i64, i64, i32)>()
+            .all(db)
+            .await?
+        {
+            pages
+                .entry((chapter_id, page_number))
+                .or_default()
+                .insert(id);
+        }
+    }
+    let manga_stages = if manga_chapters.is_empty() {
+        Vec::new()
+    } else {
+        manga_pipeline_artifact::Entity::find()
+            .filter(manga_pipeline_artifact::Column::ProjectId.eq(current.project_id))
+            .filter(
+                manga_pipeline_artifact::Column::ChapterId.is_in(manga_chapters.iter().copied()),
+            )
+            .filter(manga_pipeline_artifact::Column::Stage.ne("preprocessing"))
+            .order_by_asc(manga_pipeline_artifact::Column::Id)
+            .all(db)
+            .await?
+    };
 
     let mut manga_pages = Vec::with_capacity(pages.len());
     for ((chapter_id, page_number), prompt_ids) in pages {
@@ -977,10 +1058,38 @@ async fn authoring_deletion_plan<C: ConnectionTrait>(
             story_graph_revision_count: script.story_graph_revision_ids.len(),
         });
     let document_ids = document_ids.into_iter().collect::<Vec<_>>();
+    let prompt_ids = manga_pages
+        .iter()
+        .flat_map(|page| page.prompt_ids.iter().copied())
+        .collect::<Vec<_>>();
+    let prompt_versions = if prompt_ids.is_empty() {
+        Vec::new()
+    } else {
+        chapter_manga_prompt::Entity::find()
+            .filter(chapter_manga_prompt::Column::Id.is_in(prompt_ids))
+            .order_by_asc(chapter_manga_prompt::Column::Id)
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|row| {
+                (
+                    row.id,
+                    row.updated_at,
+                    row.layout,
+                    row.image_prompt,
+                    row.generated_image_id,
+                )
+            })
+            .collect()
+    };
     let fingerprint_payload = serde_json::json!({
         "record_id": current.id,
         "revision": current.revision,
         "document_ids": document_ids,
+        "document_versions": records.iter().filter(|record| document_ids.contains(&record.id))
+            .map(|record| (record.id, record.revision, &record.sha256)).collect::<Vec<_>>(),
+        "manga_prompt_versions": prompt_versions,
+        "manga_stages": manga_stages.iter().map(|stage| (stage.id, stage.updated_at, &stage.output_fingerprint, stage.stale)).collect::<Vec<_>>(),
         "manga_pages": manga_pages.iter().map(|page| {
             (
                 page.chapter_id,
@@ -1005,10 +1114,23 @@ async fn authoring_deletion_plan<C: ConnectionTrait>(
     Ok(AuthoringDeletionPlan {
         document_ids,
         manga_pages,
+        manga_chapters: manga_chapters.into_iter().collect(),
         galgame_script,
         impact: AuthoringDocumentDeletionImpact {
             dependent_documents,
             manga_pages: page_impact,
+            manga_chapter_artifacts: manga_stages
+                .iter()
+                .filter(|row| row.page_number == 0)
+                .map(|row| {
+                    Ok(AuthoringMangaChapterArtifactDeletion {
+                        artifact_id: row.id,
+                        chapter_id: row.chapter_id,
+                        stage: serde_json::from_value(serde_json::json!(row.stage))
+                            .map_err(invalid_json)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, AuthoringDocumentError>>()?,
             galgame_script: galgame_impact,
             fingerprint,
         },
@@ -1035,6 +1157,15 @@ fn generation_deletion_error(
     match error {
         crate::generation::GenerationDbError::Database(error) => {
             AuthoringDocumentError::Database(error)
+        }
+        error => AuthoringDocumentError::InvalidState(error.to_string()),
+    }
+}
+
+fn manga_deletion_error(error: crate::manga::MangaPromptRecordError) -> AuthoringDocumentError {
+    match error {
+        crate::manga::MangaPromptRecordError::Database { source, .. } => {
+            AuthoringDocumentError::Database(source)
         }
         error => AuthoringDocumentError::InvalidState(error.to_string()),
     }

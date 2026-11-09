@@ -5,8 +5,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod call_keys;
 mod contracts;
+mod deletion;
 mod validation;
+
+pub use call_keys::{MangaModelCall, manga_deleted_checkpoint_keys};
 
 pub use contracts::{
     MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V4, MANGA_PAGE_PIPELINE_STATE_V1,

@@ -14,6 +14,8 @@ use sea_orm::{
 };
 use serde_json::json;
 
+mod deletion_audit;
+
 use crate::manga::{
     MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate,
     MangaPipelineDbError, MangaPromptRecordError, delete_manga_page_by_number,
@@ -572,13 +574,17 @@ async fn stage_creation_preserves_the_concurrent_winner_until_explicit_deletion(
                 .await,
             Err(MangaPromptRecordError::Conflict(_))
         ));
+        let preview =
+            manga_pipeline_artifact_deletion_plan(&db, project_id, chapter_id, stage, page_number)
+                .await
+                .unwrap();
         delete_manga_pipeline_artifact(
             &db,
             project_id,
             chapter_id,
             stage,
             page_number,
-            &[winner.id],
+            &preview.fingerprint,
             &[],
         )
         .await
@@ -630,12 +636,14 @@ async fn page_image_completion_preserves_the_winner_and_reclaims_only_the_loser(
             &db,
             prompt_id,
             images[0].id,
+            fixed_time(1),
             fixed_time(1)
         ),
         crate::manga::mark_manga_page_prompt_image_completed_with_image(
             &db,
             prompt_id,
             images[1].id,
+            fixed_time(1),
             fixed_time(1)
         ),
     );
@@ -649,6 +657,7 @@ async fn page_image_completion_preserves_the_winner_and_reclaims_only_the_loser(
         &db,
         prompt_id,
         winner.id,
+        fixed_time(1),
         fixed_time(2),
     )
     .await
@@ -852,17 +861,13 @@ async fn deleting_page_content_cascades_only_for_that_page() {
     )
     .await
     .unwrap();
-    let expected_artifact_ids = deletion_plan
-        .iter()
-        .map(|artifact| artifact.id)
-        .collect::<Vec<_>>();
     delete_manga_pipeline_artifact(
         &db,
         project_id,
         chapter_id,
         MangaPipelineArtifactStage::PageContent,
         Some(1),
-        &expected_artifact_ids,
+        &deletion_plan.fingerprint,
         &[],
     )
     .await
@@ -1136,7 +1141,6 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
     )
     .await
     .unwrap();
-    let expected_artifact_ids = plan.iter().map(|artifact| artifact.id).collect::<Vec<_>>();
 
     let invalid_reset = MangaPipelineArtifactProjectionReset {
         page_prompt_id: prompt.id,
@@ -1154,7 +1158,7 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
             chapter_id,
             MangaPipelineArtifactStage::DrawingPrompt,
             Some(1),
-            &expected_artifact_ids,
+            &plan.fingerprint,
             &[invalid_reset],
         )
         .await
@@ -1182,19 +1186,29 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
         2
     );
 
+    let mut reset_drafts = [prompt_draft(chapter_id, project_id, 1, "待删除提示词")];
+    reset_drafts[0].layout = Some(layout.clone());
+    upgrade_to_pipeline_layouts(&mut reset_drafts);
+    let mut reset_layout = reset_drafts[0].layout.take().unwrap();
+    reset_layout["pipeline"]["storyboard"] = layout["page_plan"].clone();
+    reset_layout["pipeline"]["drawing_prompt"] = layout["drawing_prompt"].clone();
+    let mut reset_layout: a4n_domain::manga::MangaPageGenerationLayoutV4 =
+        serde_json::from_value(reset_layout).unwrap();
+    reset_layout.clear_deleted_stage(MangaPipelineArtifactStage::DrawingPrompt);
+    let reset_layout = serde_json::to_value(reset_layout).unwrap();
     delete_manga_pipeline_artifact(
         &db,
         project_id,
         chapter_id,
         MangaPipelineArtifactStage::DrawingPrompt,
         Some(1),
-        &expected_artifact_ids,
+        &plan.fingerprint,
         &[MangaPipelineArtifactProjectionReset {
             page_prompt_id: prompt.id,
             page_number: 1,
             expected_layout: layout,
             expected_generated_image_id: Some(image.id),
-            layout: page_layout(1),
+            layout: reset_layout,
             image_prompt: String::new(),
             clear_generated_image: true,
         }],
@@ -1209,6 +1223,8 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
         .unwrap();
     assert_eq!(updated_prompt.generated_image_id, None);
     assert_eq!(updated_prompt.status, "pending");
+    assert!(updated_prompt.layout.as_ref().unwrap()["pipeline"]["drawing_prompt"].is_null());
+    assert!(updated_prompt.layout.as_ref().unwrap()["pipeline"]["storyboard"].is_object());
     assert!(
         generated_image::Entity::find_by_id(image.id)
             .one(&db)

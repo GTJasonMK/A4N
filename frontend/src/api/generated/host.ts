@@ -2630,13 +2630,14 @@ export interface MangaPipelineArtifactRecord {
 }
 
 export interface MangaPipelineArtifactDeletionItem {
-  artifact_id: number;
+  artifact_id: number | null;
   page_number: number | null;
   stage: MangaPipelineArtifactStage;
 }
 
 export interface MangaPipelineArtifactDeletionPreview {
   downstream: MangaPipelineArtifactDeletionItem[];
+  fingerprint: string;
   target: MangaPipelineArtifactDeletionItem;
 }
 
@@ -2658,7 +2659,7 @@ export interface SaveMangaPipelineArtifactInput {
 
 export interface DeleteMangaPipelineArtifactInput {
   chapter_id: number;
-  expected_artifact_ids: number[];
+  expected_impact_fingerprint: string;
   page_number?: number | null;
   project_id: number;
   stage: MangaPipelineArtifactStage;
@@ -2856,6 +2857,7 @@ export interface AuthoringDocumentDeletionImpact {
   dependent_documents: AuthoringDocumentDeletionDependency[];
   fingerprint: string;
   galgame_script: AuthoringGalgameScriptDeletion | null;
+  manga_chapter_artifacts: AuthoringMangaChapterArtifactDeletion[];
   manga_pages: AuthoringMangaPageDeletion[];
 }
 
@@ -2868,6 +2870,12 @@ export interface AuthoringMangaPageDeletion {
   chapter_id: number;
   image_count: number;
   page_number: number;
+}
+
+export interface AuthoringMangaChapterArtifactDeletion {
+  artifact_id: number;
+  chapter_id: number;
+  stage: MangaPipelineArtifactStage;
 }
 
 export interface AuthoringGalgameScriptDeletion {

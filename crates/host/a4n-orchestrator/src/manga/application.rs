@@ -601,17 +601,14 @@ impl OrchestratorContext {
         ensure_manga_source_can_write(&source, "删除漫画绘图提示词")?;
         let page_number = u32::try_from(page_prompt.page_number)
             .map_err(|_| AppError::InvalidArgument("漫画页码无效".into()))?;
-        let expected_artifact_ids = self
+        let plan = self
             .manga_pipeline_artifact_deletion_plan(
                 page_prompt.project_id,
                 page_prompt.chapter_id,
                 MangaPipelineArtifactStage::DrawingPrompt,
                 Some(page_number),
             )
-            .await?
-            .into_iter()
-            .map(|artifact| artifact.id)
-            .collect();
+            .await?;
         self.delete_manga_pipeline_artifact_validated(
             user_id,
             DeleteMangaPipelineArtifactInput {
@@ -619,7 +616,7 @@ impl OrchestratorContext {
                 chapter_id: page_prompt.chapter_id,
                 stage: MangaPipelineArtifactStage::DrawingPrompt,
                 page_number: Some(page_number),
-                expected_artifact_ids,
+                expected_impact_fingerprint: plan.fingerprint,
             },
         )
         .await

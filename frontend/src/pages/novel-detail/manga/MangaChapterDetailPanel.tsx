@@ -13,7 +13,6 @@ import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import type {
-  MangaPipelineArtifactDeletionItem,
   MangaPipelineArtifactRecord,
   MangaPipelineArtifactStage,
   MangaPipelineStopAfter,
@@ -128,9 +127,7 @@ interface MangaChapterDetailPanelProps {
   onCancelPipeline: () => void;
   onPagePromptsChanged: () => Promise<boolean>;
   onPagePromptChanged: (prompt: MangaPagePromptSummary) => void;
-  onPagePromptDeleted: (pageNumber: number) => void;
   onPageArtifactChanged: (artifact: MangaPipelineArtifactRecord) => void;
-  onPageArtifactsDeleted: (artifacts: MangaPipelineArtifactDeletionItem[]) => void;
   onProjectImageImported: (image: GeneratedImage) => void;
   onRetryPagePrompts: () => void;
 }
@@ -200,9 +197,7 @@ export function MangaChapterDetailPanel({
   onCancelPipeline,
   onPagePromptsChanged,
   onPagePromptChanged,
-  onPagePromptDeleted,
   onPageArtifactChanged,
-  onPageArtifactsDeleted,
   onProjectImageImported,
   onRetryPagePrompts,
 }: MangaChapterDetailPanelProps) {
@@ -1220,22 +1215,16 @@ export function MangaChapterDetailPanel({
       });
       if (!confirmed || !isCurrentAction(scopeKey, actionSeq)) return;
       if (!ensurePagePromptsCurrent()) return;
-      const deletedArtifacts = [preview.target, ...preview.downstream];
       await deleteMangaPipelineArtifact({
         project_id: projectId,
         chapter_id: selectedChapter.id,
         stage,
         page_number: pageNumber,
-        expected_artifact_ids: [
-          preview.target.artifact_id,
-          ...preview.downstream.map((artifact) => artifact.artifact_id),
-        ],
+        expected_impact_fingerprint: preview.fingerprint,
       });
       if (!isCurrentAction(scopeKey, actionSeq)) return;
-      if (stage === "drawing_prompt") onPagePromptDeleted(pageNumber);
-      else onPageArtifactsDeleted(deletedArtifacts);
-      void onPagePromptsChanged();
       addToast(t("comic.prompt.deleted"), "success");
+      if (!await onPagePromptsChanged() && isCurrentAction(scopeKey, actionSeq)) addToast(t("comic.deleteReadbackFailed"), "error");
     } catch (err) {
       if (isCurrentAction(scopeKey, actionSeq)) {
         addToast(extractErrorMessage(err, t("comic.prompt.deleteFailed")), "error");
@@ -1285,9 +1274,8 @@ export function MangaChapterDetailPanel({
         page_number: pageNumber,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      onPagePromptDeleted(pageNumber);
-      void onPagePromptsChanged();
       addToast(t("comic.prompt.orphanedPageDeleted"), "success");
+      if (!await onPagePromptsChanged() && isCurrentAction(requestScope, actionSeq)) addToast(t("comic.deleteReadbackFailed"), "error");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("comic.prompt.deleteFailed")), "error");

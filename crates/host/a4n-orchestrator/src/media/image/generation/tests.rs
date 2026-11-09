@@ -1440,6 +1440,7 @@ fn manga_page_execution_input(
     requested_by_user_id: i64,
     chapter_id: i64,
     page_prompt_id: i64,
+    expected_prompt_updated_at: chrono::NaiveDateTime,
 ) -> ImageGenerationExecutionInput {
     let mut input = execution_input(project_id, requested_by_user_id);
     input.chapter_id = Some(chapter_id);
@@ -1455,6 +1456,7 @@ fn manga_page_execution_input(
     input.post_commit = ImageGenerationPostCommitAction::MangaPage {
         page_prompt_id,
         page_number: 1,
+        expected_prompt_updated_at,
     };
     input
 }
@@ -1513,7 +1515,13 @@ async fn manga_page_post_commit_binds_empty_page_and_removes_orphan_image() {
     let outcome = context
         .run_image_generation_validated(
             &host,
-            manga_page_execution_input(project_id, user_id, chapter.id, page_prompt.id),
+            manga_page_execution_input(
+                project_id,
+                user_id,
+                chapter.id,
+                page_prompt.id,
+                page_prompt.updated_at,
+            ),
             &ImageGenerationProgress::none(),
         )
         .await
@@ -1549,6 +1557,60 @@ async fn manga_page_post_commit_binds_empty_page_and_removes_orphan_image() {
 }
 
 #[tokio::test]
+async fn manga_page_old_request_cannot_restore_an_image_after_the_prompt_was_cleared() {
+    let (database, context, user_id) = setup_context().await;
+    let (project_id, chapter, page_prompt, old_image) =
+        insert_manga_page_fixture(database.as_ref()).await;
+    let input = manga_page_execution_input(
+        project_id,
+        user_id,
+        chapter.id,
+        page_prompt.id,
+        page_prompt.updated_at,
+    );
+    let mut cleared: chapter_manga_prompt::ActiveModel = page_prompt.clone().into();
+    cleared.generated_image_id = Set(None);
+    cleared.image_prompt = Set(String::new());
+    cleared.updated_at = Set(page_prompt.updated_at + chrono::Duration::seconds(1));
+    let cleared = cleared.update(database.as_ref()).await.unwrap();
+    let host = TestImageGenerationHost::default();
+    let error = context
+        .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("提示词已变化"), "{error}");
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        chapter_manga_prompt::Entity::find_by_id(page_prompt.id)
+            .one(database.as_ref())
+            .await
+            .unwrap()
+            .unwrap(),
+        cleared
+    );
+    let images = generated_image::Entity::find()
+        .filter(generated_image::Column::ProjectId.eq(project_id))
+        .all(database.as_ref())
+        .await
+        .unwrap();
+    assert_eq!(images.len(), 1);
+    assert_eq!(images[0].id, old_image.id);
+    assert!(
+        cleanup_outbox::Entity::find()
+            .all(database.as_ref())
+            .await
+            .unwrap()
+            .iter()
+            .any(|intent| {
+                intent
+                    .payload_json
+                    .to_string()
+                    .contains(&format!("projects/{project_id}/images/"))
+            })
+    );
+}
+
+#[tokio::test]
 async fn manga_page_existing_image_is_rejected_and_late_conflict_only_cleans_loser() {
     let (database, context, user_id) = setup_context().await;
     let (project_id, chapter, page_prompt, old_image) =
@@ -1568,7 +1630,13 @@ async fn manga_page_existing_image_is_rejected_and_late_conflict_only_cleans_los
     let error = context
         .run_image_generation_validated(
             &host,
-            manga_page_execution_input(project_id, user_id, chapter.id, page_prompt.id),
+            manga_page_execution_input(
+                project_id,
+                user_id,
+                chapter.id,
+                page_prompt.id,
+                page_prompt.updated_at,
+            ),
             &ImageGenerationProgress::none(),
         )
         .await

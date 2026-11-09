@@ -22,6 +22,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
+import { mangaStageLabel } from "../novel-detail/manga/mangaTabUtils";
 import { AdaptationPlanEditor, AdaptationPlanView, isValidMangaPageCount, newAdaptationUnit } from "./AdaptationPlanEditor";
 import { GalgameBranchPlanEditor } from "./MediaPlanEditors";
 
@@ -221,6 +222,15 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     if (scopeRef.current !== requestScope) return;
 
     const impactLines: string[] = [];
+    const chapterLabel = (chapterId: number) => {
+      const source = workspace?.chapters.find((item) => item.source.source_chapter_id === chapterId);
+      return source ? source.title?.trim() || t("common.mediaAuthoring.chapterNumber", { number: source.chapter_number }) : `#${chapterId}`;
+    };
+    if (impact.manga_chapter_artifacts.length > 0) {
+      impactLines.push(t("common.mediaAuthoring.deleteMangaChapterArtifacts", {
+        details: impact.manga_chapter_artifacts.map((artifact) => `${chapterLabel(artifact.chapter_id)} / ${mangaStageLabel(artifact.stage, t)}`).join("、"),
+      }));
+    }
     if (impact.dependent_documents.length > 0) {
       const labels: Record<AuthoringDocumentKind, string> = {
         adaptation_plan: t("common.mediaAuthoring.adaptation"),
@@ -234,15 +244,8 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     }
     if (impact.manga_pages.length > 0) {
       const pageRefs = impact.manga_pages.map(({ chapter_id, page_number, image_count }) => {
-        const sourceChapter = workspace?.chapters.find(
-          (item) => item.source.source_chapter_id === chapter_id,
-        );
-        const chapterLabel = sourceChapter
-          ? sourceChapter.title?.trim()
-            || t("common.mediaAuthoring.chapterNumber", { number: sourceChapter.chapter_number })
-          : `#${chapter_id}`;
         return t("common.mediaAuthoring.deletePageRef", {
-          chapter: chapterLabel,
+          chapter: chapterLabel(chapter_id),
           page: page_number,
           images: image_count,
         });

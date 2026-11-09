@@ -490,14 +490,6 @@ impl OrchestratorContext {
             self.page_prompt_for_stage(input.project_id, input.chapter_id, page_number)
                 .await?;
         }
-        let plan = self
-            .manga_pipeline_artifact_deletion_plan(
-                input.project_id,
-                input.chapter_id,
-                input.stage,
-                page_number,
-            )
-            .await?;
         let mut projection_resets = Vec::new();
         for prompt in self
             .manga_page_prompts_by_chapter(input.project_id, input.chapter_id)
@@ -505,31 +497,14 @@ impl OrchestratorContext {
         {
             let page_number = u32::try_from(prompt.page_number)
                 .map_err(|_| AppError::InvalidArgument("漫画页面页码无效".into()))?;
-            let stages = plan
-                .iter()
-                .filter(|artifact| artifact.page_number == Some(page_number))
-                .map(|artifact| artifact.stage)
-                .collect::<Vec<_>>();
-            if stages.is_empty() {
+            if input.stage.page_scoped() && input.page_number != Some(page_number) {
                 continue;
             }
-            let clear_image = stages.contains(&MangaPipelineArtifactStage::Image);
+            let clear_image = input.stage == MangaPipelineArtifactStage::Image
+                || MangaPipelineArtifactStage::Image.depends_on(input.stage);
             let mut layout =
                 manga_page_pipeline_layout(&prompt).map_err(AppError::InvalidArgument)?;
-            for stage in stages
-                .iter()
-                .copied()
-                .filter(|stage| *stage != MangaPipelineArtifactStage::Image)
-            {
-                update_page_projection_layout(&mut layout, stage, None, None)?;
-            }
-            if clear_image {
-                layout.pipeline.image = None;
-                layout.pipeline.stage_fingerprints.remove("image");
-            }
-            layout.pipeline.status = MangaPagePipelineStatus::Pending;
-            layout.pipeline.stage = page_pipeline_stage_for_deleted_artifact(input.stage);
-            layout.pipeline.error = None;
+            layout.clear_deleted_stage(input.stage);
             layout
                 .validate(page_number)
                 .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
@@ -557,7 +532,7 @@ impl OrchestratorContext {
             input.chapter_id,
             input.stage,
             page_number,
-            &input.expected_artifact_ids,
+            &input.expected_impact_fingerprint,
             &projection_resets,
         )
         .await?;
@@ -584,7 +559,7 @@ impl OrchestratorContext {
             self.page_prompt_for_stage(input.project_id, input.chapter_id, page_number)
                 .await?;
         }
-        let artifacts = self
+        let plan = self
             .manga_pipeline_artifact_deletion_plan(
                 input.project_id,
                 input.chapter_id,
@@ -592,20 +567,26 @@ impl OrchestratorContext {
                 page_number,
             )
             .await?;
+        let artifacts = plan.artifacts;
         let to_item = |artifact: &MangaPipelineArtifactRecord| MangaPipelineArtifactDeletionItem {
-            artifact_id: artifact.id,
+            artifact_id: Some(artifact.id),
             stage: artifact.stage,
             page_number: artifact.page_number,
         };
         let target = artifacts
             .iter()
             .find(|artifact| artifact.stage == input.stage && artifact.page_number == page_number)
-            .ok_or_else(|| AppError::NotFound("漫画阶段产物不存在".into()))?;
+            .map(|artifact| artifact.id);
         Ok(MangaPipelineArtifactDeletionPreview {
-            target: to_item(target),
+            fingerprint: plan.fingerprint,
+            target: MangaPipelineArtifactDeletionItem {
+                artifact_id: target,
+                stage: input.stage,
+                page_number,
+            },
             downstream: artifacts
                 .iter()
-                .filter(|artifact| artifact.id != target.id)
+                .filter(|artifact| Some(artifact.id) != target)
                 .map(to_item)
                 .collect(),
         })
@@ -959,24 +940,6 @@ fn validated_artifact_page_number(
         (false, Some(_)) => Err(AppError::InvalidArgument(
             "章节级漫画阶段不能指定页码".into(),
         )),
-    }
-}
-
-fn page_pipeline_stage_for_deleted_artifact(
-    stage: MangaPipelineArtifactStage,
-) -> MangaPagePipelineStage {
-    match stage {
-        MangaPipelineArtifactStage::Preprocessing
-        | MangaPipelineArtifactStage::PageSlots
-        | MangaPipelineArtifactStage::PageContent => MangaPagePipelineStage::Content,
-        MangaPipelineArtifactStage::PageAdaptation => MangaPagePipelineStage::Adaptation,
-        MangaPipelineArtifactStage::Storyboard => MangaPagePipelineStage::Storyboard,
-        MangaPipelineArtifactStage::ReferenceDiscovery
-        | MangaPipelineArtifactStage::ReferenceBindings => {
-            MangaPagePipelineStage::ReferenceDiscovery
-        }
-        MangaPipelineArtifactStage::DrawingPrompt => MangaPagePipelineStage::DrawingPrompt,
-        MangaPipelineArtifactStage::Image => MangaPagePipelineStage::Image,
     }
 }
 

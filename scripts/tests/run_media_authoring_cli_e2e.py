@@ -299,7 +299,7 @@ def main():
             for deleted_stage in ("page_slots", "preprocessing"):
                 delete_input = {"project_id": deletion_project, "chapter_id": chapter_id, "stage": deleted_stage, "page_number": None}
                 deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
-                call("delete_manga_pipeline_artifact", {**delete_input, "expected_artifact_ids": [item["artifact_id"] for item in [deletion["target"], *deletion["downstream"]]]}, destructive=True)
+                call("delete_manga_pipeline_artifact", {**delete_input, "expected_impact_fingerprint": deletion["fingerprint"]}, destructive=True)
                 cleared = call("list_manga_page_prompts", {"project_id": deletion_project, "chapter_id": chapter_id})
                 assert len(cleared) == 2 and all(page["pipeline_stage"] == "content" and page["page_content"] is None and page["status"] == "pending" for page in cleared), cleared
                 assert workspace(deletion_project)["chapters"]
@@ -412,6 +412,92 @@ def main():
             assert not any(artifact["stale"] for artifact in manga_artifacts), manga_artifacts
             passed("漫画一次完成页面槽位、页面改编、分镜、绘图提示词和成图")
 
+            deletion_cases = [
+                ("preprocessing", None, {"preprocessing", "page_slots", "page_content", "page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "content", 11),
+                ("page_slots", None, {"page_slots", "page_content", "page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "content", 11),
+                ("page_content", 1, {"page_content", "page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "content", 4),
+                ("page_adaptation", 1, {"page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "adaptation", 4),
+                ("storyboard", 1, {"storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "storyboard", 3),
+                ("reference_bindings", 1, {"reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "reference_discovery", 2),
+                ("reference_discovery", 1, {"reference_discovery", "drawing_prompt", "image"}, "reference_discovery", 2),
+                ("drawing_prompt", 1, {"drawing_prompt", "image"}, "drawing_prompt", 1),
+                ("image", 1, {"image"}, "image", 0),
+            ]
+            projection_fields = {"page_content": "page_content", "page_adaptation": "page_adaptation", "storyboard": "page_plan",
+                "reference_bindings": "reference_bindings", "reference_discovery": "reference_discovery", "drawing_prompt": "drawing_prompt", "image": "generated_image_id"}
+            for deleted_stage, target_page, removed_stages, reset_stage, expected_calls in deletion_cases:
+                audited_project = planning_project("删除阶段审查 " + deleted_stage)
+                manga_run(audited_project)
+                artifact_scope = {"project_id": audited_project, "chapter_id": chapter_id}
+                original_artifacts = call("list_manga_pipeline_artifacts", artifact_scope)
+                original_pages = call("list_manga_page_prompts", artifact_scope)
+                assert len(original_pages) == 2 and all(page["generated_image_id"] for page in original_pages)
+                delete_scope = {**artifact_scope, "stage": deleted_stage, "page_number": target_page}
+                impact = call("preview_delete_manga_pipeline_artifact", delete_scope)
+                expected_deleted = [item for item in original_artifacts if item["stage"] in removed_stages and (target_page is None or item["page_number"] == target_page)]
+                assert {item["artifact_id"] for item in [impact["target"], *impact["downstream"]]} == {item["id"] for item in expected_deleted}, (deleted_stage, impact)
+                call("delete_manga_pipeline_artifact", {**delete_scope, "expected_impact_fingerprint": impact["fingerprint"]}, destructive=True)
+                retained = call("list_manga_pipeline_artifacts", artifact_scope)
+                assert retained == [item for item in original_artifacts if item not in expected_deleted], deleted_stage
+                cleared_pages = call("list_manga_page_prompts", artifact_scope)
+                assert [page["id"] for page in cleared_pages] == [page["id"] for page in original_pages], deleted_stage
+                for old, cleared in zip(original_pages, cleared_pages, strict=True):
+                    if target_page is not None and old["page_number"] != target_page:
+                        assert cleared == old, deleted_stage
+                        continue
+                    assert cleared["pipeline_stage"] == reset_stage and cleared["pipeline_status"] == "pending" and cleared["status"] == "pending", (deleted_stage, cleared)
+                    assert cleared["pipeline_error"] is None
+                    assert cleared["dialogue_text"] == (None if "storyboard" in removed_stages else old["dialogue_text"]), deleted_stage
+                    for stage_id, field in projection_fields.items():
+                        if stage_id in removed_stages:
+                            assert not cleared[field], (deleted_stage, field, cleared[field])
+                        else:
+                            assert cleared[field] == old[field], (deleted_stage, field)
+                assert workspace(audited_project)["chapters"]
+                if deleted_stage == "preprocessing":
+                    assert next(view for view in workspace(audited_project)["documents"] if view["record"]["status"] == "adopted")["stale"]
+                    manga_run(audited_project, run_stage="preprocessing")
+                request_offset = len(llm_calls())
+                manga_run(audited_project, stop_after="drawing_prompt", page_number=target_page)
+                assert len(llm_calls()) - request_offset == expected_calls, (deleted_stage, len(llm_calls()) - request_offset)
+                regenerated = call("list_manga_page_prompts", artifact_scope)
+                assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["reference_discovery"] and page["drawing_prompt"] for page in regenerated), deleted_stage
+                manga_run(audited_project, run_stage="image", page_number=1)
+                assert next(page for page in call("list_manga_page_prompts", artifact_scope) if page["page_number"] == 1)["generated_image_id"]
+                passed(f"逐阶段删除 {deleted_stage}：级联范围、页面身份、保留上游及其他页、布局状态和真实重新生成全部通过")
+
+            deleted_plan = latest(audited_project, "adaptation_plan", "adopted")
+            document_scope = {"project_id": audited_project, "record_id": deleted_plan["id"], "kind": "adaptation_plan", "expected_revision": deleted_plan["revision"]}
+            plan_impact = call("preview_delete_media_authoring_document", document_scope)
+            assert len(plan_impact["manga_pages"]) == 2
+            assert [item["stage"] for item in plan_impact["manga_chapter_artifacts"]] == ["page_slots"], plan_impact
+            call("delete_media_authoring_document", {**document_scope, "expected_impact_fingerprint": plan_impact["fingerprint"]}, destructive=True)
+            assert call("list_manga_page_prompts", artifact_scope) == []
+            assert [item["stage"] for item in call("list_manga_pipeline_artifacts", artifact_scope)] == ["preprocessing"]
+            adopt(generate(audited_project))
+            manga_run(audited_project, stop_after="drawing_prompt")
+            assert len(call("list_manga_page_prompts", artifact_scope)) == 2
+            passed("删除已采用改编计划清理章节分页和全部页级产物，保留预处理，重新采用计划后可以完整生成")
+
+            for _ in range(2):
+                request_offset = len(provider_log_entries(args.provider_log))
+                handle = call("start_image_generation", {"project_id": audited_project,
+                    "meta": {"start_request_id": str(uuid.uuid4())},
+                    "operation": {"kind": "page", "chapter_number": 1, "page_number": 1, "width": 1024, "height": 1024}})
+                checked(cli, ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])], "standalone page image")
+                generated = call("list_manga_page_prompts", artifact_scope)
+                assert generated[0]["generated_image_id"]
+                assert any("/images/" in row.get("path", "") for row in provider_log_entries(args.provider_log)[request_offset:])
+                assert not any(item["stage"] == "image" for item in call("list_manga_pipeline_artifacts", artifact_scope))
+                image_scope = {**artifact_scope, "stage": "image", "page_number": 1}
+                image_impact = call("preview_delete_manga_pipeline_artifact", image_scope)
+                assert image_impact["target"]["artifact_id"] is None and image_impact["downstream"] == []
+                call("delete_manga_pipeline_artifact", {**image_scope, "expected_impact_fingerprint": image_impact["fingerprint"]}, destructive=True)
+                cleared = call("list_manga_page_prompts", artifact_scope)
+                assert cleared[0]["generated_image_id"] is None and cleared[0]["drawing_prompt"]
+                assert cleared[1] == generated[1]
+            passed("独立单页生图没有流水线 artifact 也可预览和删除；连续两次生成与删除都真实调用图片模型，不恢复已删图片")
+
             placement_project = planning_project("分镜位置合同一致性")
             manga_run(placement_project, stop_after="page_adaptation")
             preprocessing_model("a4n-output-recover-manga-placement")
@@ -452,7 +538,7 @@ def main():
             deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
             assert deletion["downstream"] == [], deletion
             call("delete_manga_pipeline_artifact", {
-                **delete_input, "expected_artifact_ids": [deletion["target"]["artifact_id"]],
+                **delete_input, "expected_impact_fingerprint": deletion["fingerprint"],
             }, destructive=True)
             previous_image_id = next(page for page in pages if page["page_number"] == 1)["generated_image_id"]
             manga_run(comic, stop_after="image", page_number=1, run_stage="image")
@@ -494,7 +580,7 @@ def main():
             deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
             call("delete_manga_pipeline_artifact", {
                 **delete_input,
-                "expected_artifact_ids": [entry["artifact_id"] for entry in [deletion["target"], *deletion["downstream"]]],
+                "expected_impact_fingerprint": deletion["fingerprint"],
             }, destructive=True)
             before_visual_regeneration = len(llm_calls())
             manga_run(scoped_comic, stop_after="reference_discovery", page_number=2, run_stage="storyboard")
@@ -505,7 +591,7 @@ def main():
                 deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
                 call("delete_manga_pipeline_artifact", {
                     **delete_input,
-                    "expected_artifact_ids": [entry["artifact_id"] for entry in [deletion["target"], *deletion["downstream"]]],
+                    "expected_impact_fingerprint": deletion["fingerprint"],
                 }, destructive=True)
                 before_single_regeneration = len(llm_calls())
                 manga_run(scoped_comic, stop_after="storyboard", page_number=2, run_stage="storyboard")

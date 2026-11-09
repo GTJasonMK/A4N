@@ -55,6 +55,7 @@ pub enum ImageGenerationPostCommitAction {
     MangaPage {
         page_prompt_id: i64,
         page_number: i32,
+        expected_prompt_updated_at: chrono::NaiveDateTime,
     },
 }
 

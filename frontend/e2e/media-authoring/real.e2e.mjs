@@ -190,7 +190,7 @@ describe("Media authoring against the real Host", () => {
     assert.ok(previous.generated_image_id);
     const deletionInput = { project_id: projectId, chapter_id: chapterId, stage: "image", page_number: 1 };
     const preview = await callBrowserApiCommand("preview_delete_manga_pipeline_artifact", { input: deletionInput });
-    const deletion = { input: { ...deletionInput, expected_artifact_ids: [preview.target.artifact_id] } };
+    const deletion = { input: { ...deletionInput, expected_impact_fingerprint: preview.fingerprint } };
     await browser.newWindow(address);
     const secondTab = await browser.getWindowHandle();
     try {

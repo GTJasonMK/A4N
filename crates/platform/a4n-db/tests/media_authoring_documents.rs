@@ -369,6 +369,26 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
     .await
     .unwrap();
 
+    for stage in [
+        a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+        a4n_domain::manga::MangaPipelineArtifactStage::PageSlots,
+    ] {
+        a4n_db::manga::upsert_manga_pipeline_artifact(
+            &db,
+            a4n_domain::manga::MangaPipelineArtifactDraft {
+                project_id: comic.id,
+                chapter_id: chapter.id,
+                stage,
+                page_number: None,
+                input_fingerprint: stage.key().into(),
+                payload: json!({"fixture":stage.key()}),
+                stale: false,
+            },
+            now,
+        )
+        .await
+        .unwrap();
+    }
     let impact = preview_delete_authoring_document(
         &db,
         comic.id,
@@ -382,6 +402,11 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
     assert_eq!(impact.manga_pages[0].chapter_id, chapter.id);
     assert_eq!(impact.manga_pages[0].page_number, 1);
     assert_eq!(impact.manga_pages[0].image_count, 1);
+    assert_eq!(impact.manga_chapter_artifacts.len(), 1);
+    assert_eq!(
+        impact.manga_chapter_artifacts[0].stage,
+        a4n_domain::manga::MangaPipelineArtifactStage::PageSlots
+    );
 
     assert!(matches!(
         delete_authoring_document(
@@ -402,6 +427,37 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
             .unwrap()
             .is_some()
     );
+
+    chapter_manga_prompt::ActiveModel {
+        id: Set(page.id),
+        image_prompt: Set("确认后发生的人工修改".into()),
+        updated_at: Set(now + chrono::Duration::seconds(1)),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+    assert!(matches!(
+        delete_authoring_document(
+            &db,
+            comic.id,
+            adopted.id,
+            adopted.kind,
+            adopted.revision,
+            &impact.fingerprint
+        )
+        .await,
+        Err(AuthoringDocumentError::DeletionImpactChanged)
+    ));
+    let impact = preview_delete_authoring_document(
+        &db,
+        comic.id,
+        adopted.id,
+        adopted.kind,
+        adopted.revision,
+    )
+    .await
+    .unwrap();
 
     delete_authoring_document(
         &db,
@@ -434,8 +490,11 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
             .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter.id))
             .all(&db)
             .await
-            .unwrap(),
-        Vec::<manga_pipeline_artifact::Model>::new()
+            .unwrap()
+            .into_iter()
+            .map(|record| record.stage)
+            .collect::<Vec<_>>(),
+        vec!["preprocessing"]
     );
     assert_eq!(
         cleanup_outbox::Entity::find()
@@ -447,6 +506,70 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
             .await
             .unwrap(),
         1
+    );
+    let new_draft = save_authoring_document(&db, input(&source)).await.unwrap();
+    let new_plan = adopt_authoring_document(&db, comic.id, new_draft.id, new_draft.revision)
+        .await
+        .unwrap();
+    a4n_db::manga::upsert_manga_pipeline_artifact(
+        &db,
+        a4n_domain::manga::MangaPipelineArtifactDraft {
+            project_id: comic.id,
+            chapter_id: chapter.id,
+            stage: a4n_domain::manga::MangaPipelineArtifactStage::PageSlots,
+            page_number: None,
+            input_fingerprint: "slots-without-page-projections".into(),
+            payload: json!({"fixture":true}),
+            stale: false,
+        },
+        now,
+    )
+    .await
+    .unwrap();
+    let impact = preview_delete_authoring_document(
+        &db,
+        comic.id,
+        new_plan.id,
+        new_plan.kind,
+        new_plan.revision,
+    )
+    .await
+    .unwrap();
+    assert!(impact.manga_pages.is_empty());
+    assert_eq!(impact.manga_chapter_artifacts.len(), 1);
+    delete_authoring_document(
+        &db,
+        comic.id,
+        new_plan.id,
+        new_plan.kind,
+        new_plan.revision,
+        &impact.fingerprint,
+    )
+    .await
+    .unwrap();
+    assert!(
+        a4n_db::manga::manga_pipeline_artifact(
+            &db,
+            comic.id,
+            chapter.id,
+            a4n_domain::manga::MangaPipelineArtifactStage::PageSlots,
+            None
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    assert!(
+        a4n_db::manga::manga_pipeline_artifact(
+            &db,
+            comic.id,
+            chapter.id,
+            a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+            None
+        )
+        .await
+        .unwrap()
+        .is_some()
     );
 }
 

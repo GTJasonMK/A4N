@@ -56,9 +56,8 @@ impl OrchestratorContext {
                     prompt_name: "manga_page_drawing_prompt",
                     project_id,
                     workflow_run_id,
-                    call_key: format!(
-                        "manga_pipeline:{chapter_id}:manga_page_drawing_prompt:page:{page_number}"
-                    ),
+                    call_key: a4n_domain::manga::MangaModelCall::DrawingPrompt(page_number)
+                        .call_key(chapter_id),
                     call_order,
                     restore_from_checkpoint,
                     variables: vars,

@@ -2,6 +2,7 @@ mod artifacts;
 mod records;
 mod sync;
 mod types;
+pub(crate) mod workflows;
 
 pub async fn connect_manga_record_worker_database(
     database_url: String,
@@ -17,11 +18,12 @@ pub async fn connect_manga_record_worker_database(
 
 pub use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
 pub use artifacts::{
-    MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate,
-    create_manga_pipeline_artifact, delete_manga_pipeline_artifact, manga_pipeline_artifact,
-    manga_pipeline_artifact_deletion_plan, manga_pipeline_artifact_metadata_by_chapter,
-    manga_pipeline_artifacts_by_chapter, manga_pipeline_artifacts_by_chapters,
-    save_manga_pipeline_artifact_with_projection, upsert_manga_pipeline_artifact,
+    MangaPipelineArtifactDeletionPlan, MangaPipelineArtifactProjectionReset,
+    MangaPipelineArtifactProjectionUpdate, create_manga_pipeline_artifact,
+    delete_manga_pipeline_artifact, manga_pipeline_artifact, manga_pipeline_artifact_deletion_plan,
+    manga_pipeline_artifact_metadata_by_chapter, manga_pipeline_artifacts_by_chapter,
+    manga_pipeline_artifacts_by_chapters, save_manga_pipeline_artifact_with_projection,
+    upsert_manga_pipeline_artifact,
 };
 pub use records::{
     delete_manga_page_by_number, delete_manga_prompts_by_chapter, manga_page_prompt_by_id,

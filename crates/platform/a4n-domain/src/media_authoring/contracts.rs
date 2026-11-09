@@ -194,6 +194,7 @@ pub struct AuthoringDocumentRef {
 pub struct AuthoringDocumentDeletionImpact {
     pub dependent_documents: Vec<AuthoringDocumentDeletionDependency>,
     pub manga_pages: Vec<AuthoringMangaPageDeletion>,
+    pub manga_chapter_artifacts: Vec<AuthoringMangaChapterArtifactDeletion>,
     pub galgame_script: Option<AuthoringGalgameScriptDeletion>,
     pub fingerprint: String,
 }
@@ -211,6 +212,14 @@ pub struct AuthoringMangaPageDeletion {
     pub chapter_id: i64,
     pub page_number: i32,
     pub image_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthoringMangaChapterArtifactDeletion {
+    pub artifact_id: i64,
+    pub chapter_id: i64,
+    pub stage: crate::manga::MangaPipelineArtifactStage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -211,8 +211,8 @@ pub struct DeleteMangaPipelineArtifactInput {
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub page_number: Option<u32>,
-    #[schemars(length(min = 1))]
-    pub expected_artifact_ids: Vec<i64>,
+    #[schemars(length(min = 64, max = 64))]
+    pub expected_impact_fingerprint: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -230,7 +230,7 @@ pub struct PreviewMangaPipelineArtifactDeletionInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct MangaPipelineArtifactDeletionItem {
-    pub artifact_id: i64,
+    pub artifact_id: Option<i64>,
     pub stage: MangaPipelineArtifactStage,
     pub page_number: Option<u32>,
 }
@@ -239,6 +239,7 @@ pub struct MangaPipelineArtifactDeletionItem {
 pub struct MangaPipelineArtifactDeletionPreview {
     pub target: MangaPipelineArtifactDeletionItem,
     pub downstream: Vec<MangaPipelineArtifactDeletionItem>,
+    pub fingerprint: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

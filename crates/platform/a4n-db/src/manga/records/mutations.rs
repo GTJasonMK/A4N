@@ -5,8 +5,7 @@ use crate::manga::{
     validate_manga_page_prompt_layout,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
-use a4n_db_models::models::{chapter::manga_pipeline_artifact, project::novel_project};
+use a4n_db_models::models::chapter::manga_pipeline_artifact;
 use a4n_domain::manga::MangaPagePromptRecord;
 use chrono::Utc;
 use sea_orm::{
@@ -16,6 +15,9 @@ use sea_orm::{
 use serde_json::Value;
 
 use super::mapping::manga_page_prompt_record_from_model;
+use crate::manga::workflows::{
+    invalidate_deleted_manga_checkpoints, lock_manga_manual_write_scope,
+};
 
 pub async fn delete_manga_prompts_by_chapter(
     db: &impl crate::DbExecutor,
@@ -28,48 +30,9 @@ pub async fn delete_manga_prompts_by_chapter(
         .begin()
         .await
         .map_err(manga_record_database("开启漫画提示词删除事务失败"))?;
-    lock_manga_project(&txn, project_id).await?;
-    let runs = workflow_run::Entity::find()
-        .filter(workflow_run::Column::ProjectId.eq(project_id))
-        .filter(workflow_run::Column::ChapterId.eq(chapter_id))
-        .filter(workflow_run::Column::WorkflowKind.eq("manga_pipeline"))
-        .lock_exclusive()
-        .all(&txn)
-        .await
-        .map_err(manga_record_database("锁定待清理漫画工作流失败"))?;
-    if runs
-        .iter()
-        .any(|run| run.status == crate::workflow::WORKFLOW_STATUS_RUNNING)
-    {
-        return Err(MangaPromptRecordError::InvalidArgument(
-            "漫画流水线正在运行，不能删除全部产物".into(),
-        ));
-    }
+    let run_ids = lock_manga_manual_write_scope(&txn, project_id, chapter_id).await?;
     let deleted = delete_manga_prompt_outputs(&txn, project_id, chapter_id, None).await?;
-    let run_ids = runs.into_iter().map(|run| run.id).collect::<Vec<_>>();
-    if !run_ids.is_empty() {
-        // Keep call history and billing, but never restore outputs explicitly deleted by the user.
-        workflow_checkpoint::Entity::delete_many()
-            .filter(workflow_checkpoint::Column::WorkflowRunId.is_in(run_ids.iter().copied()))
-            .exec(&txn)
-            .await
-            .map_err(manga_record_database("清理漫画续跑检查点失败"))?;
-        workflow_run::Entity::update_many()
-            .col_expr(workflow_run::Column::CanResume, Expr::value(false))
-            .col_expr(
-                workflow_run::Column::ResumeBlockReason,
-                Expr::value("本章漫画产物已全部删除，请重新生成"),
-            )
-            .col_expr(
-                workflow_run::Column::UpdatedAt,
-                Expr::value(Utc::now().naive_utc()),
-            )
-            .filter(workflow_run::Column::Id.is_in(run_ids))
-            .filter(workflow_run::Column::CanResume.eq(true))
-            .exec(&txn)
-            .await
-            .map_err(manga_record_database("更新漫画续跑状态失败"))?;
-    }
+    invalidate_deleted_manga_checkpoints(&txn, &run_ids, chapter_id, None).await?;
     txn.commit()
         .await
         .map_err(manga_record_database("提交漫画提示词删除事务失败"))?;
@@ -93,24 +56,21 @@ pub async fn delete_manga_page_by_number(
         .begin()
         .await
         .map_err(manga_record_database("开启漫画页面删除事务失败"))?;
-    lock_manga_project(&txn, project_id).await?;
+    let run_ids = lock_manga_manual_write_scope(&txn, project_id, chapter_id).await?;
     delete_manga_prompt_outputs(&txn, project_id, chapter_id, Some(page_number)).await?;
+    invalidate_deleted_manga_checkpoints(
+        &txn,
+        &run_ids,
+        chapter_id,
+        Some((
+            a4n_domain::manga::MangaPipelineArtifactStage::PageContent,
+            Some(page_number as u32),
+        )),
+    )
+    .await?;
     txn.commit()
         .await
         .map_err(manga_record_database("提交漫画页面删除事务失败"))
-}
-
-async fn lock_manga_project<C: ConnectionTrait>(
-    db: &C,
-    project_id: i64,
-) -> Result<(), MangaPromptRecordError> {
-    novel_project::Entity::find_by_id(project_id)
-        .lock_exclusive()
-        .one(db)
-        .await
-        .map_err(manga_record_database("锁定漫画项目删除范围失败"))?
-        .ok_or_else(|| MangaPromptRecordError::NotFound("漫画项目不存在".into()))?;
-    Ok(())
 }
 
 async fn delete_manga_prompt_outputs<C: ConnectionTrait>(
@@ -357,6 +317,7 @@ pub async fn mark_manga_page_prompt_image_completed_with_image(
     db: &impl crate::DbExecutor,
     page_prompt_id: i64,
     image_id: i64,
+    expected_prompt_updated_at: MangaPromptUpdatedAt,
     updated_at: MangaPromptUpdatedAt,
 ) -> Result<(), MangaPromptRecordError> {
     require_positive_manga_id(page_prompt_id, "page_prompt_id")?;
@@ -375,6 +336,7 @@ pub async fn mark_manga_page_prompt_image_completed_with_image(
             Expr::value(updated_at),
         )
         .filter(chapter_manga_prompt::Column::Id.eq(page_prompt_id))
+        .filter(chapter_manga_prompt::Column::UpdatedAt.eq(expected_prompt_updated_at))
         .filter(chapter_manga_prompt::Column::GeneratedImageId.is_null())
         .exec(db)
         .await
@@ -394,7 +356,7 @@ pub async fn mark_manga_page_prompt_image_completed_with_image(
             ));
         }
         return Err(MangaPromptRecordError::Conflict(
-            "漫画页面图片状态更新冲突，请刷新后重试".into(),
+            "漫画页面提示词已变化或已删除阶段，不能回写旧请求的图片，请刷新后重试".into(),
         ));
     }
     Ok(())

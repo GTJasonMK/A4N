@@ -369,10 +369,8 @@ async fn preview_page_reference_discovery(
         service: context.service,
         prompt_name: "manga_page_reference_discovery",
         workflow_run_id: context.workflow_run_id,
-        call_key: format!(
-            "manga_pipeline:{}:page:{}:reference_discovery",
-            context.chapter_id, page_number
-        ),
+        call_key: a4n_domain::manga::MangaModelCall::ReferenceDiscovery(page_number)
+            .call_key(context.chapter_id),
         call_order: manga_page_pipeline_call_order(index, 2)?,
         restore_from_checkpoint: context.resume_from_checkpoint,
         prompt_renderer: context.prompt_renderer,
@@ -428,10 +426,8 @@ async fn preview_page_adaptation(
         service: context.service,
         prompt_name: "manga_page_adaptation_plan",
         workflow_run_id: context.workflow_run_id,
-        call_key: format!(
-            "manga_pipeline:{}:page:{}:adaptation",
-            context.chapter_id, page_number
-        ),
+        call_key: a4n_domain::manga::MangaModelCall::PageAdaptation(page_number)
+            .call_key(context.chapter_id),
         call_order: manga_page_pipeline_call_order(index, 0)?,
         restore_from_checkpoint: context.resume_from_checkpoint,
         prompt_renderer: context.prompt_renderer,
@@ -491,10 +487,8 @@ async fn preview_page_storyboard(
         service: context.service,
         prompt_name: "manga_page_storyboard",
         workflow_run_id: context.workflow_run_id,
-        call_key: format!(
-            "manga_pipeline:{}:page:{}:storyboard",
-            context.chapter_id, page_number
-        ),
+        call_key: a4n_domain::manga::MangaModelCall::Storyboard(page_number)
+            .call_key(context.chapter_id),
         call_order: manga_page_pipeline_call_order(index, 1)?,
         restore_from_checkpoint: context.resume_from_checkpoint,
         prompt_renderer: context.prompt_renderer,
@@ -558,10 +552,8 @@ async fn preview_page_drawing_prompt(
         service: context.service,
         prompt_name: "manga_page_drawing_prompt",
         workflow_run_id: context.workflow_run_id,
-        call_key: format!(
-            "manga_pipeline:{}:manga_page_drawing_prompt:page:{}",
-            context.chapter_id, page_number
-        ),
+        call_key: a4n_domain::manga::MangaModelCall::DrawingPrompt(page_number)
+            .call_key(context.chapter_id),
         call_order: manga_page_pipeline_call_order(index, 3)?,
         restore_from_checkpoint: context.resume_from_checkpoint,
         prompt_renderer: context.prompt_renderer,
