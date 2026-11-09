@@ -89,6 +89,109 @@ async fn valid_output_does_not_call_model_again() {
     assert_eq!(id, 1);
 }
 
+#[tokio::test]
+async fn duplicate_weather_is_located_and_corrected_without_dropping_other_scenes() {
+    use a4n_domain::manga::MangaPreprocessingStep;
+    let scene = json!({"index":0,"location":"车站","location_en":"station","time_of_day":"night",
+        "atmosphere":"安静","weather":null,"lighting":"顶灯","indoor_outdoor":"indoor",
+        "description":"人物站在门口","source_event_ids":["event-1"],"source_span_ids":["span-1"]});
+    let mut second = scene.clone();
+    second["index"] = json!(1);
+    second["weather"] = json!("rain");
+    let valid =
+        json!({"visual_anchors":{"scenes":[scene,second]},"items":{"items":[]}}).to_string();
+    let expected = valid.clone();
+    let invalid = valid.replacen("\"weather\":null", "\"weather\":null,\"weather\":null", 1);
+    let request = request()
+        .with_json_schema_response_format(
+            "manga_preprocessing_visuals",
+            MangaPreprocessingStep::Visuals.output_schema(),
+            false,
+        )
+        .unwrap();
+    let (adopted, ()) = correct_llm_response(
+        &request,
+        response(&invalid),
+        "manga_preprocessing_visuals",
+        None,
+        |_| Ok(()),
+        |corrective| async move {
+            let feedback: Value =
+                serde_json::from_str(&corrective.messages.last().unwrap().content).unwrap();
+            assert_eq!(feedback["json_rules"]["unique_object_keys"], true);
+            assert!(
+                feedback["validation_error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("/visual_anchors/scenes/0/weather")
+            );
+            assert!(
+                feedback["json_error_context"]["excerpt"]
+                    .as_str()
+                    .unwrap()
+                    .contains("\"weather\":null,\"weather\":null")
+            );
+            Ok(response(&valid))
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(adopted.message.content, expected);
+    assert_eq!(
+        serde_json::from_str::<Value>(&expected).unwrap()["visual_anchors"]["scenes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn syntax_feedback_keeps_the_error_in_the_middle_of_a_long_unicode_response() {
+    let padding = "正文".repeat(6000);
+    let raw = format!(
+        r#"{{"head":"{padding}","scenes":[{{"weather":null,"weather":null}}],"tail":"{padding}"}}"#
+    );
+    let schema = json!({"type":"object","required":["head","scenes","tail"],"properties":{
+    "head":{"type":"string"},"tail":{"type":"string"},"scenes":{"type":"array","items":{
+        "type":"object","required":["weather"],"properties":{"weather":{"type":["string","null"]}}
+    }}}});
+    let request = request()
+        .with_json_schema_response_format("long_visuals", schema, false)
+        .unwrap();
+    correct_llm_response(
+        &request,
+        response(&raw),
+        "long_visuals",
+        None,
+        |_| Ok(()),
+        |corrective| async move {
+            let feedback: Value =
+                serde_json::from_str(&corrective.messages.last().unwrap().content).unwrap();
+            assert!(
+                !feedback["previous_response_excerpt"]
+                    .as_str()
+                    .unwrap()
+                    .contains("weather")
+            );
+            let focus = feedback["json_error_context"]["excerpt"].as_str().unwrap();
+            assert!(focus.contains(r#""weather":null,"weather":null"#));
+            assert!(focus.chars().count() <= MAX_JSON_ERROR_EXCERPT_CHARS);
+            assert!(
+                feedback["json_error_context"]["excerpt_start_character"]
+                    .as_u64()
+                    .unwrap()
+                    > 0
+            );
+            Ok(response(
+                r#"{"head":"source","scenes":[{"weather":null}],"tail":"source"}"#,
+            ))
+        },
+    )
+    .await
+    .unwrap();
+}
+
 #[tokio::test(start_paused = true)]
 async fn correction_can_finish_after_ninety_seconds_without_a_second_deadline() {
     let (_, id) =

@@ -127,6 +127,7 @@ def anchor_fault_response(body, fault, expected_root=None):
 def response_for(body: dict[str, Any]) -> str:
     messages = body.get("messages", [])
     original_messages = []
+    feedback = None
     for message in messages:
         content = message.get("content")
         try:
@@ -135,8 +136,11 @@ def response_for(body: dict[str, Any]) -> str:
             value = None
         if not isinstance(value, dict) or value.get("kind") != "model_output_correction":
             original_messages.append(message)
+        else:
+            feedback = value
     if len(original_messages) != len(messages):
-        return response_for({**body, "messages": original_messages, "_a4n_correction": True})
+        return response_for({**body, "messages": original_messages, "_a4n_correction": True,
+                             "_a4n_correction_feedback": feedback})
     model = str(body.get("model", ""))
     if model.startswith("a4n-page-planning-"):
         raw = response_for({**body, "model": "a4n-virtual-text"})
@@ -149,6 +153,21 @@ def response_for(body: dict[str, Any]) -> str:
         raw = response_for({**body, "model": "a4n-virtual-text"})
         combined = "\n".join(message_text(message.get("content", "")) for message in body.get("messages", []))
         step = current_task_prompt_name(combined)
+        if step == "manga_preprocessing_visuals" and model in {
+            "a4n-preprocessing-fail-weather", "a4n-preprocessing-recover-weather",
+        }:
+            feedback = body.get("_a4n_correction_feedback") or {}
+            # Recovery depends on useful production feedback, not just a retry flag.
+            if model == "a4n-preprocessing-recover-weather" and (
+                feedback.get("json_rules", {}).get("unique_object_keys") is True
+                and "/visual_anchors/scenes/0/weather" in feedback.get("validation_error", "")
+                and '"weather":null,"weather":null' in feedback.get("json_error_context", {}).get("excerpt", "")
+            ):
+                return raw
+            compact = json.dumps(json.loads(raw), ensure_ascii=False, separators=(",", ":"))
+            if '"weather":null' not in compact:
+                raise ValueError("weather fault fixture requires a nullable scene weather")
+            return compact.replace('"weather":null', '"weather":null,"weather":null', 1)
         if step == "manga_preprocessing_speech" and (
             model == "a4n-preprocessing-fail-speech"
             or (model == "a4n-preprocessing-recover-speech" and not body.get("_a4n_correction"))

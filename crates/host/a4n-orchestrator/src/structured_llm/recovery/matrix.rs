@@ -16,6 +16,39 @@ fn response(value: &Value) -> ChatResponse {
     }
 }
 
+fn duplicate_object_key(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(fields) if !fields.is_empty() => {
+            let raw = value.to_string();
+            let (key, value) = fields.iter().next().unwrap();
+            Some(format!(
+                "{},{}:{value}}}",
+                &raw[..raw.len() - 1],
+                serde_json::to_string(key).unwrap()
+            ))
+        }
+        Value::Array(values) => values.iter().enumerate().find_map(|(index, child)| {
+            let duplicate = duplicate_object_key(child)?;
+            Some(format!(
+                "[{}]",
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| {
+                        if i == index {
+                            duplicate.clone()
+                        } else {
+                            item.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ))
+        }),
+        _ => None,
+    }
+}
+
 #[tokio::test]
 #[ignore = "run through model-fast/model-full with exported production contract vectors"]
 async fn model_contract_matrix_production_recovery() {
@@ -105,6 +138,61 @@ async fn model_contract_matrix_production_recovery() {
         json!(corrected.is_ok()),
         json!({"adopted":corrected.as_ref().map(|(response,_)|response.message.content.clone()).ok()}),
     );
+    // These must stay raw: parsing into Value first would erase duplicate object keys.
+    for (fault, raw) in [
+        (
+            "duplicate-keys",
+            duplicate_object_key(valid).expect("business fixture contains an object"),
+        ),
+        ("trailing-json", format!("{valid} {{}}")),
+        ("markdown-fence", format!("```json\n{valid}\n```")),
+        ("malformed-json", "{".to_string()),
+    ] {
+        for recovers in [false, true] {
+            let counter = Arc::new(AtomicUsize::new(0));
+            let seen = counter.clone();
+            let mut initial = response(valid);
+            initial.message.content = raw.clone();
+            let repeated = initial.clone();
+            let result = correct_llm_response(
+                &request,
+                initial,
+                call_id,
+                None,
+                |_| Ok(()),
+                |corrective| async move {
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    let feedback: Value =
+                        serde_json::from_str(&corrective.messages.last().unwrap().content).unwrap();
+                    assert_eq!(feedback["json_rules"]["unique_object_keys"], true);
+                    assert!(feedback["json_error_context"]["line"].as_u64().unwrap() > 0);
+                    if fault == "duplicate-keys" {
+                        assert!(
+                            feedback["validation_error"]
+                                .as_str()
+                                .unwrap()
+                                .contains("重复 JSON 字段")
+                        );
+                    }
+                    Ok(if recovers { response(valid) } else { repeated })
+                },
+            )
+            .await;
+            assert_case(
+                call_id,
+                "runtime-json",
+                fault,
+                if recovers {
+                    "corrected-replacement"
+                } else {
+                    "persistent-rejection"
+                },
+                json!({"accepted":recovers,"corrections":1}),
+                json!({"accepted":result.is_ok(),"corrections":counter.load(Ordering::SeqCst)}),
+                json!({"raw_json":raw,"error":result.err().map(|error|error.to_string())}),
+            );
+        }
+    }
     let cancelled = CancellationToken::new();
     cancelled.cancel();
     let result = correct_llm_response(

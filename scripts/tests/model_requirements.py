@@ -78,6 +78,9 @@ def required_case_ids(ledger:dict,inventory:dict,corpus:dict,profile:str)->set[s
         result.update(f"{call_id}/{preset['id']}/business-schema/actual-wire-roundtrip" for preset in inventory["catalogs"]["text"])
         if call_id in boundaries:continue
         result.add(f"{call_id}/runtime-schema/correction/valid-replacement")
+        result.update(f"{call_id}/runtime-json/{fault}/{outcome}"
+            for fault in ("duplicate-keys", "trailing-json", "markdown-fence", "malformed-json")
+            for outcome in ("corrected-replacement", "persistent-rejection"))
         result.add(f"{call_id}/runtime-schema/cancellation/no-late-adoption")
         result.update(f"{call_id}/runtime-schema/{reason}/terminal-before-validation" for reason in ("missing-finish","length","content_filter"))
     if profile=="model-full":

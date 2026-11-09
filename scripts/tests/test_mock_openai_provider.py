@@ -1017,6 +1017,43 @@ class MockOpenAIProviderTest(unittest.TestCase):
             facts_messages = [{"role": "user", "content": messages[0]["content"].replace("manga_preprocessing_speech", "manga_preprocessing_facts")}]
             self.assertEqual(response_for({"model": model, "messages": facts_messages}), response_for({"messages": facts_messages}))
 
+    def test_visual_weather_fault_requires_precise_correction_feedback(self) -> None:
+        from mock_openai.contract_guard import unique_object
+        messages = [{"role": "user", "content": json.dumps({
+            "task": {"prompt_name": "manga_preprocessing_visuals"},
+            "input": {"source": "#0 林岚检查怀表。"},
+        }, ensure_ascii=False)}]
+        normal = json.loads(response_for({"messages": messages}), object_pairs_hook=unique_object)
+        useful = {
+            "kind": "model_output_correction",
+            "json_rules": {"unique_object_keys": True},
+            "validation_error": "重复 JSON 字段 `weather`，JSON Pointer `/visual_anchors/scenes/0/weather`",
+            "json_error_context": {"excerpt": '"weather":null,"weather":null'},
+        }
+        for model in ("a4n-preprocessing-fail-weather", "a4n-preprocessing-recover-weather"):
+            with self.subTest(model=model):
+                body = {"model": model, "messages": messages}
+                invalid = response_for(body)
+                with self.assertRaisesRegex(ValueError, "duplicate JSON key: weather"):
+                    json.loads(invalid, object_pairs_hook=unique_object)
+                for missing in ("json_rules", "validation_error", "json_error_context"):
+                    insufficient = {key: value for key, value in useful.items() if key != missing}
+                    corrected = response_for({**body, "messages": [*messages, {
+                        "role": "user", "content": json.dumps(insufficient),
+                    }]})
+                    self.assertEqual(corrected, invalid)
+                corrected = response_for({**body, "messages": [*messages, {
+                    "role": "user", "content": json.dumps(useful),
+                }]})
+                if model.endswith("recover-weather"):
+                    self.assertEqual(json.loads(corrected, object_pairs_hook=unique_object), normal)
+                else:
+                    self.assertEqual(corrected, invalid)
+                for step in ("facts", "speech", "synthesis"):
+                    other = [{**messages[0], "content": messages[0]["content"].replace(
+                        "manga_preprocessing_visuals", "manga_preprocessing_" + step)}]
+                    self.assertEqual(response_for({"model": model, "messages": other}), response_for({"messages": other}))
+
     def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
         def request(page_number: int | None, assets: list[dict[str, object]] | None) -> str:
             stable_input: dict[str, object] = {}

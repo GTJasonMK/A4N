@@ -89,6 +89,15 @@ class ModelEvidenceTests(unittest.TestCase):
         self.report["required_cases"].remove(removed["case_id"])
         with self.assertRaisesRegex(EvidenceError,"必测项"):self.verify()
 
+    def test_raw_json_cases_cannot_be_replaced_by_parsed_schema_cases(self):
+        raw = {row["case_id"] for row in self.report["cases"] if "/runtime-json/" in row["case_id"]}
+        self.assertEqual(len(raw), 8)
+        self.assertIn("task/runtime-json/duplicate-keys/corrected-replacement", raw)
+        self.assertIn("task/runtime-json/duplicate-keys/persistent-rejection", raw)
+        self.report["cases"] = [row for row in self.report["cases"] if row["case_id"] not in raw]
+        self.report["required_cases"] = [case_id for case_id in self.report["required_cases"] if case_id not in raw]
+        with self.assertRaisesRegex(EvidenceError, "必测项"): self.verify()
+
     def test_pass_label_cannot_hide_a_failed_assertion(self):
         self.report["cases"][0].update(expected=True,actual=False)
         with self.assertRaisesRegex(EvidenceError,"实际结果"):self.verify()

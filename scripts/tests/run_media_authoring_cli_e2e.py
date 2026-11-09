@@ -151,11 +151,13 @@ def main():
                     assert expected_error in json.dumps(task, ensure_ascii=False), task
                 return task
 
-            def preprocessing_model(name, max_concurrent=4):
+            def preprocessing_model(name, max_concurrent=4, provider=None):
                 snapshot = copy.deepcopy(mock_runtime)
                 snapshot["llm"]["model"] = name
                 snapshot["llm"]["max_output_tokens"] = 20000
                 snapshot["llm"]["max_concurrent"] = max_concurrent
+                if provider is not None:
+                    snapshot["llm"]["provider"] = provider
                 secure_json(work / "runtime.json", snapshot)
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "preprocessing model")
 
@@ -347,6 +349,54 @@ def main():
             corrected_calls = new_preprocessing_calls(before)
             assert len(corrected_calls) == 5 and [name for name, _ in corrected_calls].count(preprocessing_names[1]) == 2
             passed("单步字段或引用错误经过唯一纠正后可完成，其他步骤不重调")
+
+            def weather_calls(offset):
+                result = []
+                for row in provider_log_entries(args.provider_log)[offset:]:
+                    body = row.get("body", {})
+                    messages = body.get("messages", body.get("input", []))
+                    if not isinstance(messages, list):
+                        continue
+                    name = current_task_prompt_name(fixture_prompt_parts(messages)[1])
+                    if name in preprocessing_names:
+                        result.append((name, row))
+                return result
+
+            for provider, endpoint in (("openai", "/v1/chat/completions"), ("openai-responses", "/v1/responses")):
+                for recovers in (False, True):
+                    project = derive("comic", f"视觉重复字段 {provider} {recovers}")
+                    model = "a4n-preprocessing-" + ("recover-weather" if recovers else "fail-weather")
+                    preprocessing_model(model, provider=provider)
+                    before = len(provider_log_entries(args.provider_log))
+                    manga_run(project, run_stage="preprocessing", expected_error=None if recovers else "重复 JSON 字段 `weather`")
+                    attempts = weather_calls(before)
+                    assert len(attempts) == (5 if recovers else 4), attempts
+                    visual = [row for name, row in attempts if name == preprocessing_names[2]]
+                    assert len(visual) == 2 and all(row["path"] == endpoint for row in visual), visual
+                    body = visual[1]["body"]
+                    feedback = json.loads(message_text(body.get("messages", body.get("input"))[-1]["content"]))
+                    assert feedback["json_rules"]["unique_object_keys"] is True
+                    assert "/visual_anchors/scenes/0/weather" in feedback["validation_error"]
+                    assert '"weather":null,"weather":null' in feedback["json_error_context"]["excerpt"]
+                    assert feedback["max_correction_attempts"] == 1
+                    artifacts = call("list_manga_pipeline_artifacts", {"project_id": project, "chapter_id": chapter_id})
+                    if recovers:
+                        assert len([item for item in artifacts if item["stage"] == "preprocessing"]) == 1, artifacts
+                        assert [name for name, _ in attempts].count(preprocessing_names[3]) == 1
+                        passed(f"{provider}：原始重复 weather 在唯一一次纠正中收到路径、原文与唯一字段规则后修正，四步共五次调用才发布产物")
+                        continue
+                    assert not any(item["stage"] == "preprocessing" for item in artifacts), artifacts
+                    assert not any(name == preprocessing_names[3] for name, _ in attempts)
+                    assert call("list_manga_page_prompts", {"project_id": project, "chapter_id": chapter_id}) == []
+                    preprocessing_model("a4n-virtual-text", provider=provider)
+                    preview = call("preview_resume_manga_pipeline_request", {"project_id": project, "chapter_number": 1, "run_stage": "preprocessing"})
+                    assert [step["state"] for step in preview["steps"]] == ["reused", "reused", "ready", "waiting_dependencies"], preview
+                    before = len(provider_log_entries(args.provider_log))
+                    manga_run(project, run_stage="preprocessing", resume=True)
+                    assert [name for name, _ in weather_calls(before)] == [preprocessing_names[2], preprocessing_names[3]]
+                    artifacts = call("list_manga_pipeline_artifacts", {"project_id": project, "chapter_id": chapter_id})
+                    assert len([item for item in artifacts if item["stage"] == "preprocessing"]) == 1, artifacts
+                    passed(f"{provider}：持续重复 weather 仅纠正一次，不发布脏产物或启动综合；续跑保留事实/对白，只补视觉与综合")
 
             cancelled_project = derive("comic", "漫画预处理取消")
             preprocessing_model("a4n-preprocessing-slow")

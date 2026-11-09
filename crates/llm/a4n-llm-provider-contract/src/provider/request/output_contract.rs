@@ -46,7 +46,7 @@ impl ChatRequest {
         }
         if !found {
             let instruction = format!(
-                "{START}\n{contract}\n{END}\n以上为系统输出合同。仅输出符合该 Schema 的完整 JSON；required 字段不可省略，null、空对象和缺少字段含义不同。来源引用与业务规则仍以任务输入为准。"
+                "{START}\n{contract}\n{END}\n以上为系统输出合同。仅输出符合该 Schema 的完整 JSON；required 字段不可省略，null、空对象和缺少字段含义不同。同一个 JSON 对象内每个字段名只能写一次，即使值相同也不得重复；不同对象可以各自拥有同名字段。来源引用与业务规则仍以任务输入为准。"
             );
             if self
                 .messages
@@ -208,6 +208,11 @@ mod tests {
             1
         );
         assert_eq!(request.messages[0].content, "自定义创作方向");
+        assert!(request.messages.iter().any(|message| {
+            message
+                .content
+                .contains("同一个 JSON 对象内每个字段名只能写一次")
+        }));
         let validator = request.output_validator().unwrap().unwrap();
         assert!(validator.validate(&json!({"id":1,"state":{}})).is_ok());
         for invalid in [
