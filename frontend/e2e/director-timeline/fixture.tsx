@@ -8,6 +8,7 @@ import { ImageLightboxProvider } from "../../src/components/ui/ImageLightbox";
 import { MediaStageHeader } from "../../src/components/shell/MediaStageHeader";
 import { ChapterVisualPlanTab } from "../../src/pages/novel-detail/ChapterVisualPlanTab";
 import { planChanges } from "../../src/pages/novel-detail/visual-plan/changes";
+import { canonicalJson } from "../../src/utils/contentHash";
 import { writeFixtureAuth } from "../fixtureAuth";
 import type { ChapterVisualPlanV3 } from "../../src/api/chapterVisualPlan";
 import type { ChapterSummary } from "../../src/api/chapter";
@@ -193,7 +194,9 @@ window.fetch = async (resource, options) => {
     }
     default: return new Response(JSON.stringify({ message: `Unimplemented fixture command: ${command}` }), { status: 501 });
   }
-  return new Response(JSON.stringify(result), { status: 200, headers: { "content-type": "application/json" } });
+  // A worker response may reorder object keys without changing the saved plan.
+  const body = command === "save_chapter_visual_plan_draft" ? canonicalJson(result) : JSON.stringify(result);
+  return new Response(body, { status: 200, headers: { "content-type": "application/json" } });
 };
 
 function Fixture() {

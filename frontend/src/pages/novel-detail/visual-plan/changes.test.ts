@@ -15,6 +15,37 @@ const fixture = (): ChapterVisualPlanV3 => ({
 });
 
 describe("native director reconciliation", () => {
+  it("ignores object field order in transport round trips", () => {
+    const plan = fixture();
+    plan.segments[0].scene_binding = { kind: "transition", from_scene_profile_id: 11, to_scene_profile_id: 22 };
+    const reordered = structuredClone(plan);
+    reordered.frame = { height: plan.frame.height, width: plan.frame.width };
+    reordered.segments[0].scene_binding = { to_scene_profile_id: 22, from_scene_profile_id: 11, kind: "transition" };
+    expect(JSON.stringify(reordered)).not.toBe(JSON.stringify(plan));
+    expect(planChanges(plan, reordered)).toEqual([]);
+  });
+
+  it("merges a real binding change when the local binding uses a different field order", () => {
+    const base = fixture();
+    base.segments[0].scene_binding = { kind: "transition", from_scene_profile_id: 11, to_scene_profile_id: 22 };
+    const remote = structuredClone(base);
+    remote.segments[0].scene_binding = { kind: "scene", scene_profile_id: 22 };
+    const local = structuredClone(base);
+    local.segments[0].scene_binding = { to_scene_profile_id: 22, from_scene_profile_id: 11, kind: "transition" };
+    expect(applyPlanChanges(local, planChanges(base, remote), undefined, t)).toEqual(remote);
+  });
+
+  it("keeps absent points distinct from existing points during insertion and removal", () => {
+    const base = fixture();
+    const next = structuredClone(base);
+    next.points.splice(1, 0, { ...next.points[0], id: "middle", at_ms: 5000 });
+    const changes = planChanges(base, next);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].before).toBeUndefined();
+    expect(applyPlanChanges(base, changes, undefined, t)).toEqual(next);
+    expect(applyPlanChanges(next, inverseChanges(changes), undefined, t)).toEqual(base);
+  });
+
   it("merges disjoint fields, deduplicates receipts and selectively undoes an Agent batch", () => {
     const base = fixture();
     const agent = structuredClone(base);

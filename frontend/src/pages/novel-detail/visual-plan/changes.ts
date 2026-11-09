@@ -1,5 +1,6 @@
 import type { ChapterVisualPlanV3, ChapterVisualPlanView } from "../../../api/chapterVisualPlan";
 import type { MessageKey, MessageParams } from "../../../i18n/translate";
+import { canonicalJson } from "../../../utils/contentHash";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
 
@@ -11,7 +12,8 @@ export interface PlanChange {
   after: unknown;
 }
 
-const equal = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
+const equal = (left: unknown, right: unknown): boolean => left === right
+  || (left !== undefined && right !== undefined && canonicalJson(left) === canonicalJson(right));
 type Fields = Record<string, unknown>;
 const fieldNameKeys: Record<string, MessageKey> = {
   label: "visualPlan.workspace.name",

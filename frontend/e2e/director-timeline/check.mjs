@@ -13,6 +13,7 @@ await mkdir(artifacts, { recursive: true });
 const environment = { ...process.env, TMPDIR: temporary };
 const port = 43871;
 const driverPort = 43872;
+const savedStatus = "导演编排草稿已保存";
 const processes = [];
 let browser;
 const logs = [];
@@ -81,7 +82,8 @@ async function assertWorkspaceFits(state) {
   for (const region of measurement.regions) {
     assert.ok(region.height > 0 && region.top >= 0 && region.bottom <= measurement.height + 1 && region.left >= 0 && region.right <= measurement.width + 1, `${state}: region must stay on screen: ${JSON.stringify(region)}`);
     if (region.selector === ".director-viewer") assert.ok(region.height >= 100, `${state}: preview must remain usable, not shrink to a thumbnail`);
-    if (region.selector === ".director-timeline") assert.ok(region.height <= (measurement.width >= 768 ? 180 : 240), `${state}: timeline must leave room for the preview`);
+    // The inspector can make the timeline narrow even in a desktop viewport.
+    if (region.selector === ".director-timeline") assert.ok(region.height <= (region.right - region.left >= 768 ? 180 : 240), `${state}: timeline must leave room for the preview`);
   }
 }
 async function assertStageNavigation(width) {
@@ -90,12 +92,13 @@ async function assertStageNavigation(width) {
   const tabs = await browser.$(".a4n-media-stage-tabs nav");
   assert.equal(await selector.isDisplayed(), compact, `${width}px: compact stage selector visibility`);
   assert.equal(await tabs.isDisplayed(), !compact, `${width}px: wide stage tabs visibility`);
-  const compactTimeline = await browser.execute(() =>
-    document.querySelector(".director-workspace").getBoundingClientRect().width <= 600,
-  );
-  assert.equal(await browser.$(".director-timeline-scroll-hint").isDisplayed(), compactTimeline,
-    `${width}px: compact timeline must explain horizontal scrolling`);
-  if (compactTimeline) {
+  const scrollableTimeline = await browser.execute(() => {
+    const timeline = document.querySelector(".director-timeline-scroll");
+    return timeline.scrollWidth > timeline.clientWidth + 1;
+  });
+  assert.equal(await browser.$(".director-timeline-scroll-hint").isDisplayed(), scrollableTimeline,
+    `${width}px: a scrollable timeline must explain horizontal scrolling`);
+  if (scrollableTimeline) {
     const scroll = await browser.execute(() => {
       const timeline = document.querySelector(".director-timeline-scroll");
       const start = timeline.scrollLeft;
@@ -115,7 +118,7 @@ async function assertStageNavigation(width) {
     await browser.keys(["Home", "ArrowDown", "Enter"]);
     assert.match(await selector.getText(), /导演编排/, "the active stage must remain directly selectable");
   }
-  return { width, compact, compactTimeline };
+  return { width, compact, scrollableTimeline };
 }
 try {
   const vite = launch(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]);
@@ -139,6 +142,35 @@ try {
   const description = await browser.$(".director-fields textarea");
   const originalDescription = await description.getValue();
   const originalLabel = await browser.$(".director-fields input").getValue();
+  const initialSaves = await browser.execute(() => window.directorCommands.filter((item) => item.command === "save_chapter_visual_plan_draft").length);
+  await description.setValue("仅修改一次，保存回执会调整 JSON 字段顺序");
+  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === savedStatus, {
+    timeout: 6000,
+    timeoutMsg: "字段顺序变化不应让已保存草稿持续处于未保存状态",
+  });
+  const stableSave = await browser.executeAsync((done) => {
+    const button = [...document.querySelectorAll(".director-inline-actions button")].find((item) => item.textContent.includes("确认视觉编排"));
+    const saveCount = () => window.directorCommands.filter((item) => item.command === "save_chapter_visual_plan_draft").length;
+    const before = saveCount();
+    let disabledChanges = 0;
+    const observer = new MutationObserver((mutations) => { disabledChanges += mutations.length; });
+    observer.observe(button, { attributes: true, attributeFilter: ["disabled"] });
+    setTimeout(() => {
+      observer.disconnect();
+      done({ before, after: saveCount(), disabledChanges, disabled: button.disabled,
+        connected: button.isConnected, status: document.querySelector(".director-save-status").textContent });
+    }, 2400);
+  });
+  assert.equal(stableSave.before, initialSaves + 1, "one edit should produce exactly one save");
+  assert.equal(stableSave.after, stableSave.before, "idle saved plans must not be saved repeatedly");
+  assert.equal(stableSave.disabledChanges, 0, "confirmation must not flicker between enabled and disabled");
+  assert.equal(stableSave.disabled, false);
+  assert.equal(stableSave.connected, true);
+  assert.equal(stableSave.status, savedStatus);
+  measurements.push({ state: "saved-confirmation-stability", ...stableSave });
+  await browser.saveScreenshot(path.join(artifacts, "stable-confirmation.png"));
+  await description.setValue(originalDescription);
+  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === savedStatus);
   const initialReads = await browser.execute(() => window.directorCommands.filter((item) => item.command === "get_chapter_visual_plan").length);
   await browser.execute(() => {
     window.nativeWorkspace = document.querySelector(".director-workspace");
@@ -166,7 +198,7 @@ try {
   assert.equal(await browser.$(".director-fields input").getValue(), originalLabel);
   assert.equal(await description.getValue(), "保存期间继续输入，必须保留", "undo of a remote batch retains manual input");
   await description.setValue(originalDescription);
-  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === "草稿已保存");
+  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === savedStatus);
   await description.setValue("本地冲突字段");
   await browser.execute(() => window.emitDirectorPointChange("p1", { description: "远端冲突字段", label: "非冲突字段合并保留" }));
   await browser.$("button=冲突字段保留我的编辑").waitForDisplayed();
@@ -177,7 +209,7 @@ try {
   assert.equal(await browser.$(".director-fields input").getValue(), "非冲突字段合并保留");
   await description.setValue(originalDescription);
   await browser.$(".director-fields input").setValue(originalLabel);
-  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === "草稿已保存");
+  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === savedStatus);
   for (const width of [1024, 390]) {
     await setViewport(width, 844);
     if (width === 390) await browser.$('[aria-label="属性"]').click();
@@ -199,7 +231,7 @@ try {
     assert.equal(await localDescription.getValue(), "窄屏远端版本");
     await localDescription.setValue(originalDescription);
     if (width === 390) await browser.keys("Escape");
-    await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === "草稿已保存");
+    await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === savedStatus);
   }
   await setViewport(1440, 900);
   await browser.$('[aria-label^="固定端点 0s"]').click();
@@ -276,15 +308,15 @@ try {
   await openSelect("场景");
   await browser.keys(["Home", "ArrowDown", "Enter"]);
   await browser.$$(".director-point")[1].click();
-  await browser.$("button=分镜候选（2）").click();
+  await browser.$("button=分镜候选 (2)").click();
   await browser.$('[role="dialog"]').waitForDisplayed();
   await browser.$(".director-point-candidate-grid").waitForDisplayed();
   assert.equal((await browser.$$(".director-point-candidate")).length, 2, "one image point must retain multiple generated candidates");
-  assert.equal((await browser.$$("button=切换为此图")).length, 2);
-  await browser.$$("button=切换为此图")[0].click();
+  assert.equal((await browser.$$("button=切换绑定为此候选图")).length, 2);
+  await browser.$$("button=切换绑定为此候选图")[0].click();
   await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "save_chapter_visual_plan_draft" && call.input.plan.points[1].image_id === 9)));
-  assert.equal((await browser.$$("button=当前绑定")).length, 1, "an image point can bind only one candidate");
-  assert.equal((await browser.$$("button=切换为此图")).length, 1, "the other candidate must remain switchable");
+  assert.equal((await browser.$$("button=当前绑定候选图")).length, 1, "an image point can bind only one candidate");
+  assert.equal((await browser.$$("button=切换绑定为此候选图")).length, 1, "the other candidate must remain switchable");
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0, "candidate dialog must not overflow the document");
   await browser.saveScreenshot(path.join(artifacts, "desktop-candidates.png"));
   await browser.keys("Escape");
@@ -302,7 +334,7 @@ try {
   await browser.$("button=完成").click();
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
   await browser.$('[aria-label="调整整体时长"]').click();
-  await browser.$('[aria-label="整体时长（秒）"]').setValue("30");
+  await browser.$('[aria-label^="整体时长"]').setValue("30");
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
   assert.equal(await browser.execute(() => window.directorCommands.some((call) => call.command === "edit_chapter_visual_plan_draft" && call.input.operation.duration_ms === 30000)), false, "Escape must cancel an uncommitted duration edit");
@@ -423,7 +455,7 @@ try {
   assert.equal(await browser.$("h3=拆分镜头").isDisplayed(), true, "Escape must close the select before its dialog");
   await browser.keys("Escape");
   await browser.$("h3=放弃拆分镜头编辑？").waitForDisplayed();
-  await browser.$("button=放弃编辑").click();
+  await browser.$("button=放弃草稿").click();
   await browser.$("h3=拆分镜头").waitForDisplayed({ reverse: true });
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
@@ -540,10 +572,10 @@ try {
   assert.doesNotMatch(await browser.$(".director-save-status").getText(), /保存中/);
   await browser.execute(() => window.switchDirectorChapter(3));
   await browser.$(".director-empty").waitForDisplayed();
-  await browser.$("button=重新加载").waitForDisplayed();
+  await browser.$("button=重试加载").waitForDisplayed();
   assert.equal(await browser.$(".director-viewer").isExisting(), false, "a failed chapter load must never display the previous chapter's plan");
   const report = { passed: true, cases: ["all four frame aspect ratios", "viewport fitting inside the real chapter workspace", "compact timeline reserves preview space", "shared track hit targets", "timing dialog and cancelled edits", "default desktop inspector", "container resize without viewport resize", "read-only controls", "points independent of segments", "play/pause", "prompt autosave payload", "proportional retime request", "responsive overflow", "mobile dialog and Escape", "mobile media, size and candidate actions clear of footer", "mobile bottom actions reachable", "dialog keyboard isolation", "point and segment boundary pointer gestures", "chapter switch during pending mutation", "chapter load failure never displays the previous plan"], measurements };
-  report.nativeEditingChecks = ["late save preserves newer manual input", "SSE receipts apply without editor reload or remount", "selection, playhead and focus survive receipt application", "batch undo preserves intervening manual edits", "overlapping changes pause autosave and preserve both versions", "conflict resolution merges unaffected fields"];
+  report.nativeEditingChecks = ["one edit settles after a reordered JSON acknowledgement without repeated saves or confirmation flicker", "late save preserves newer manual input", "SSE receipts apply without editor reload or remount", "selection, playhead and focus survive receipt application", "batch undo preserves intervening manual edits", "overlapping changes pause autosave and preserve both versions", "conflict resolution merges unaffected fields"];
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } catch (error) {

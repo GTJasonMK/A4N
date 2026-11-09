@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { useToast } from "../../../components/feedback/Toast";
 import { useI18n } from "../../../i18n";
+import { canonicalJson } from "../../../utils/contentHash";
 import { applyPlanChanges, describePlanConflicts, inverseChanges, planChanges, receiptChanges, type PlanChange } from "./changes";
 import { subscribeVisualPlanEdits, VisualPlanInvalidatedError } from "../../../api/visualPlanEdits";
 import {
@@ -51,7 +52,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   const editable = canEdit && !invalidated && (record == null || record.record.status === "draft");
 
   const replace = useCallback((next: ChapterVisualPlanV3) => {
-    const nextJson = JSON.stringify(next);
+    const nextJson = canonicalJson(next);
     if (serializedPlan.current !== nextJson) editorRevision.current = crypto.randomUUID();
     serializedPlan.current = nextJson;
     planRef.current = next;
@@ -61,7 +62,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
 
   const acceptRecord = useCallback((next: ChapterVisualPlanView) => {
     recordRef.current = next;
-    baseline.current = JSON.stringify(next.plan);
+    baseline.current = canonicalJson(next.plan);
     setRecord(next);
   }, []);
 
