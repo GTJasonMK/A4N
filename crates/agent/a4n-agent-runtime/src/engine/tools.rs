@@ -1,4 +1,7 @@
 use super::*;
+use a4n_api_contract::chapter_visual_plan::{
+    ChapterVisualPlanView, ConfirmedChapterVisualPlanView,
+};
 
 #[derive(Clone)]
 pub(crate) struct RuntimeAgentToolExecutor {
@@ -556,15 +559,21 @@ pub fn tool_result_refs(
                 label: Some("已应用正文补丁".into()),
             });
         }
-        "save_chapter_visual_plan_draft" => {
-            let saved: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView =
-                serde_json::from_value(value.clone())?;
+        "save_chapter_visual_plan_draft" | "confirm_chapter_visual_plan" => {
+            let (saved, label) = if name == "confirm_chapter_visual_plan" {
+                let confirmed: ConfirmedChapterVisualPlanView =
+                    serde_json::from_value(value.clone())?;
+                (confirmed.visual_plan, "已确认视觉方案")
+            } else {
+                let saved: ChapterVisualPlanView = serde_json::from_value(value.clone())?;
+                (saved, "视觉方案草稿")
+            };
             push_ref(AgentResourceRef {
                 kind: "chapter_visual_plan".into(),
                 id: saved.record.id.to_string(),
                 revision: Some(saved.record.revision.to_string()),
                 hash: Some(saved.record.plan_sha256),
-                label: Some("视觉方案草稿".into()),
+                label: Some(label.into()),
             });
         }
         "run_canvas_node" | "run_canvas_graph" => {

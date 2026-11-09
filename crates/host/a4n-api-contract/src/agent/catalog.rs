@@ -124,6 +124,7 @@ pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
     "read_chapter_visual_plan",
     "edit_chapter_visual_plan_draft",
     "validate_chapter_visual_plan",
+    "confirm_chapter_visual_plan",
     "list_profiles",
     "list_scene_profiles",
     "list_object_profiles",
@@ -243,6 +244,7 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "read_image",
             "edit_chapter_visual_plan_draft",
             "validate_chapter_visual_plan",
+            "confirm_chapter_visual_plan",
             "save_chapter_visual_plan_draft",
             "get_chapter_visual_plan",
             "get_project",
@@ -304,6 +306,7 @@ pub fn agent_phase_for_tool(tool: &str) -> &'static str {
         | "run_canvas_node"
         | "save_chapter_visual_plan_draft"
         | "edit_chapter_visual_plan_draft"
+        | "confirm_chapter_visual_plan"
         | "save_editor_draft" => AGENT_PHASE_APPLY,
         "validate_chapter_visual_plan"
         | "read_agent_execution_result"

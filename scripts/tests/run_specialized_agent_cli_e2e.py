@@ -120,10 +120,10 @@ def main():
                 if source: parts += ["--editor-source", json.dumps(source)]
                 return data(checked(cli, parts, "agent chat")[0], "agent chat")["run_id"]
 
-            def wait_state(run_id, reason):
+            def wait_state(run_id, reason, target_thread_id=None):
                 deadline = time.monotonic() + 60
                 while time.monotonic() < deadline:
-                    snapshot = thread_snapshot(cli, thread_id)
+                    snapshot = thread_snapshot(cli, target_thread_id or thread_id)
                     run = next(row for row in snapshot["runs"] if row["id"] == run_id)
                     if run["status"] == "waiting" and run["waiting_reason"] == reason:
                         return snapshot
@@ -445,12 +445,47 @@ def main():
                 "from_scene_profile_id": scene_a_id,
                 "to_scene_profile_id": scene_b_id,
             }
-            confirmed = call("confirm_chapter_visual_plan", {
+            broken_segment = copy.deepcopy(plan["segments"][1])
+            broken_segment["scene_binding"] = {
+                "kind": "transition", "from_scene_profile_id": scene_b_id, "to_scene_profile_id": scene_a_id,
+            }
+            broken = call("edit_chapter_visual_plan_draft", {
                 **compose_resource,
                 "record_id": composed_draft["record"]["id"],
                 "expected_revision": composed_draft["record"]["revision"],
-            }, destructive=True)["visual_plan"]
+                "operation": {"kind": "update_segment", "segment": broken_segment},
+            })["visual_plan"]
+            confirm_run = data(checked(cli, [
+                "agent", "chat", compose_thread["id"],
+                MARKER + json.dumps({"mode": "confirm", "project_id": project["id"], "chapter_id": compose_chapter["id"]}),
+                "--execution-mode", "autonomous",
+            ], "confirm through Director Agent")[0], "confirm Agent")["run_id"]
+            pending = wait_state(confirm_run, "approval", compose_thread["id"])
+            pending_approval = next(row for row in pending["approvals"] if row["status"] == "pending")
+            pending_execution = next(row for row in pending["executions"] if row["id"] == pending_approval["execution_id"])
+            assert pending_execution["tool_name"] == "confirm_chapter_visual_plan"
+            before_approval = call("get_chapter_visual_plan", compose_resource)
+            assert before_approval["confirmed"] is None
+            assert before_approval["draft"]["record"]["revision"] == broken["record"]["revision"]
+            approve(pending)
+            confirmation = finish_with_approvals(confirm_run)
+            confirmation_executions = [row for row in confirmation["executions"] if row["run_id"] == confirm_run]
+            confirms = [row for row in confirmation_executions if row["tool_name"] == "confirm_chapter_visual_plan"]
+            assert [row["status"] for row in confirms] == ["failed", "succeeded"], confirms
+            assert "segments[1].scene_binding" in confirms[0]["error"]
+            assert "from_scene_profile_id" in confirms[0]["error"] and "to_scene_profile_id" in confirms[0]["error"]
+            assert not confirms[0]["result_refs"]
+            assert any(row["tool_name"] == "validate_chapter_visual_plan" and row["status"] == "succeeded" for row in confirmation_executions)
+            saved_confirmation = call("get_chapter_visual_plan", compose_resource)
+            assert saved_confirmation["draft"] is None
+            confirmed = saved_confirmation["confirmed"]
             assert confirmed["record"]["status"] == "confirmed"
+            assert confirmed["plan"] == plan, "repair must preserve every other authored field"
+            assert confirmed["record"]["revision"] > broken["record"]["revision"]
+            assert any(ref["kind"] == "chapter_visual_plan" and ref["id"] == str(confirmed["record"]["id"]) and ref["revision"] == str(confirmed["record"]["revision"]) for ref in confirms[1]["result_refs"])
+            call("confirm_chapter_visual_plan", {**compose_resource, "record_id": confirmed["record"]["id"], "expected_revision": broken["record"]["revision"]}, failure=True, destructive=True)
+            assert call("get_chapter_visual_plan", compose_resource)["confirmed"]["record"] == confirmed["record"]
+            report["checks"].append("Director confirmation remains approval gated in autonomous mode; real transition errors drive an isolated repair, confirmed validation and successful confirmation with exact result refs; stale revisions do not change the confirmed plan")
             handle = call("start_chapter_shooting_script_generation", {
                 **compose_resource,
                 "visual_plan_id": confirmed["record"]["id"],

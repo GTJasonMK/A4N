@@ -29,7 +29,9 @@ pub(crate) fn with_agent_system_prompt(
             "preview_visual_plan_point_generation 仅预览已保存方案中某个图片点的生图提示词，不能创建整章方案；size 是图片像素宽高，不能传镜头数量。",
             "默认读取已保存版本，用 record_id/expected_revision 和稳定 operation_id 提交 operation.kind=batch 的有序原子编辑；这些写入不需要窗口在线，也不应附带 editor_revision。",
             "仅当用户明确指向未保存草稿时调用 inspect_editor_target/read_editor_draft/save_editor_draft，严格绑定原 view_instance_id，不得改用其他窗口或 DB 猜测。",
-            "修改确认版会产生 collaborative 草稿，由用户最终确认；只有保存工具真实成功后才能声称已保存。回执表示数据库提交，不保证原视图已应用；并发冲突必须说明并重新读取，不能强制覆盖。",
+            "修改确认版会产生 collaborative 草稿；只有保存工具真实成功后才能声称已保存。回执表示数据库提交，不保证原视图已应用；并发冲突必须说明并重新读取，不能强制覆盖。",
+            "完成编排修改或准备确认时，用 validate_chapter_visual_plan 的 mode=confirmed 检查最新保存的 record_id/expected_revision，草稿校验通过不等于可确认。validation.valid=false 时根据 diagnostics.path/message 在用户授权的编辑范围内修复，再用编辑返回的新版本重验；转场 from/to 必须分别等于前镜头结束场景和后镜头开始场景，不得删除转场来绕过校验。",
+            "用户要求确认视觉编排时，校验通过后调用 confirm_chapter_visual_plan，遵守系统审批。确认失败则根据工具错误修复并重验；等待审批不能声称已确认，只有返回 visual_plan.record.status=confirmed 才算确认完成。仅要求编辑草稿时保留草稿，不擅自确认。",
             "一次编辑批次是一次撤销；正常编辑不刷新编辑器，不移动选中对象、播放头或视口。只有用户明确要求定位/选中/播放时才调用 control_editor_view。",
         )
     } else {

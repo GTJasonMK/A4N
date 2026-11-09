@@ -15,6 +15,97 @@ pub(super) fn invalid(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chapter_visual_plan::{VisualPointV3, VisualSegmentV3};
+
+    fn transition_plan() -> ChapterVisualPlanV3 {
+        let mut plan = ChapterVisualPlanV3::starter();
+        let point = plan.points[0].clone();
+        let segment = plan.segments[0].clone();
+        plan.points = (0..4)
+            .map(|index| VisualPointV3 {
+                id: format!("p{index}"),
+                at_ms: index * 1000,
+                ..point.clone()
+            })
+            .collect();
+        plan.segments = (0..3)
+            .map(|index| VisualSegmentV3 {
+                id: format!("shot-{index}"),
+                start_point_id: format!("p{index}"),
+                end_point_id: format!("p{}", index + 1),
+                prompt: "穿过车站进入机房".into(),
+                scene_binding: Some(match index {
+                    0 => SceneBindingV3::Scene {
+                        scene_profile_id: 11,
+                    },
+                    1 => SceneBindingV3::Transition {
+                        from_scene_profile_id: 11,
+                        to_scene_profile_id: 22,
+                    },
+                    _ => SceneBindingV3::Scene {
+                        scene_profile_id: 22,
+                    },
+                }),
+                ..segment.clone()
+            })
+            .collect();
+        plan
+    }
+
+    #[test]
+    fn transition_diagnostics_identify_each_wrong_field_and_its_repair() {
+        for (from, to) in [(99, 22), (11, 98), (99, 98)] {
+            let mut plan = transition_plan();
+            plan.segments[1].scene_binding = Some(SceneBindingV3::Transition {
+                from_scene_profile_id: from,
+                to_scene_profile_id: to,
+            });
+            plan.validate_draft().unwrap();
+            let error = plan.validate_confirmed().unwrap_err();
+            assert_eq!(error.path, "segments[1].scene_binding");
+            assert!(error.message.contains("镜头段 shot-1"));
+            assert_eq!(
+                error.message.contains(
+                    "from_scene_profile_id 应为 11（前镜头段 shot-0 的结束场景），实际为 99"
+                ),
+                from != 11
+            );
+            assert_eq!(
+                error.message.contains(
+                    "to_scene_profile_id 应为 22（后镜头段 shot-2 的开始场景），实际为 98"
+                ),
+                to != 22
+            );
+            plan.segments[1].scene_binding = transition_plan().segments[1].scene_binding.clone();
+            plan.validate_confirmed().unwrap();
+        }
+    }
+
+    #[test]
+    fn adjacent_transitions_use_their_exit_and_entry_scenes() {
+        let mut plan = transition_plan();
+        plan.segments[0].scene_binding = Some(SceneBindingV3::Transition {
+            from_scene_profile_id: 7,
+            to_scene_profile_id: 11,
+        });
+        plan.segments[2].scene_binding = Some(SceneBindingV3::Transition {
+            from_scene_profile_id: 22,
+            to_scene_profile_id: 33,
+        });
+        plan.validate_confirmed().unwrap();
+        plan.segments[1].scene_binding = Some(SceneBindingV3::Transition {
+            from_scene_profile_id: 7,
+            to_scene_profile_id: 33,
+        });
+        let error = plan.validate_confirmed().unwrap_err();
+        assert_eq!(error.path, "segments[0].scene_binding");
+        assert!(error.message.contains("to_scene_profile_id 应为 7"));
+    }
+}
+
 impl ChapterVisualPlanV3 {
     pub fn validate_draft(&self) -> Result<(), ChapterVisualPlanValidationError> {
         self.validate(false)
@@ -112,14 +203,35 @@ impl ChapterVisualPlanV3 {
                         .segments
                         .get(index + 1)
                         .and_then(|segment| segment.scene_binding.as_ref());
-                    if previous
-                        .is_some_and(|scene| scene.exit_scene_id() != binding.entry_scene_id())
-                        || next
-                            .is_some_and(|scene| scene.entry_scene_id() != binding.exit_scene_id())
+                    let mut mismatches = Vec::new();
+                    if let Some(previous) =
+                        previous.filter(|scene| scene.exit_scene_id() != binding.entry_scene_id())
                     {
+                        mismatches.push(format!(
+                            "from_scene_profile_id 应为 {}（前镜头段 {} 的结束场景），实际为 {}",
+                            previous.exit_scene_id(),
+                            self.segments[index - 1].id,
+                            binding.entry_scene_id(),
+                        ));
+                    }
+                    if let Some(next) =
+                        next.filter(|scene| scene.entry_scene_id() != binding.exit_scene_id())
+                    {
+                        mismatches.push(format!(
+                            "to_scene_profile_id 应为 {}（后镜头段 {} 的开始场景），实际为 {}",
+                            next.entry_scene_id(),
+                            self.segments[index + 1].id,
+                            binding.exit_scene_id(),
+                        ));
+                    }
+                    if !mismatches.is_empty() {
                         return Err(invalid(
                             format!("{path}.scene_binding"),
-                            "转场的起止场景须与相邻镜头一致",
+                            format!(
+                                "转场的起止场景须与相邻镜头一致（镜头段 {}）：{}",
+                                segment.id,
+                                mismatches.join("；"),
+                            ),
                         ));
                     }
                 }

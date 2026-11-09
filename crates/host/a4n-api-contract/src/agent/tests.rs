@@ -168,6 +168,52 @@ fn director_read_schema_exposes_the_same_page_bounds_as_execution() {
 }
 
 #[test]
+fn director_confirmation_is_exposed_with_the_host_contract_and_approval() {
+    use a4n_domain::json_contract::OutputSchemaValidator;
+
+    assert!(
+        initial_agent_tools(DIRECTOR_AGENT_CAPABILITY).contains(&"confirm_chapter_visual_plan")
+    );
+    assert!(capability_allows_tool(
+        DIRECTOR_AGENT_CAPABILITY,
+        "confirm_chapter_visual_plan"
+    ));
+    for capability in [
+        CANVAS_AGENT_CAPABILITY,
+        CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+    ] {
+        assert!(!capability_allows_tool(
+            capability,
+            "confirm_chapter_visual_plan"
+        ));
+    }
+    let tool = agent_tool_descriptor("confirm_chapter_visual_plan").unwrap();
+    let host = command_descriptor("confirm_chapter_visual_plan").unwrap();
+    assert_eq!(tool.args_schema, host.args_schema);
+    assert_eq!(tool.result_schema, host.result_schema);
+    assert_eq!(agent_phase_for_tool(&tool.name), AGENT_PHASE_APPLY);
+    assert!(agent_tool_requires_user_approval(&tool.name, &tool.effect));
+    let validator = OutputSchemaValidator::new(&tool.args_schema).unwrap();
+    let valid = json!({"input": {"project_id": 18, "source_chapter_id": 9, "record_id": 12, "expected_revision": 3}});
+    validator.validate(&valid).unwrap();
+    for field in [
+        "project_id",
+        "source_chapter_id",
+        "record_id",
+        "expected_revision",
+    ] {
+        for value in [json!(0), json!(null), json!("3")] {
+            let mut invalid = valid.clone();
+            invalid["input"][field] = value;
+            assert!(validator.validate(&invalid).is_err(), "{field}");
+        }
+    }
+    let mut invalid = valid;
+    invalid["input"]["plan"] = json!({});
+    assert!(validator.validate(&invalid).is_err());
+}
+
+#[test]
 fn restricted_tool_search_is_pinned_without_misreading_capability_as_domain() {
     let mut input = SearchAgentToolsInput {
         query: Some("edit article".into()),

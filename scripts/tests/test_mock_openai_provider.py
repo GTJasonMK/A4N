@@ -572,6 +572,57 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertIsNone(save["arguments"]["input"]["record_id"])
         self.assertIsNone(save["arguments"]["input"]["expected_revision"])
 
+    def test_director_confirmation_repairs_observed_errors_before_confirming(self) -> None:
+        from specialized_agent_fixture import MARKER, director_fixture
+
+        messages = [{"role": "user", "content": MARKER + json.dumps({"mode": "confirm", "project_id": 18, "chapter_id": 9})}]
+        body = {"tools": []}
+
+        def observe(decision, observation):
+            call = decision["tool_call"]
+            messages.extend([
+                {"role": "assistant", "content": decision["content"], "tool_calls": [call]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(observation)},
+            ])
+
+        outline = director_fixture(body, messages)
+        self.assertEqual(outline["tool_call"]["name"], "read_chapter_visual_plan")
+        observe(outline, agent_observation({"resource": {"id": "12", "revision": "3"}, "projection": {"items": [
+            {"segment_id": "before", "scene_binding": {"kind": "scene", "scene_profile_id": 11}},
+            {"segment_id": "transition", "scene_binding": {"kind": "transition", "from_scene_profile_id": 22, "to_scene_profile_id": 11}},
+            {"segment_id": "after", "scene_binding": {"kind": "scene", "scene_profile_id": 22}},
+        ]}}))
+        confirm = director_fixture(body, messages)
+        self.assertEqual(confirm["tool_call"]["name"], "confirm_chapter_visual_plan")
+        error = agent_observation(None)
+        error.update(status="error", error={"code": "INVALID_ARGUMENT", "retryable": False, "next_action": "describe_tool_then_fix_arguments", "details": {
+            "message": "segments[1].scene_binding transition: from_scene_profile_id 应为 11; to_scene_profile_id 应为 22",
+        }})
+        observe(confirm, error)
+        read = director_fixture(body, messages)
+        self.assertEqual(read["tool_call"]["arguments"]["input"]["view"]["segment_id"], "transition")
+        original = {"id": "transition", "prompt": "保留原有镜头", "scene_binding": {"kind": "transition", "from_scene_profile_id": 22, "to_scene_profile_id": 11}}
+        observe(read, agent_observation({"projection": {"segment": original}}))
+        repair = director_fixture(body, messages)
+        self.assertEqual(repair["tool_call"]["name"], "edit_chapter_visual_plan_draft")
+        repaired_segment = repair["tool_call"]["arguments"]["input"]["operation"]["segment"]
+        self.assertEqual(repaired_segment, {**original, "scene_binding": {"kind": "transition", "from_scene_profile_id": 11, "to_scene_profile_id": 22}})
+        observe(repair, agent_observation({"resource": {"id": "12", "revision": "4"}}))
+        validate = director_fixture(body, messages)
+        self.assertEqual(validate["tool_call"]["name"], "validate_chapter_visual_plan")
+        self.assertEqual(validate["tool_call"]["arguments"]["input"]["mode"], "confirmed")
+        observe(validate, agent_observation({"validation": {"valid": False}}))
+        with self.assertRaisesRegex(ValueError, "still fails"):
+            director_fixture(body, messages)
+        messages[-1]["content"] = json.dumps(agent_observation({"validation": {"valid": True}}))
+        final_confirm = director_fixture(body, messages)
+        self.assertEqual(final_confirm["tool_call"]["arguments"]["input"]["expected_revision"], 4)
+        observe(final_confirm, agent_observation({"visual_plan": {"record": {"status": "draft"}}}))
+        with self.assertRaisesRegex(ValueError, "confirmed record"):
+            director_fixture(body, messages)
+        messages[-1]["content"] = json.dumps(agent_observation({"visual_plan": {"record": {"status": "confirmed"}}}))
+        self.assertNotIn("tool_call", director_fixture(body, messages))
+
     def test_director_summary_keeps_saved_plan_and_revision_without_duplicated_receipts(self) -> None:
         from specialized_agent_fixture import fixture_call, summary_fixture, SUMMARY_STATE_MARKER
 

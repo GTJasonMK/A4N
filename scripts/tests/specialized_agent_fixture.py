@@ -299,9 +299,8 @@ def director_fixture(body, messages):
             observations[logical_ids[message["tool_call_id"]]] = observation_data(message)
     for key, result in observations.items():
         if "error" in result and not (
-            key == "bootstrap_misuse"
-            and task.get("mode") == "compose"
-            and task.get("recover_preview_misuse")
+            (key == "bootstrap_misuse" and task.get("mode") == "compose" and task.get("recover_preview_misuse"))
+            or (key == "confirm_invalid" and task.get("mode") == "confirm")
         ):
             return {"content": "操作未完成：" + str(result["error"])}
 
@@ -517,6 +516,53 @@ def director_fixture(body, messages):
         if image is None:
             raise ValueError("image generation did not publish a director candidate")
         return {"content": "已读取图片生成候选，图片点仍等待用户显式绑定。"}
+
+    if mode == "confirm":
+        resource = {"project_id": task["project_id"], "source_chapter_id": task["chapter_id"]}
+        if "outline" not in observations:
+            return host("outline", "read_chapter_visual_plan", {
+                **resource, "view": {"kind": "outline", "offset": 0, "limit": 20},
+            })
+        outline = observations["outline"]
+        current = outline["resource"]
+        base = {**resource, "record_id": int(current["id"]), "expected_revision": int(current["revision"])}
+        # Intentionally exercise the confirmation failure boundary before repairing the fixture.
+        if "confirm_invalid" not in observations:
+            return host("confirm_invalid", "confirm_chapter_visual_plan", base)
+        error = observations["confirm_invalid"].get("error", {})
+        segments = outline["projection"]["items"]
+        previous, transition, following = segments
+        previous_binding, next_binding = previous["scene_binding"], following["scene_binding"]
+        from_id = previous_binding["scene_profile_id"] if previous_binding["kind"] == "scene" else previous_binding["to_scene_profile_id"]
+        to_id = next_binding["scene_profile_id"] if next_binding["kind"] == "scene" else next_binding["from_scene_profile_id"]
+        message = error.get("details", {}).get("message", "")
+        if error.get("code") != "INVALID_ARGUMENT" or not all(text in message for text in (
+            "segments[1].scene_binding", transition["segment_id"],
+            f"from_scene_profile_id 应为 {from_id}", f"to_scene_profile_id 应为 {to_id}",
+        )):
+            raise ValueError("invalid confirmation did not return actionable transition diagnostics")
+        if "segment" not in observations:
+            return host("segment", "read_chapter_visual_plan", {
+                **base, "view": {"kind": "segment", "segment_id": transition["segment_id"]},
+            })
+        if "repair" not in observations:
+            segment = observations["segment"]["projection"]["segment"]
+            return host("repair", "edit_chapter_visual_plan_draft", {
+                **base, "operation": {"kind": "update_segment", "segment": {
+                    **segment, "scene_binding": {"kind": "transition", "from_scene_profile_id": from_id, "to_scene_profile_id": to_id},
+                }},
+            })
+        repaired = observations["repair"]["resource"]
+        repaired_base = {**resource, "record_id": int(repaired["id"]), "expected_revision": int(repaired["revision"])}
+        if "validate" not in observations:
+            return host("validate", "validate_chapter_visual_plan", {**repaired_base, "mode": "confirmed"})
+        if not observations["validate"]["validation"]["valid"]:
+            raise ValueError("repaired transition still fails confirmation validation")
+        if "confirm" not in observations:
+            return host("confirm", "confirm_chapter_visual_plan", repaired_base)
+        if observations["confirm"]["visual_plan"]["record"]["status"] != "confirmed":
+            raise ValueError("confirmation did not return a confirmed record")
+        return {"content": "已根据确认错误修正转场起止场景，通过确认标准校验并确认视觉编排。"}
 
     if mode == "compose":
         project_id, chapter_id = task["project_id"], task["chapter_id"]

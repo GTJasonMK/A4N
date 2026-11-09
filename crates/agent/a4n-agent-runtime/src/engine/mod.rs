@@ -301,5 +301,21 @@ mod tests {
             )
             .unwrap()
         );
+        assert!(
+            should_request_approval(
+                &approval_context("review_writes"),
+                "confirm_chapter_visual_plan",
+                "destructive"
+            )
+            .unwrap()
+        );
+        assert!(
+            should_request_approval(
+                &approval_context("advice_only"),
+                "confirm_chapter_visual_plan",
+                "destructive"
+            )
+            .is_err()
+        );
     }
 }
