@@ -1,6 +1,7 @@
 use super::errors::{source_error, visual_plan_error};
 use super::helpers::*;
 use crate::*;
+use a4n_api_contract::chapter_visual_plan::VISUAL_PLAN_SOURCE_PAGE_MAX;
 
 mod mutations;
 mod validation;
@@ -144,7 +145,13 @@ impl WorkerState {
                     return Err(WorkerFailure::conflict("原文版本已变化，请重新读取"));
                 }
                 let total_chars = source.content.chars().count();
-                let (start, end) = page_range(*offset, *limit, total_chars, 2_000, 2_000)?;
+                let (start, end) = page_range(
+                    *offset,
+                    *limit,
+                    total_chars,
+                    VISUAL_PLAN_SOURCE_PAGE_MAX,
+                    VISUAL_PLAN_SOURCE_PAGE_MAX,
+                )?;
                 VisualPlanProjection::Source {
                     text: source
                         .content

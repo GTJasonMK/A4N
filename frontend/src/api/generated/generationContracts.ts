@@ -635,8 +635,17 @@ export interface StartImageGenerationInput {
 export interface VisualPlanPointGenerationOptions {
   config_id?: number | null;
   expected_revision: number;
+  /**
+   * ID of an image point already present in the saved plan.
+   */
   point_id: string;
+  /**
+   * An existing saved visual-plan record, not a new-plan placeholder.
+   */
   record_id: number;
+  /**
+   * Image pixel dimensions {width, height}; omit to use the plan frame. Not a shot count.
+   */
   size?: ImageSize | null;
   source_chapter_id: number;
   user_description: string;

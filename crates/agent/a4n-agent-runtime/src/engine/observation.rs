@@ -49,13 +49,27 @@ pub fn bounded_observation(execution_id: i64, value: Value) -> Result<Value, App
     if size <= MAX_OBSERVATION_BYTES {
         return Ok(value);
     }
+    // Keep structural navigation when a large sibling hides the needed field.
+    let mut available_pointers = Vec::new();
+    if let Some(object) = value.as_object() {
+        for key in object.keys() {
+            let pointer = format!("/{}", key.replace('~', "~0").replace('/', "~1"));
+            if serde_json::to_vec(&pointer)?.len() <= 256 {
+                available_pointers.push(pointer);
+            }
+            if available_pointers.len() == 32 {
+                break;
+            }
+        }
+    }
     Ok(json!({
         "execution_id": execution_id.to_string(),
         "result_bytes": size,
         "complete": false,
         "name": value.get("name").and_then(Value::as_str).filter(|name| name.len() < 200),
         "read_tool": "read_agent_execution_result",
-        "message": "结果较大，已保存完整结果。按需使用 execution_id、JSON pointer、offset 和 limit 继续读取。"
+        "available_pointers": available_pointers,
+        "message": "结果较大，已保存完整结果。优先选择 available_pointers 中需要的字段，用 execution_id、JSON pointer、offset 和 limit 继续读取。"
     }))
 }
 
@@ -128,7 +142,7 @@ pub(super) fn from_result(
         && value.get("read_tool").is_some();
     let (status, text, error, data) = if let Some((message, code)) = failure {
         let (retryable, next_action) = retry_policy(&code);
-        let (text, details) = if partial {
+        let (text, mut details) = if partial {
             (
                 format!(
                     "工具 {tool_name} 失败，完整错误详情可通过 read_agent_execution_result 读取"
@@ -141,6 +155,12 @@ pub(super) fn from_result(
                 json!({"message": message}),
             )
         };
+        if code == "INVALID_ARGUMENT" {
+            details["contract_tool"] = json!({
+                "name": "describe_agent_tool",
+                "arguments": {"name": tool_name},
+            });
+        }
         (
             "error".to_string(),
             text,
@@ -211,6 +231,7 @@ pub(super) fn retry_policy(code: &str) -> (bool, String) {
         "RESOURCE_NOT_FOUND" => (true, "check_scope_or_identifier"),
         "EXTERNAL_UNAVAILABLE" | "TIMEOUT" => (true, "wait_or_report"),
         "PROTOCOL_ERROR" => (true, "retry_once_with_correct_shape"),
+        "INVALID_ARGUMENT" => (false, "describe_tool_then_fix_arguments"),
         _ => (false, "fix_arguments_or_report"),
     };
     (retryable, next_action.into())
@@ -389,6 +410,54 @@ mod tests {
         assert_eq!(error.details["execution_id"], "9");
         assert_eq!(error.details["read_tool"], "read_agent_execution_result");
         assert!(serde_json::to_vec(&value).unwrap().len() < super::MAX_OBSERVATION_BYTES);
+    }
+
+    #[test]
+    fn large_results_keep_bounded_readable_paths_without_copying_values() {
+        let mut original = json!({
+            "source": {"content": "正文".repeat(super::MAX_OBSERVATION_BYTES)},
+            "starter_plan": {"points": [], "segments": []},
+            "draft": null,
+            "confirmed": null,
+            "a/b~c": 42,
+        });
+        for index in 0..100 {
+            original[format!("{index:03}{}", "\u{0000}".repeat(300))] = json!("large key");
+        }
+        let value = super::bounded_observation(12, original.clone()).unwrap();
+        let paths = value["available_pointers"].as_array().unwrap();
+        assert!(paths.contains(&json!("/starter_plan")));
+        assert!(paths.contains(&json!("/draft")));
+        assert!(paths.contains(&json!("/confirmed")));
+        assert!(paths.contains(&json!("/a~1b~0c")));
+        for pointer in paths {
+            assert!(original.pointer(pointer.as_str().unwrap()).is_some());
+        }
+        assert!(value.get("source").is_none());
+        assert!(serde_json::to_vec(&value).unwrap().len() < super::MAX_OBSERVATION_BYTES);
+    }
+
+    #[test]
+    fn argument_errors_point_to_the_authoritative_tool_contract() {
+        let value = from_result(
+            56,
+            "preview_visual_plan_point_generation",
+            json!({"error": "unknown field `mode`", "code": "INVALID_ARGUMENT"}),
+        )
+        .unwrap();
+        let observation = parse(&value).unwrap();
+        assert_eq!(observation.status, "error");
+        let error = observation.error.unwrap();
+        assert!(!error.retryable);
+        assert_eq!(error.next_action, "describe_tool_then_fix_arguments");
+        assert_eq!(error.details["message"], "unknown field `mode`");
+        assert_eq!(
+            error.details["contract_tool"],
+            json!({
+                "name": "describe_agent_tool",
+                "arguments": {"name": "preview_visual_plan_point_generation"},
+            })
+        );
     }
 
     #[test]

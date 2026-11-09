@@ -54,6 +54,10 @@ def summary_fixture(source):
         call_id = message["tool_call_id"]
         name = names[call_id]
         value = json.loads(message["content"]) if name == "delegate" else observation_data(message)
+        if name == "edit_chapter_visual_plan_draft" and "error" not in value and value.get("complete") is not False:
+            # Resume from the saved plan/version; full change receipts stay in the execution.
+            value = {"resource": value["resource"], "changed": value["changed"],
+                     "visual_plan": {"plan": value["visual_plan"]["plan"]}}
         states[aliases[call_id]] = {"input_id": input_id, "key": aliases[call_id], "name": name, "data": value}
     tool_state = [SUMMARY_STATE_MARKER + json.dumps(state, ensure_ascii=False) for state in states.values()]
     if len(tool_state) > 64 or any(len(item) > 4000 for item in tool_state):
@@ -293,8 +297,12 @@ def director_fixture(body, messages):
     for message in messages[start:]:
         if message.get("role") == "tool":
             observations[logical_ids[message["tool_call_id"]]] = observation_data(message)
-    for result in observations.values():
-        if "error" in result:
+    for key, result in observations.items():
+        if "error" in result and not (
+            key == "bootstrap_misuse"
+            and task.get("mode") == "compose"
+            and task.get("recover_preview_misuse")
+        ):
             return {"content": "操作未完成：" + str(result["error"])}
 
     def call(key, name, arguments):
@@ -514,8 +522,19 @@ def director_fixture(body, messages):
         project_id, chapter_id = task["project_id"], task["chapter_id"]
         resource = {"project_id": project_id, "source_chapter_id": chapter_id}
 
-        # Full-plan reads and draft saves are intentionally activated through
-        # discovery before the Agent can compose a timeline from the starter.
+        if task.get("recover_preview_misuse"):
+            if "bootstrap_misuse" not in observations:
+                return host("bootstrap_misuse", "preview_visual_plan_point_generation", {
+                    "project_id": project_id,
+                    "options": {"source_chapter_id": chapter_id, "mode": "chapter"},
+                })
+            error = observations["bootstrap_misuse"].get("error", {})
+            if error.get("code") != "INVALID_ARGUMENT" or error.get("next_action") != "describe_tool_then_fix_arguments":
+                raise ValueError("preview misuse did not return actionable argument feedback")
+            if "preview_contract" not in observations:
+                contract = error["details"]["contract_tool"]
+                return call("preview_contract", contract["name"], contract["arguments"])
+
         if "get_chapter_visual_plan" not in visible:
             if "search" not in observations:
                 return call("search", "search_agent_tools", {"query": "visual_plan"})
@@ -531,7 +550,22 @@ def director_fixture(body, messages):
                     "describe_agent_tool",
                     {"name": "save_chapter_visual_plan_draft"},
                 )
-        starter = observations["plan"].get("starter_plan")
+        plan = observations["plan"]
+        if plan.get("complete") is False:
+            for field in ("draft", "confirmed", "starter_plan"):
+                pointer = "/" + field
+                if pointer not in plan.get("available_pointers", []):
+                    raise ValueError("large plan result lost its creation fields")
+                if field not in observations:
+                    return call(field, "read_agent_execution_result", {
+                        "execution_id": plan["execution_id"],
+                        "pointer": pointer, "offset": 0, "limit": 2000,
+                    })
+            if any(json.loads(observations[key]["text"]) is not None for key in ("draft", "confirmed")):
+                raise ValueError("compose fixture requires an empty saved timeline")
+            starter = json.loads(observations["starter_plan"]["text"])
+        else:
+            starter = plan.get("starter_plan")
         if not isinstance(starter, dict):
             raise ValueError("get_chapter_visual_plan did not return starter_plan")
         if "save" not in observations:

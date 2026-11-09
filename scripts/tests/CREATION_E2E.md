@@ -46,6 +46,7 @@ Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flow
 - `run_director_timeline_cli_e2e.py`：导演、镜头、片段、图片/视频、局部失效与媒体导出。
 - `run_shooting_async_cli_e2e.py`：后台任务、观察者断线、取消、部分结果、恢复与来源同步。
 - 全量生成矩阵额外运行 `run_media_authoring_cli_e2e.py`、`run_character_sync_resume_cli_e2e.py`、`run_scene_sync_cli_e2e.py`、`run_agent_cli_e2e.py`、`run_agent_domains_cli_e2e.py`、`run_specialized_agent_cli_e2e.py`、`run_llm_lifecycle_cli_e2e.py`、`run_llm_cache_cli_e2e.py`、`run_image_publication_cli_e2e.py`、`run_image_checkpoint_recovery_cli_e2e.py` 和 `run_portrait_generation_cli_e2e.py`。立绘套件覆盖新增、重绘、年龄变体及缺失批量生成，并检查 LLM/图片 Provider、任务终态、结果引用和正式记录。
+- `run_specialized_agent_cli_e2e.py` 的空白导演方案携带页面编辑器来源、使用长正文触发结果截断，并注入误用图片点预览工具的参数错误；验证错误提供合同查询入口、按 JSON pointer 读回 draft/confirmed/starter_plan、无在线编辑器响应时仍能审批保存及后续编辑，最终重读真实草稿的镜头、图片绑定、时长和版本。确定性决策只验证这条恢复与持久化路径，不证明真实模型每次都会选对工具。
 - `run_llm_lifecycle_cli_e2e.py` 还验证 Canvas LLM 输出驱动图片生成、图片作为视频首帧、Provider 请求与三类节点产物/checkpoint 读回。
 - `run_all_workflows_e2e.py` 以隔离 Mock Provider 执行 novel、分析/剧本、资料同步、Galgame、Manga、video 等 fixture；每个 `FIXTURE_PATHS` 业务路径和 chat/image/video Provider 路由都必须通过。
 - `generation-stages.e2e.mjs`：由真实页面操作完成生成、编辑、刷新及下游使用。

@@ -93,6 +93,81 @@ fn ordinary_manifest_agent_tools_use_the_shared_descriptor_gate() {
 }
 
 #[test]
+fn director_creation_and_image_preview_contracts_reject_the_observed_misuse() {
+    use crate::chapter_visual_plan::{ChapterVisualPlanV3, SaveChapterVisualPlanDraftInput};
+    use a4n_domain::json_contract::OutputSchemaValidator;
+
+    let save = agent_tool_descriptor("save_chapter_visual_plan_draft").unwrap();
+    let save_validator = OutputSchemaValidator::new(&save.args_schema).unwrap();
+    let creation = json!({"input": {
+        "project_id": 18, "source_chapter_id": 9, "authoring_mode": "collaborative",
+        "record_id": null, "expected_revision": null, "plan": ChapterVisualPlanV3::starter(),
+    }});
+    save_validator.validate(&creation).unwrap();
+    let input: SaveChapterVisualPlanDraftInput =
+        serde_json::from_value(creation["input"].clone()).unwrap();
+    input.plan.validate_draft().unwrap();
+
+    let preview = agent_tool_descriptor("preview_visual_plan_point_generation").unwrap();
+    let validator = OutputSchemaValidator::new(&preview.args_schema).unwrap();
+    let valid = json!({"input": {"project_id": 18, "options": {
+        "source_chapter_id": 9, "record_id": 12, "expected_revision": 1,
+        "point_id": "start", "user_description": "雨夜", "size": {"width": 1920, "height": 1080},
+    }}});
+    validator.validate(&valid).unwrap();
+    for invalid in [
+        json!({"input": {"project_id": 18, "options": {"source_chapter_id": 9, "mode": "chapter"}}}),
+        json!({"project_id": 18, "input": {"source_chapter_id": 9, "size": 12}}),
+        json!({"input": {"source_chapter_id": 9, "size": 12}}),
+    ] {
+        assert!(validator.validate(&invalid).is_err());
+    }
+    for (field, value) in [
+        ("size", json!(12)),
+        ("record_id", json!(0)),
+        ("expected_revision", json!(null)),
+        ("project_id", json!(18)),
+    ] {
+        let mut invalid = valid.clone();
+        invalid["input"]["options"][field] = value;
+        assert!(validator.validate(&invalid).is_err(), "{field}");
+    }
+}
+
+#[test]
+fn director_read_schema_exposes_the_same_page_bounds_as_execution() {
+    use crate::chapter_visual_plan::{VISUAL_PLAN_OUTLINE_PAGE_MAX, VISUAL_PLAN_SOURCE_PAGE_MAX};
+    use a4n_domain::json_contract::OutputSchemaValidator;
+
+    let descriptor = agent_tool_descriptor("read_chapter_visual_plan").unwrap();
+    let validator = OutputSchemaValidator::new(&descriptor.args_schema).unwrap();
+    for (kind, max) in [
+        ("outline", VISUAL_PLAN_OUTLINE_PAGE_MAX),
+        ("source", VISUAL_PLAN_SOURCE_PAGE_MAX),
+    ] {
+        for limit in [json!(null), json!(1), json!(max)] {
+            validator
+                .validate(&json!({"input": {
+                    "project_id": 18, "source_chapter_id": 9,
+                    "view": {"kind": kind, "offset": 0, "limit": limit},
+                }}))
+                .unwrap();
+        }
+        for limit in [json!(0), json!(max + 1)] {
+            assert!(
+                validator
+                    .validate(&json!({"input": {
+                        "project_id": 18, "source_chapter_id": 9,
+                        "view": {"kind": kind, "offset": 0, "limit": limit},
+                    }}))
+                    .is_err(),
+                "{kind}: {limit}"
+            );
+        }
+    }
+}
+
+#[test]
 fn restricted_tool_search_is_pinned_without_misreading_capability_as_domain() {
     let mut input = SearchAgentToolsInput {
         query: Some("edit article".into()),

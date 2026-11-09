@@ -527,6 +527,72 @@ class MockOpenAIProviderTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "changed versions"):
             agent_chat_fixture({"messages": parent_messages})
 
+    def test_director_bootstrap_recovers_contract_and_reads_large_plan_by_pointer(self) -> None:
+        from specialized_agent_fixture import MARKER, director_fixture
+
+        task = {"mode": "compose", "recover_preview_misuse": True, "project_id": 18, "chapter_id": 9}
+        messages = [{"role": "user", "content": MARKER + json.dumps(task)}]
+        body = {"tools": [{"function": {"name": name}} for name in
+                          ("get_chapter_visual_plan", "save_chapter_visual_plan_draft")]}
+
+        def observe(decision, observation):
+            call = decision["tool_call"]
+            messages.extend([
+                {"role": "assistant", "content": decision["content"], "tool_calls": [call]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(observation)},
+            ])
+
+        bad = director_fixture(body, messages)
+        self.assertEqual(bad["tool_call"]["name"], "preview_visual_plan_point_generation")
+        error = agent_observation(None)
+        error.update(status="error", error={
+            "code": "INVALID_ARGUMENT", "next_action": "describe_tool_then_fix_arguments",
+            "details": {"contract_tool": {"name": "describe_agent_tool", "arguments": {"name": bad["tool_call"]["name"]}}},
+        })
+        observe(bad, error)
+        contract = director_fixture(body, messages)
+        self.assertEqual(contract["tool_call"]["name"], "describe_agent_tool")
+        observe(contract, agent_observation({"name": "preview_visual_plan_point_generation"}))
+        plan = director_fixture(body, messages)
+        self.assertEqual(plan["tool_call"]["name"], "get_chapter_visual_plan")
+        handle = {"complete": False, "execution_id": "38", "read_tool": "read_agent_execution_result",
+                  "available_pointers": ["/draft", "/confirmed", "/starter_plan"]}
+        observation = agent_observation(handle)
+        observation["status"] = "partial"
+        observe(plan, observation)
+        starter = {"points": [{"id": "start"}, {"id": "end"}], "segments": [{"id": "shot-1"}]}
+        for field, value in (("draft", None), ("confirmed", None), ("starter_plan", starter)):
+            decision = director_fixture(body, messages)
+            self.assertEqual(decision["tool_call"]["name"], "read_agent_execution_result")
+            self.assertEqual(decision["tool_call"]["arguments"]["pointer"], "/" + field)
+            observe(decision, agent_observation({"text": json.dumps(value), "complete": True}))
+        save = director_fixture(body, messages)["tool_call"]
+        self.assertEqual(save["name"], "save_chapter_visual_plan_draft")
+        self.assertEqual(save["arguments"]["input"]["plan"], starter)
+        self.assertIsNone(save["arguments"]["input"]["record_id"])
+        self.assertIsNone(save["arguments"]["input"]["expected_revision"])
+
+    def test_director_summary_keeps_saved_plan_and_revision_without_duplicated_receipts(self) -> None:
+        from specialized_agent_fixture import fixture_call, summary_fixture, SUMMARY_STATE_MARKER
+
+        call = fixture_call("edit", "edit_chapter_visual_plan_draft", {})
+        plan = {"points": [{"id": "door", "at_ms": 3000}], "segments": [{"id": "shot-1"}]}
+        resource = {"id": "12", "revision": "7", "kind": "chapter_visual_plan"}
+        changes = [{"before": "旧描述" * 1000, "after": "新描述" * 1000}]
+        saved = {"resource": resource, "changed": True, "changes": changes,
+                 "visual_plan": {"plan": plan, "edit_receipt": {"changes": changes}}}
+        summary = json.loads(summary_fixture({
+            "previous_summary": None, "current_request": [{"message_id": 10, "content": "编排本章"}],
+            "covered_through_sequence": 12,
+            "messages": [
+                {"message_id": 11, "message": {"role": "assistant", "content": call["content"], "tool_calls": [call["tool_call"]]}},
+                {"message_id": 12, "message": {"role": "tool", "tool_call_id": "edit", "content": json.dumps(agent_observation(saved))}},
+            ],
+        })["content"])
+        self.assertLess(len(summary["tool_state"][0]), 4000)
+        state = json.loads(summary["tool_state"][0][len(SUMMARY_STATE_MARKER):])["data"]
+        self.assertEqual(state, {"resource": resource, "changed": True, "visual_plan": {"plan": plan}})
+
     def test_summary_keeps_current_tool_results_and_does_not_reuse_a_previous_turn(self) -> None:
         from specialized_agent_fixture import fixture_call, summary_fixture, summarized_observations
         task = {"role": "user", "content": "A4N_SPECIALIZED {\"mode\":\"image_generate\"}"}

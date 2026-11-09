@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use a4n_domain::ImageSize;
 pub use a4n_domain::chapter_visual_plan::*;
 
+pub const VISUAL_PLAN_OUTLINE_PAGE_MAX: u32 = 100;
+pub const VISUAL_PLAN_SOURCE_PAGE_MAX: u32 = 2_000;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ChapterVisualPlanSourceInput {
@@ -23,7 +26,11 @@ pub struct SaveChapterVisualPlanDraftInput {
     #[schemars(range(min = 1))]
     pub source_chapter_id: i64,
     pub authoring_mode: ChapterVisualPlanAuthoringMode,
+    /// For a new plan, both record_id and expected_revision must be null.
+    /// For an existing draft, use its observed record ID and revision.
+    #[schemars(range(min = 1))]
     pub record_id: Option<i64>,
+    #[schemars(range(min = 1))]
     pub expected_revision: Option<i32>,
     /// Supply the source hash used for a source-dependent rewrite.
     #[serde(default)]
@@ -31,6 +38,7 @@ pub struct SaveChapterVisualPlanDraftInput {
     /// Required for an Agent write bound to an editor view; obtained by inspect_editor_target.
     #[serde(default)]
     pub editor_revision: Option<String>,
+    /// Complete timeline structure, initially available as get_chapter_visual_plan.starter_plan.
     pub plan: ChapterVisualPlanV3,
 }
 
@@ -125,6 +133,7 @@ pub enum VisualPlanReadView {
         #[serde(default)]
         offset: u32,
         #[serde(default)]
+        #[schemars(range(min = 1, max = VISUAL_PLAN_OUTLINE_PAGE_MAX))]
         limit: Option<u32>,
     },
     Point {
@@ -137,6 +146,7 @@ pub enum VisualPlanReadView {
         #[serde(default)]
         offset: u32,
         #[serde(default)]
+        #[schemars(range(min = 1, max = VISUAL_PLAN_SOURCE_PAGE_MAX))]
         limit: Option<u32>,
         #[serde(default)]
         expected_hash: Option<String>,
@@ -202,7 +212,8 @@ pub fn project_visual_plan(
     match view {
         VisualPlanReadView::Outline { offset, limit } => {
             let total = plan.segments.len();
-            let (start, end) = projection_page_range(*offset, *limit, total, 20, 100)?;
+            let (start, end) =
+                projection_page_range(*offset, *limit, total, 20, VISUAL_PLAN_OUTLINE_PAGE_MAX)?;
             let items = plan.segments[start..end]
                 .iter()
                 .map(|segment| {
@@ -410,12 +421,18 @@ pub struct ChapterVisualPlanValidationResult {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VisualPlanPointGenerationOptions {
+    #[schemars(range(min = 1))]
     pub source_chapter_id: i64,
+    /// An existing saved visual-plan record, not a new-plan placeholder.
+    #[schemars(range(min = 1))]
     pub record_id: i64,
+    #[schemars(range(min = 1))]
     pub expected_revision: i32,
+    /// ID of an image point already present in the saved plan.
     pub point_id: String,
     pub user_description: String,
     pub config_id: Option<i64>,
+    /// Image pixel dimensions {width, height}; omit to use the plan frame. Not a shot count.
     #[serde(default)]
     pub size: Option<ImageSize>,
 }
@@ -423,6 +440,7 @@ pub struct VisualPlanPointGenerationOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PreviewVisualPlanPointInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
     pub options: VisualPlanPointGenerationOptions,
 }

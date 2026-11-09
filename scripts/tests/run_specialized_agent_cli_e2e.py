@@ -83,7 +83,7 @@ def main():
             source_text = "SOURCE_NOT_REQUESTED_未请求的正文。" * 900
             chapter = data(checked(cli, ["chapter", "import", "--number", "1", "--title", "雨夜来信", "--content", source_text], "chapter")[0], "chapter")
             other_chapter = data(checked(cli, ["chapter", "import", "--number", "2", "--title", "另一章节", "--content", "独立作用域"], "second chapter")[0], "second chapter")
-            compose_chapter = data(checked(cli, ["chapter", "import", "--number", "3", "--title", "门后的机房", "--content", "林岚停在旧车站通道入口，观察挂钟后推开门，冷光从地下机房涌出。"], "compose chapter")[0], "compose chapter")
+            compose_chapter = data(checked(cli, ["chapter", "import", "--number", "3", "--title", "门后的机房", "--content", "林岚停在旧车站通道入口，观察挂钟后推开门，冷光从地下机房涌出。" * 300], "compose chapter")[0], "compose chapter")
             root_project = project
             project = call("create_derived_project", {
                 "root_project_id": root_project["id"], "derived_kind": "video",
@@ -366,6 +366,7 @@ def main():
             report.update(compose_chapter_id=compose_chapter["id"], compose_thread_id=compose_thread["id"])
             compose_task = {
                 "mode": "compose",
+                "recover_preview_misuse": True,
                 "project_id": project["id"],
                 "chapter_id": compose_chapter["id"],
                 "scene_a_id": scene_a_id,
@@ -381,6 +382,13 @@ def main():
                         compose_thread["id"],
                         MARKER + json.dumps(compose_task, ensure_ascii=False),
                         "--execution-mode", "review_writes",
+                        "--editor-source", json.dumps({
+                            "protocol_version": 2, "view_instance_id": "offline-compose-origin",
+                            "project_id": project["id"], "chapter_id": compose_chapter["id"],
+                            "chapter_number": 3, "editor_revision": "initial-editor-revision",
+                            "shot_id": "shot-1", "keyframe_id": "start",
+                            "scene_id": None, "entity_id": None,
+                        }),
                     ],
                     "compose Agent chat",
                 )[0],
@@ -403,6 +411,15 @@ def main():
 
             composed = finish_with_approvals(compose_run)
             composed_executions = [row for row in composed["executions"] if row["run_id"] == compose_run]
+            failed_previews = [row for row in composed_executions if row["tool_name"] == "preview_visual_plan_point_generation"]
+            assert len(failed_previews) == 1 and failed_previews[0]["status"] == "failed"
+            assert any(row["tool_name"] == "describe_agent_tool" and row["status"] == "succeeded" for row in composed_executions)
+            compose_messages = [row for row in composed["messages"] if row["run_id"] == compose_run]
+            result_reads = [call["arguments"]["pointer"] for row in compose_messages
+                            for call in row.get("metadata", {}).get("tool_calls", [])
+                            if call["name"] == "read_agent_execution_result"]
+            assert result_reads[:3] == ["/draft", "/confirmed", "/starter_plan"], result_reads
+            report["checks"].append("empty timeline with long source and an offline editor origin: preview misuse returns its contract, targeted reads recover starter_plan, then real draft writes succeed without an editor response")
             write_tools = [
                 row
                 for row in composed_executions

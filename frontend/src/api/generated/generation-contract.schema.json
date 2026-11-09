@@ -3439,13 +3439,17 @@
         },
         "expected_revision": {
           "format": "int32",
+          "minimum": 1,
           "type": "integer"
         },
         "point_id": {
+          "description": "ID of an image point already present in the saved plan.",
           "type": "string"
         },
         "record_id": {
+          "description": "An existing saved visual-plan record, not a new-plan placeholder.",
           "format": "int64",
+          "minimum": 1,
           "type": "integer"
         },
         "size": {
@@ -3457,10 +3461,12 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Image pixel dimensions {width, height}; omit to use the plan frame. Not a shot count."
         },
         "source_chapter_id": {
           "format": "int64",
+          "minimum": 1,
           "type": "integer"
         },
         "user_description": {
