@@ -2,12 +2,10 @@ use std::collections::HashMap;
 
 use a4n_domain::{manga::MangaPreprocessingV3, source_spans::source_spans_for_content};
 use a4n_error::AppError;
-use serde_json::json;
 
-use super::super::super::pipeline::prompt::MangaPreprocessingMessages;
 use super::super::super::reference_assets::manga_reference_assets_json;
 use super::super::super::{MangaPipelineRequestPreviewInput, OrchestratorContext};
-use super::super::json::required_array_field;
+use super::super::prompt::{MangaPreprocessingMessages, manga_preprocessing_summary};
 use super::contracts::{MangaPipelineRequestPreviewStep, MangaPreviewContext};
 use super::planning::preview_planning;
 use crate::source_markers::SourceMarkerMap;
@@ -37,20 +35,6 @@ impl OrchestratorContext {
         .await
         .map_err(crate::shooting_script::errors::resolve_source_error)?;
         let reference_assets = manga_reference_assets_json(&character_portraits);
-        let preprocessing_input_fingerprint =
-            a4n_domain::manga::manga_preprocessing_input_fingerprint(
-                &source.content_sha256,
-                source.chapter_number,
-                &reference_assets,
-            );
-        let preprocessing = self
-            .manga_pipeline_artifact(
-                project_id,
-                chapter_id,
-                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
-                None,
-            )
-            .await?;
         if run_stage == Some(a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing) {
             let source_spans =
                 source_spans_for_content(chapter_id, source.chapter_number, &source.content);
@@ -71,7 +55,20 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let preprocessing = preprocessing
+        let preprocessing_input_fingerprint =
+            a4n_domain::manga::manga_preprocessing_input_fingerprint(
+                &source.content_sha256,
+                source.chapter_number,
+                &reference_assets,
+            );
+        let preprocessing = self
+            .manga_pipeline_artifact(
+                project_id,
+                chapter_id,
+                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+                None,
+            )
+            .await?
             .filter(|artifact| {
                 !artifact.stale && artifact.input_fingerprint == preprocessing_input_fingerprint
             })
@@ -111,21 +108,7 @@ impl OrchestratorContext {
         };
 
         let mut steps = Vec::new();
-        let events = required_array_field(
-            &preprocessing.source_events,
-            "events",
-            "manga_preprocessing.source_events",
-        )?;
-        let items = required_array_field(&preprocessing.items, "items", "manga_preprocessing")?;
-        let extraction_summary = json!({
-            "source_events": preprocessing.source_events,
-            "characters": preprocessing.characters,
-            "events": events,
-            "speech": preprocessing.speech,
-            "visual_anchors": preprocessing.visual_anchors,
-            "items": items,
-            "comic_synthesis": preprocessing.comic_synthesis,
-        });
+        let extraction_summary = manga_preprocessing_summary(&preprocessing)?;
         preview_planning(&context, &mut steps, extraction_summary).await?;
         Ok(steps)
     }

@@ -29,6 +29,8 @@ use crate::{OrchestratorContext, source_markers::SourceMarkerMap};
 use super::super::prompt::{MangaPreprocessingMessages, MangaRenderTraceInput};
 use super::contracts::manga_stage_output_exists_error;
 
+const PREPROCESSING_TOTAL_STEPS: i32 = MangaPreprocessingStep::ALL.len() as i32 + 1;
+
 pub(super) struct MangaPreprocessingInput<'a> {
     pub project_id: i64,
     pub chapter_id: i64,
@@ -84,7 +86,12 @@ pub(super) async fn run_manga_preprocessing(
             .map_err(AppError::InvalidArgument)?;
         let progress = PreprocessingProgress::new(context, &input);
         progress
-            .report(None, "已复用完整预处理产物", 5, ProgressPhaseKind::Save)
+            .report(
+                None,
+                "已复用完整预处理产物",
+                PREPROCESSING_TOTAL_STEPS,
+                ProgressPhaseKind::Save,
+            )
             .await?;
         return Ok(preprocessing);
     }
@@ -207,7 +214,7 @@ impl<'a> PreprocessingProgress<'a> {
                 stage_code: "manga_preprocessing".into(),
                 phase_kind,
                 current: Some(self.completed.load(Ordering::SeqCst) as u64),
-                total: Some(5),
+                total: Some(PREPROCESSING_TOTAL_STEPS as u64),
                 message: message.into(),
                 unit_label: Some("阶段".into()),
                 item_key: step.map(|step| step.prompt_name().into()),
@@ -227,17 +234,18 @@ impl<'a> PreprocessingProgress<'a> {
         phase_kind: ProgressPhaseKind,
     ) -> Result<(), AppError> {
         let _guard = self.lock.lock().await;
-        let count = self.completed.fetch_add(completed, Ordering::SeqCst) + completed;
+        let count = self.completed.load(Ordering::SeqCst) + completed;
         self.context
             .record_manga_pipeline_progress_with_total(
                 self.input.workflow_run_id,
                 self.input.task_id,
                 "preprocessing",
                 count,
-                5,
+                PREPROCESSING_TOTAL_STEPS,
                 message,
             )
             .await?;
+        self.completed.store(count, Ordering::SeqCst);
         self.notify(step, message, phase_kind);
         Ok(())
     }
@@ -384,4 +392,84 @@ async fn run_step<T: serde::Serialize + serde::de::DeserializeOwned>(
         )
         .await?;
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn progress_only_advances_after_a_successful_workflow_write() {
+        let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+        let context = crate::test_support::TestOrchestratorBuilder::new(database.clone())
+            .build()
+            .await;
+        let workflow = a4n_db::workflow::upsert_workflow_run(
+            database.as_ref(),
+            serde_json::from_value(serde_json::json!({
+                "business_key": "manga-preprocessing-progress-test",
+                "workflow_kind": "manga_pipeline", "status": "running", "can_resume": true
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+        let events = Mutex::new(Vec::new());
+        let reporter = |event| events.lock().unwrap().push(event);
+        let input = MangaPreprocessingInput {
+            project_id: 1,
+            chapter_id: 1,
+            chapter_number: 1,
+            chapter_content: "原文",
+            prompt_renderer: &context,
+            reference_assets: serde_json::json!({}),
+            task_id: "manga-progress-test",
+            workflow_run_id: workflow.id,
+            resume_from_checkpoint: false,
+            cancel_token: None,
+            progress_reporter: Some(&reporter),
+            stream_reporter: None,
+        };
+        let progress = PreprocessingProgress::new(&context, &input);
+        let (facts, visuals) = futures::join!(
+            progress.report(
+                Some(MangaPreprocessingStep::Facts),
+                "事实完成",
+                1,
+                ProgressPhaseKind::Save
+            ),
+            progress.report(
+                Some(MangaPreprocessingStep::Visuals),
+                "视觉完成",
+                1,
+                ProgressPhaseKind::Save
+            ),
+        );
+        facts.unwrap();
+        visuals.unwrap();
+        assert_eq!(progress.completed.load(Ordering::SeqCst), 2);
+        context
+            .complete_workflow_run_validated(workflow.id)
+            .await
+            .unwrap();
+        assert!(
+            progress
+                .report(None, "写入失败", 1, ProgressPhaseKind::Save)
+                .await
+                .is_err()
+        );
+        progress.notify(None, "保留已保存的进度", ProgressPhaseKind::Validate);
+        let events = events.lock().unwrap();
+        assert_eq!(
+            events.iter().map(|event| event.current).collect::<Vec<_>>(),
+            [Some(1), Some(2), Some(2)]
+        );
+        assert!(
+            events
+                .iter()
+                .all(|event| event.total == Some(PREPROCESSING_TOTAL_STEPS as u64))
+        );
+    }
 }

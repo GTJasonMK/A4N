@@ -8,14 +8,10 @@ use super::super::prompt::{MangaRenderTraceInput, manga_page_slots_user_message}
 use super::super::state::MangaPipelineStage;
 use super::contracts::{MangaRunContext, manga_stage_output_exists_error};
 
-pub(super) struct MangaPageSlotsRun {
-    pub(super) slots: MangaPageSlotsV1,
-}
-
 pub(super) async fn run_page_slots(
     context: &MangaRunContext<'_>,
     extraction_summary: &serde_json::Value,
-) -> Result<MangaPageSlotsRun, AppError> {
+) -> Result<MangaPageSlotsV1, AppError> {
     context.check_cancelled()?;
     let user_content = manga_page_slots_user_message(
         extraction_summary.clone(),
@@ -56,7 +52,7 @@ pub(super) async fn run_page_slots(
             "manga_page_slots",
         )?;
         context.advance_stage(MangaPipelineStage::PageSlots).await?;
-        return Ok(MangaPageSlotsRun { slots });
+        return Ok(slots);
     }
     context.advance_stage(MangaPipelineStage::PageSlots).await?;
     let (_, slots) = context
@@ -96,5 +92,5 @@ pub(super) async fn run_page_slots(
             serde_json::to_value(&slots)?,
         )
         .await?;
-    Ok(MangaPageSlotsRun { slots })
+    Ok(slots)
 }

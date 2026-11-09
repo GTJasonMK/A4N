@@ -6,6 +6,22 @@ use serde_json::{Value, json};
 use super::common::build_manga_step_user_message;
 use crate::source_markers::SourceMarkerMap;
 
+pub(in crate::manga) fn manga_preprocessing_summary(
+    preprocessing: &MangaPreprocessingV3,
+) -> Result<Value, AppError> {
+    let items = preprocessing.items["items"]
+        .as_array()
+        .ok_or_else(|| AppError::InvalidArgument("manga_preprocessing.items 必须是数组".into()))?;
+    Ok(json!({
+        "source_events": preprocessing.source_events,
+        "characters": preprocessing.characters,
+        "speech": preprocessing.speech,
+        "visual_anchors": preprocessing.visual_anchors,
+        "items": items,
+        "comic_synthesis": preprocessing.comic_synthesis,
+    }))
+}
+
 pub(in crate::manga) struct MangaPreprocessingMessages<'a> {
     pub chapter_content: &'a str,
     pub source_spans: &'a [SourceSpan],

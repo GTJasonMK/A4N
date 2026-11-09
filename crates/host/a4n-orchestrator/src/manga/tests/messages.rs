@@ -26,6 +26,45 @@ fn render_manifest(manifest: LlmContextManifest) -> String {
 }
 
 #[test]
+fn preprocessing_summary_preserves_sources_and_has_no_legacy_event_alias() {
+    let mut preprocessing: a4n_domain::manga::MangaPreprocessingV3 =
+        serde_json::from_value(json!({
+            "schema_version": "manga_preprocessing_v3",
+            "source_events": {"events": [{
+                "event_id": "event-1", "type": "action", "description": "推门",
+                "participants": [], "source_span_ids": ["span-1"]
+            }]},
+            "characters": {}, "speech": {"dialogues": [], "narrations": []},
+            "visual_anchors": {"scenes": []}, "items": {"items": []},
+            "comic_synthesis": {"chapter_summary": "人物推门进入。", "mood_progression": ["犹豫", "靠近", "进入"]}
+        }))
+        .unwrap();
+    preprocessing.validate().unwrap();
+    let summary =
+        crate::manga::pipeline::prompt::manga_preprocessing_summary(&preprocessing).unwrap();
+    assert_eq!(summary.as_object().unwrap().len(), 6);
+    for key in [
+        "source_events",
+        "characters",
+        "speech",
+        "visual_anchors",
+        "comic_synthesis",
+    ] {
+        assert_eq!(
+            summary[key],
+            serde_json::to_value(&preprocessing).unwrap()[key]
+        );
+    }
+    assert_eq!(summary["items"], json!([]));
+    assert!(summary.get("events").is_none());
+    assert!(summary.get("schema_version").is_none());
+    preprocessing.items = json!({});
+    assert!(crate::manga::pipeline::prompt::manga_preprocessing_summary(&preprocessing).is_err());
+    preprocessing.items = json!({"items": null});
+    assert!(crate::manga::pipeline::prompt::manga_preprocessing_summary(&preprocessing).is_err());
+}
+
+#[test]
 fn preprocessing_requests_share_contracts_and_only_carry_their_real_dependencies() {
     let source = "原文独有标记：她推开木门。";
     let spans = a4n_domain::source_spans::source_spans_for_content(7, 1, source);

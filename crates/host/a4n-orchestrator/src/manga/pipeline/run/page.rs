@@ -266,6 +266,9 @@ pub(super) fn prepare_manga_page_work(
     let reference_bindings = reusable_layout
         .as_ref()
         .map_or_else(Vec::new, |layout| layout.reference_bindings.clone());
+    let previous_attempt = reusable_layout
+        .as_ref()
+        .map(|layout| layout.pipeline.attempt);
     let mut pipeline = reusable_layout.map_or_else(
         || new_page_pipeline(context, slot, content_fingerprint.clone()),
         |layout| layout.pipeline,
@@ -400,20 +403,14 @@ pub(super) fn prepare_manga_page_work(
     } else {
         MangaPagePipelineStage::Image
     };
-    let next_attempt = existing_row
-        .as_ref()
-        .map(manga_page_pipeline_layout)
-        .transpose()
-        .map_err(AppError::InvalidArgument)?
-        .map(|layout| layout.pipeline.attempt);
     let is_existing_complete = image_matches
         && existing_row
             .as_ref()
             .is_some_and(|row| row.status == "completed");
     pipeline.attempt = if is_existing_complete {
-        next_attempt.unwrap_or(1)
+        previous_attempt.unwrap_or(1)
     } else {
-        next_attempt
+        previous_attempt
             .map(|attempt| {
                 attempt.checked_add(1).ok_or_else(|| {
                     AppError::InvalidArgument("漫画页面 attempt 超出 u32 范围".into())

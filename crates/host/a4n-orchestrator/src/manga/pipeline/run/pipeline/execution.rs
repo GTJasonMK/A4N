@@ -7,7 +7,7 @@ use a4n_error::AppError;
 
 use super::super::super::super::reference_assets::manga_reference_assets_json;
 use super::super::super::super::{MangaGeneratePagePromptsInput, OrchestratorContext};
-use super::super::super::prompt::manga_pipeline_prompt_fingerprint;
+use super::super::super::prompt::{manga_pipeline_prompt_fingerprint, manga_preprocessing_summary};
 use super::super::completion::complete_pipeline;
 use super::super::contracts::MangaRunContext;
 use super::super::page_slots::run_page_slots;
@@ -47,12 +47,6 @@ impl OrchestratorContext {
         .await
         .map_err(crate::shooting_script::errors::resolve_source_error)?;
         let reference_assets = manga_reference_assets_json(&character_portraits);
-        let preprocessing_input_fingerprint =
-            a4n_domain::manga::manga_preprocessing_input_fingerprint(
-                &source.content_sha256,
-                source.chapter_number,
-                &reference_assets,
-            );
         if run_stage == Some(a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing) {
             run_manga_preprocessing(
                 self,
@@ -76,6 +70,12 @@ impl OrchestratorContext {
                 .manga_page_prompts_by_chapter(project_id, chapter_id)
                 .await;
         }
+        let preprocessing_input_fingerprint =
+            a4n_domain::manga::manga_preprocessing_input_fingerprint(
+                &source.content_sha256,
+                source.chapter_number,
+                &reference_assets,
+            );
         let preprocessing = self
             .manga_pipeline_artifact(
                 project_id,
@@ -165,15 +165,16 @@ impl OrchestratorContext {
             available_reference_images,
             prompt_fingerprint,
         };
+        let extraction_summary = manga_preprocessing_summary(&preprocessing)?;
         if let Some(stage) = run_stage {
-            return super::super::single_stage::run_single_stage(&context, stage).await;
+            return super::super::single_stage::run_single_stage(
+                &context,
+                stage,
+                &extraction_summary,
+            )
+            .await;
         }
-        let extraction = super::super::contracts::MangaExtractionRun {
-            extraction_summary: super::super::single_stage::manga_preprocessing_summary(
-                &preprocessing,
-            )?,
-        };
-        let page_slots = run_page_slots(&context, &extraction.extraction_summary).await?;
-        complete_pipeline(&context, extraction, page_slots).await
+        let page_slots = run_page_slots(&context, &extraction_summary).await?;
+        complete_pipeline(&context, &extraction_summary, page_slots).await
     }
 }

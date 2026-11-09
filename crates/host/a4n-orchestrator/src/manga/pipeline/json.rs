@@ -1,10 +1,8 @@
-mod fields;
 mod page_pipeline;
 mod page_plan;
 mod page_prompts;
 use a4n_domain::manga::MangaPreprocessingStep;
 
-pub(crate) use fields::required_array_field;
 pub(crate) use page_pipeline::{
     parse_manga_page_adaptation, parse_manga_page_slots, parse_manga_page_storyboard,
     parse_manga_page_storyboard_model_output,

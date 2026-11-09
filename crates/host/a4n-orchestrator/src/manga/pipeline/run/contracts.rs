@@ -195,7 +195,3 @@ impl MangaRunContext<'_> {
         Ok(())
     }
 }
-
-pub(super) struct MangaExtractionRun {
-    pub(super) extraction_summary: Value,
-}

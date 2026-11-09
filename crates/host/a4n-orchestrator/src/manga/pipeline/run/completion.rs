@@ -1,32 +1,34 @@
 use std::collections::HashMap;
 
-use a4n_domain::manga::{MangaPageContentV1, MangaPagePromptRecord, MangaPipelineArtifactStage};
+use a4n_domain::manga::{
+    MangaPageContentV1, MangaPagePromptRecord, MangaPageSlotsV1, MangaPipelineArtifactStage,
+};
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use futures::{StreamExt, stream};
+use serde_json::Value;
 
 use crate::manga::layout_rules::manga_page_pipeline_layout;
 
 use super::super::persist::{MangaPipelinePersistInput, pipeline_page_draft};
-use super::contracts::{MangaExtractionRun, MangaRunContext};
+use super::contracts::MangaRunContext;
 use super::page::{
     MANGA_PAGE_PIPELINE_CONCURRENCY, MangaPagePipelineProgress, manga_page_pipeline_total_steps,
     persist_page_pipeline_artifact_delta, prepare_manga_page_work, process_manga_page,
 };
-use super::page_slots::MangaPageSlotsRun;
 use crate::manga::validate_manga_page_scope;
 
 pub(super) async fn complete_pipeline(
     context: &MangaRunContext<'_>,
-    extraction: MangaExtractionRun,
-    mut slots_run: MangaPageSlotsRun,
+    extraction_summary: &Value,
+    mut slots: MangaPageSlotsV1,
 ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
     validate_manga_page_scope(context.page_number, context.stop_after)?;
     let artifacts = context
         .service
         .manga_pipeline_artifacts_by_chapter(context.project_id, context.chapter_id)
         .await?;
-    for slot in &mut slots_run.slots.pages {
+    for slot in &mut slots.pages {
         if let Some(artifact) = artifacts.iter().find(|artifact| {
             artifact.stage == MangaPipelineArtifactStage::PageContent
                 && artifact.page_number == Some(slot.page_number)
@@ -36,19 +38,14 @@ pub(super) async fn complete_pipeline(
             slot.content.validate().map_err(AppError::InvalidArgument)?;
         }
     }
-    slots_run
-        .slots
-        .validate()
-        .map_err(AppError::InvalidArgument)?;
-    let total_pages = slots_run.slots.pages.len();
-    let page_numbers = slots_run
-        .slots
+    slots.validate().map_err(AppError::InvalidArgument)?;
+    let total_pages = slots.pages.len();
+    let page_numbers = slots
         .pages
         .iter()
         .map(|slot| slot.page_number)
         .collect::<Vec<_>>();
     let selected_page_indexes = page_indexes_to_process(&page_numbers, context.page_number)?;
-    let extraction_summary = extraction.extraction_summary;
     let persist = MangaPipelinePersistInput {
         chapter_id: context.chapter_id,
         project_id: context.project_id,
@@ -72,7 +69,7 @@ pub(super) async fn complete_pipeline(
     for index in 0..total_pages {
         let existing = existing_by_page
             .get(
-                &i32::try_from(slots_run.slots.pages[index].page_number)
+                &i32::try_from(slots.pages[index].page_number)
                     .map_err(|_| AppError::InvalidArgument("漫画页码超出 i32 范围".into()))?,
             )
             .cloned();
@@ -83,9 +80,9 @@ pub(super) async fn complete_pipeline(
             .map_err(AppError::InvalidArgument)?;
         let work = prepare_manga_page_work(
             context,
-            &slots_run.slots,
+            &slots,
             index,
-            &extraction_summary,
+            extraction_summary,
             &artifacts,
             existing,
         )?;
@@ -172,7 +169,7 @@ pub(super) async fn complete_pipeline(
                     context,
                     &persist,
                     work,
-                    &extraction_summary,
+                    extraction_summary,
                     &progress,
                     total_pages,
                 )
