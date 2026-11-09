@@ -10,6 +10,8 @@ use crate::media_authoring::AdaptationBeatRef;
 mod preprocessing_schema;
 mod preprocessing_steps;
 pub use preprocessing_steps::*;
+mod page_planning;
+pub use page_planning::{MangaPageContentDraftV1, MangaPageOutlineItemV1, MangaPageOutlineV1};
 
 pub const MANGA_PAGE_PIPELINE_STATE_V1: &str = "manga_page_pipeline_state_v1";
 pub const MANGA_PAGE_SLOT_LIMIT: usize = 100;
@@ -202,14 +204,6 @@ pub struct MangaPageSlotV1 {
 }
 
 impl MangaPageSlotsV1 {
-    /// A page starts in the state left by the previous page.
-    pub fn carry_forward_entry_states(&mut self) {
-        for index in 1..self.pages.len() {
-            let previous_exit_state = self.pages[index - 1].content.exit_state.clone();
-            self.pages[index].content.entry_state = previous_exit_state;
-        }
-    }
-
     pub fn validate(&self) -> Result<(), String> {
         if self.pages.is_empty() {
             return Err("pages 至少需要一页".into());
@@ -406,22 +400,7 @@ impl MangaPageContentV1 {
                 return Err(format!("{field} 不能为空"));
             }
         }
-        if self.beat_refs.is_empty() {
-            return Err("beat_refs 至少需要一个节拍".into());
-        }
-        let mut span_ids = std::collections::HashSet::with_capacity(self.source_span_ids.len());
-        for id in &self.source_span_ids {
-            if id.trim().is_empty() || !span_ids.insert(id) {
-                return Err("source_span_ids 不能包含空值或重复值".into());
-            }
-        }
-        let mut beat_refs = std::collections::HashSet::with_capacity(self.beat_refs.len());
-        for beat_ref in &self.beat_refs {
-            beat_ref.validate()?;
-            if !beat_refs.insert(beat_ref) {
-                return Err("beat_refs 不能包含重复值".into());
-            }
-        }
+        validate_page_content_references(&self.source_span_ids, &self.beat_refs)?;
         for (field, value) in [
             ("reaction", &self.reaction),
             ("dialogue_intent", &self.dialogue_intent),
@@ -432,6 +411,29 @@ impl MangaPageContentV1 {
         }
         Ok(())
     }
+}
+
+fn validate_page_content_references(
+    source_span_ids: &[String],
+    beat_refs: &[AdaptationBeatRef],
+) -> Result<(), String> {
+    if beat_refs.is_empty() {
+        return Err("beat_refs 至少需要一个节拍".into());
+    }
+    let mut span_ids = std::collections::HashSet::with_capacity(source_span_ids.len());
+    for id in source_span_ids {
+        if id.trim().is_empty() || !span_ids.insert(id) {
+            return Err("source_span_ids 不能包含空值或重复值".into());
+        }
+    }
+    let mut unique_beats = std::collections::HashSet::with_capacity(beat_refs.len());
+    for beat_ref in beat_refs {
+        beat_ref.validate()?;
+        if !unique_beats.insert(beat_ref) {
+            return Err("beat_refs 不能包含重复值".into());
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

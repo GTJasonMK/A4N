@@ -18,7 +18,14 @@ pub(super) fn manga_page_adaptation_source(
     adaptation: &PreparedAdaptation,
     content: &MangaPageContentV1,
 ) -> Value {
-    let beat_refs = content.beat_refs.iter().cloned().collect::<HashSet<_>>();
+    manga_page_beats_source(adaptation, &content.beat_refs)
+}
+
+pub(in crate::manga) fn manga_page_beats_source(
+    adaptation: &PreparedAdaptation,
+    refs: &[AdaptationBeatRef],
+) -> Value {
+    let beat_refs = refs.iter().cloned().collect::<HashSet<_>>();
     let units = adaptation
         .plan
         .units

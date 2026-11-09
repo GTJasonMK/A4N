@@ -13,7 +13,8 @@ pub(in crate::manga) const MANGA_PIPELINE_PROMPT_NAMES: &[&str] = &[
     "manga_preprocessing_speech",
     "manga_preprocessing_visuals",
     "manga_preprocessing_synthesis",
-    "manga_page_slots",
+    "manga_page_outline",
+    "manga_page_content",
     "manga_page_adaptation_plan",
     "manga_page_storyboard",
     "manga_page_reference_discovery",
@@ -28,7 +29,7 @@ pub(in crate::manga) fn manga_pipeline_prompt_assembly_call_key(
         | "manga_preprocessing_speech"
         | "manga_preprocessing_visuals"
         | "manga_preprocessing_synthesis" => Ok("OrchestratorContext.run_manga_preprocessing"),
-        "manga_page_slots" => Ok("MangaPipeline.generate_page_prompts"),
+        "manga_page_outline" | "manga_page_content" => Ok("MangaPipeline.generate_page_prompts"),
         "manga_page_adaptation_plan"
         | "manga_page_storyboard"
         | "manga_page_reference_discovery"

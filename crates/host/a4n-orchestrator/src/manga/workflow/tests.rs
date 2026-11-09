@@ -1,11 +1,5 @@
 use super::*;
-use crate::manga::pipeline::state::MangaPipelineStage;
 use a4n_db::project::MangaCharacterPortraitRefSummary;
-
-#[test]
-fn manga_pipeline_stage_keys_are_owned_by_stage_enum() {
-    assert_eq!(MangaPipelineStage::PageSlots.key(), "page_slots");
-}
 
 #[test]
 fn checkpoint_fingerprints_keep_explicit_stages_separate() {

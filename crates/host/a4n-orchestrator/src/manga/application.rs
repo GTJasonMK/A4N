@@ -102,7 +102,9 @@ fn manga_pipeline_prompts_for_run(
                     .map(|step| step.prompt_name())
                     .collect()
             }
-            MangaPipelineArtifactStage::PageSlots => vec!["manga_page_slots"],
+            MangaPipelineArtifactStage::PageSlots => {
+                vec!["manga_page_outline", "manga_page_content"]
+            }
             MangaPipelineArtifactStage::PageAdaptation => {
                 vec!["manga_page_adaptation_plan"]
             }
@@ -117,7 +119,7 @@ fn manga_pipeline_prompts_for_run(
         };
     }
 
-    let mut prompt_names = vec!["manga_page_slots"];
+    let mut prompt_names = vec!["manga_page_outline", "manga_page_content"];
     if stop_after == Some(StopAfter::PageSlots) {
         return prompt_names;
     }
@@ -1187,12 +1189,17 @@ mod preflight_tests {
         );
         assert_eq!(
             manga_pipeline_prompts_for_run(None, Some(MangaPipelineStopAfter::PageAdaptation),),
-            ["manga_page_slots", "manga_page_adaptation_plan"],
+            [
+                "manga_page_outline",
+                "manga_page_content",
+                "manga_page_adaptation_plan"
+            ],
         );
         assert_eq!(
             manga_pipeline_prompts_for_run(None, Some(MangaPipelineStopAfter::Storyboard),),
             [
-                "manga_page_slots",
+                "manga_page_outline",
+                "manga_page_content",
                 "manga_page_adaptation_plan",
                 "manga_page_storyboard",
             ],

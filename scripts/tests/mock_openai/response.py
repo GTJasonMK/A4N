@@ -18,7 +18,8 @@ from mock_openai.fixtures.adaptations import (
     manga_drawing_prompt_response,
     manga_page_reference_discovery_response,
     manga_page_adaptation_response,
-    manga_page_slots_response,
+    manga_page_outline_response,
+    manga_page_content_response,
     manga_page_storyboard_response,
     manga_preprocessing_response,
     manga_prompt_optimization_response,
@@ -88,7 +89,7 @@ ANCHOR_OUTPUT_FIELDS = {
 
 def normal_fixture_model(model: str) -> str:
     if model=="a4n-fact-feedback-invalid":return "a4n-fact-feedback"
-    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-","a4n-scene-sync-","a4n-preprocessing-")):return "a4n-virtual-text"
+    if model.startswith(("a4n-output-","a4n-anchor-","a4n-checkpoint-","a4n-scene-sync-","a4n-preprocessing-","a4n-page-planning-")):return "a4n-virtual-text"
     return model
 
 
@@ -137,6 +138,13 @@ def response_for(body: dict[str, Any]) -> str:
     if len(original_messages) != len(messages):
         return response_for({**body, "messages": original_messages, "_a4n_correction": True})
     model = str(body.get("model", ""))
+    if model.startswith("a4n-page-planning-"):
+        raw = response_for({**body, "model": "a4n-virtual-text"})
+        value = json.loads(raw)
+        if "action" in value and value.get("page_number") == 2:
+            if model == "a4n-page-planning-fail-content" or (model == "a4n-page-planning-recover-content" and not body.get("_a4n_correction")):
+                del value["reaction"]
+        return json.dumps(value, ensure_ascii=False)
     if model.startswith("a4n-preprocessing-"):
         raw = response_for({**body, "model": "a4n-virtual-text"})
         combined = "\n".join(message_text(message.get("content", "")) for message in body.get("messages", []))
@@ -216,8 +224,10 @@ def response_for(body: dict[str, Any]) -> str:
                 "asset_id": 999999,
                 "usage": "沿用当前页面的怀表外观。",
             }]
-        elif fault == "manga-slots" and value.get("schema_version") == "manga_page_slots_v1":
-            value["pages"][0]["content"]["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-outline" and value.get("schema_version") == "manga_page_outline_v1":
+            value["pages"][0]["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-page-content" and "action" in value and value.get("page_number") == 2:
+            del value["reaction"]
         elif fault == "manga-page-adaptation" and "visual_intent" in value:
             value["beat_refs"][0]["beat_id"] = "missing-beat"
         elif fault == "manga-storyboard" and "dominant_panel_number" in value:
@@ -291,8 +301,10 @@ def response_for(body: dict[str, Any]) -> str:
         }[manga_prompt_name]
         result = manga_preprocessing_response(combined)
         return json.dumps({field: result[field] for field in fields}, ensure_ascii=False)
-    if manga_prompt_name == "manga_page_slots":
-        return json.dumps(manga_page_slots_response(combined), ensure_ascii=False)
+    if manga_prompt_name == "manga_page_outline":
+        return json.dumps(manga_page_outline_response(combined), ensure_ascii=False)
+    if manga_prompt_name == "manga_page_content":
+        return json.dumps(manga_page_content_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_adaptation_plan":
         return json.dumps(manga_page_adaptation_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_storyboard":

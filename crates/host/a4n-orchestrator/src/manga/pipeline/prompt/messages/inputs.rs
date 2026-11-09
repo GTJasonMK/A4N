@@ -23,8 +23,23 @@ pub(in crate::manga) fn manga_page_storyboard_source_input(
     chapter_content: &str,
     source_markers: &SourceMarkerMap,
 ) -> Result<Value, AppError> {
-    let selected_ids = content
-        .source_span_ids
+    manga_page_source_input(
+        &content.source_span_ids,
+        extraction,
+        source_spans,
+        chapter_content,
+        source_markers,
+    )
+}
+
+pub(super) fn manga_page_source_input(
+    source_span_ids: &[String],
+    extraction: &Value,
+    source_spans: &[SourceSpan],
+    chapter_content: &str,
+    source_markers: &SourceMarkerMap,
+) -> Result<Value, AppError> {
+    let selected_ids = source_span_ids
         .iter()
         .map(String::as_str)
         .collect::<HashSet<_>>();
@@ -91,7 +106,7 @@ pub(in crate::manga) fn manga_page_storyboard_source_input(
     }))
 }
 
-pub(in crate::manga) fn manga_page_slots_input(
+pub(in crate::manga) fn manga_page_outline_input(
     extraction_summary: Value,
     adaptation_plan: Value,
 ) -> Result<Value, AppError> {
@@ -104,10 +119,6 @@ pub(in crate::manga) fn manga_page_slots_input(
     Ok(json!({
         "extraction_summary": {
             "source_events": required("source_events")?,
-            "characters": required("characters")?,
-            "speech": required("speech")?,
-            "visual_anchors": required("visual_anchors")?,
-            "items": required("items")?,
             "comic_synthesis": required("comic_synthesis")?,
         },
         "adaptation_plan": adaptation_plan

@@ -16,8 +16,7 @@ use a4n_domain::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::super::{MangaPipelineStage, OrchestratorContext};
-use super::super::state::{MANGA_PIPELINE_TOTAL_STEPS, manga_pipeline_stage_status};
+use super::super::super::OrchestratorContext;
 use crate::source_markers::SourceMarkerMap;
 
 pub(super) use crate::manga::record_errors::manga_stage_output_exists_error;
@@ -119,34 +118,6 @@ impl MangaRunContext<'_> {
             "input": input,
         }))?;
         Ok(source_text_hash(&fingerprint))
-    }
-
-    pub(super) async fn advance_stage(
-        &self,
-        next_stage: MangaPipelineStage,
-    ) -> Result<(), AppError> {
-        let (stage_code, next_current, next_message) = manga_pipeline_stage_status(next_stage);
-        self.service
-            .record_manga_pipeline_progress(
-                self.workflow_run_id,
-                self.task_id,
-                stage_code,
-                next_current,
-                next_message,
-            )
-            .await?;
-        self.publish_progress(
-            stage_code,
-            ProgressPhaseKind::StructuredOutput,
-            next_current,
-            MANGA_PIPELINE_TOTAL_STEPS,
-            next_message,
-            "阶段",
-            None,
-            None,
-            None,
-        );
-        Ok(())
     }
 
     pub(super) fn publish_progress(

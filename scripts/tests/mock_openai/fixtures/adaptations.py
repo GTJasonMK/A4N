@@ -483,7 +483,7 @@ def manga_page_reference_discovery_response(combined: str) -> dict[str, Any]:
     }
 
 
-def manga_page_slots_response(combined: str) -> dict[str, Any]:
+def manga_page_outline_response(combined: str) -> dict[str, Any]:
     adaptation = next(
         (
             value.get("adaptation_plan")
@@ -493,38 +493,37 @@ def manga_page_slots_response(combined: str) -> dict[str, Any]:
         None,
     )
     expected_page_count = adaptation.get("page_count") if adaptation else None
-    if expected_page_count != 2:
-        raise UnhandledPromptError("manga page slots fixture expects a two-page adaptation plan")
+    if type(expected_page_count) is not int or not 1 <= expected_page_count <= 100:
+        raise UnhandledPromptError("manga page outline requires the adopted page count")
     beat_ref = manga_beat_ref(adaptation)
-    source_id = source_span_id(combined, "林岚")
-    content = [
-        {
-            "summary": "林岚在旧车站通道核对逆行怀表。",
-            "source_span_ids": [source_id],
-            "beat_refs": [beat_ref],
-            "action": "林岚对照怀表和未来来信确认时间异常。",
-            "reaction": "周衡避开她的视线。",
-            "dialogue_intent": "确认齿轮暗记与十年前事故的关系。",
-            "entry_state": "林岚停在通道入口。",
-            "exit_state": "林岚确认怀表发生逆行。",
-        },
-        {
-            "summary": "林岚拒绝交出信件，决定进入地下机房。",
-            "source_span_ids": [source_id],
-            "beat_refs": [beat_ref],
-            "action": "林岚收起信件并跨过机房门槛。",
-            "reaction": "周衡停在通道后方，没有跟上。",
-            "dialogue_intent": None,
-            "entry_state": "林岚确认怀表发生逆行。",
-            "exit_state": "林岚进入地下机房查证。",
-        },
-    ]
+    extraction = next((value["extraction_summary"] for value in embedded_json_objects(combined)
+                       if isinstance(value.get("extraction_summary"), dict)), None)
+    if extraction is None:
+        raise UnhandledPromptError("manga page outline requires preprocessed source events")
+    events = extraction.get("source_events", {}).get("events", [])
+    if not events or not events[0].get("source_span_ids"):
+        raise UnhandledPromptError("manga page outline requires source event references")
+    source_id = events[0]["source_span_ids"][0]
     return {
-        "schema_version": "manga_page_slots_v1",
-        "pages": [
-            {"page_number": index + 1, "content": page}
-            for index, page in enumerate(content)
-        ],
+        "schema_version": "manga_page_outline_v1",
+        "opening_state": "林岚停在通道入口。",
+        "pages": [{
+            "page_number": index + 1,
+            "goal": "确认怀表异常" if index == 0 else "沿线索进入机房查证",
+            "source_span_ids": [source_id], "beat_refs": [beat_ref],
+            "exit_state": "林岚确认怀表发生逆行。" if index == 0 else "林岚进入地下机房查证。",
+        } for index in range(expected_page_count)],
+    }
+
+
+def manga_page_content_response(combined: str) -> dict[str, Any]:
+    page_number = _manga_page_number(combined)
+    return {
+        "page_number": page_number,
+        "summary": "林岚在旧车站通道核对逆行怀表。" if page_number == 1 else "林岚拒绝交出信件，决定进入地下机房。",
+        "action": "林岚对照怀表和未来来信确认时间异常。" if page_number == 1 else "林岚收起信件并跨过机房门槛。",
+        "reaction": "周衡避开她的视线。" if page_number == 1 else "周衡停在通道后方，没有跟上。",
+        "dialogue_intent": "确认齿轮暗记与十年前事故的关系。" if page_number == 1 else None,
     }
 
 

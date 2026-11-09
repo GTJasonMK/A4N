@@ -18,6 +18,7 @@ import type {
   HostErrorResponse,
 } from "./generated/generationContracts";
 import { utf8ByteLength } from "../utils/text";
+import { MAX_GENERATION_EVENT_BYTES, MAX_GENERATION_SNAPSHOT_BYTES } from "./generated/host";
 
 export type {
   GenerationTaskEvent,
@@ -28,11 +29,8 @@ export type {
   HostErrorResponse,
 } from "./generated/generationContracts";
 
-const EVENT_MAX_BYTES = 64 * 1024;
-const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
-
 export function parseGenerationTaskEvent(value: unknown): GenerationTaskEvent {
-  assertJsonSize(value, EVENT_MAX_BYTES, "generation event");
+  assertJsonSize(value, MAX_GENERATION_EVENT_BYTES, "generation event");
   if (!eventValidator(value)) {
     throw new Error(`generation event schema invalid: ${formatErrors(eventValidator.errors)}`);
   }
@@ -40,7 +38,7 @@ export function parseGenerationTaskEvent(value: unknown): GenerationTaskEvent {
 }
 
 export function parseGenerationTaskSnapshot(value: unknown): GenerationTaskSnapshot {
-  assertJsonSize(value, SNAPSHOT_MAX_BYTES, "generation snapshot");
+  assertJsonSize(value, MAX_GENERATION_SNAPSHOT_BYTES, "generation snapshot");
   if (!snapshotValidator(value)) {
     throw new Error(
       `generation snapshot schema invalid: ${formatErrors(snapshotValidator.errors)}`,

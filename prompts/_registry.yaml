@@ -571,12 +571,12 @@ prompts:
     description: "基于内容优化 issues 生成可审阅的局部文章补丁"
 
   # ============= 06 漫画 =============
-  manga_page_slots:
-    path: "novel/06_manga/manga_page_slots.md"
-    title: "漫画页面内容拆分 v2"
+  manga_page_outline:
+    path: "novel/06_manga/manga_page_outline.md"
+    title: "漫画轻量页纲 v1"
     category: "manga"
     tags: ["manga", "planning", "page-content"]
-    version: "2.0"
+    version: "1.0"
     used_by:
       - "MangaPipeline.generate_page_prompts"
     assembly_call_keys:
@@ -584,7 +584,21 @@ prompts:
     dependencies:
       - "manga_preprocessing_synthesis"
       - "chapter_media_adaptation_plan"
-    description: "严格按改编计划确定的页数，以原文事件骨架拆分页面内容并分配改编节拍"
+    description: "严格按已采用页数分配每页的节拍、原文范围与状态边界"
+
+  manga_page_content:
+    path: "novel/06_manga/manga_page_content.md"
+    title: "漫画单页剧情内容 v1"
+    category: "manga"
+    tags: ["manga", "planning", "page-content"]
+    version: "1.0"
+    used_by:
+      - "MangaPipeline.generate_page_prompts"
+    assembly_call_keys:
+      - "MangaPipeline.generate_page_prompts"
+    dependencies:
+      - "manga_page_outline"
+    description: "每次只生成一页剧情内容，页码、来源、节拍与边界由已验证页纲约束"
 
   manga_page_adaptation_plan:
     path: "novel/06_manga/manga_page_adaptation_plan.md"
@@ -597,7 +611,7 @@ prompts:
     assembly_call_keys:
       - "MangaPipeline.process_page"
     dependencies:
-      - "manga_page_slots"
+      - "manga_page_content"
     description: "逐页编写视觉意图、连续性要求和取舍细节"
 
   manga_page_storyboard:

@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_domain::{
-    manga::{MangaPageAdaptationV1, MangaPageContentV1, MangaPageSlotsV1, MangaPageV4},
+    manga::{
+        MangaPageAdaptationV1, MangaPageContentDraftV1, MangaPageContentV1, MangaPageOutlineV1,
+        MangaPageSlotsV1, MangaPageV4,
+    },
     media_authoring::{AdaptationBeatRef, AdaptationImportance},
     source_spans::SourceSpan,
 };
@@ -38,23 +41,76 @@ pub(crate) fn parse_manga_page_slots(
     source_spans: &[SourceSpan],
     context: &str,
 ) -> Result<MangaPageSlotsV1, AppError> {
-    let mut slots: MangaPageSlotsV1 = serde_json::from_value(value.clone()).map_err(|error| {
+    let slots: MangaPageSlotsV1 = serde_json::from_value(value.clone()).map_err(|error| {
         AppError::InvalidArgument(format!(
             "{context} 不符合 manga_page_slots_v1 合同: {error}"
         ))
     })?;
-    slots.carry_forward_entry_states();
     slots
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("{context}: {error}")))?;
+    validate_page_assignments(
+        slots.pages.iter().map(|page| {
+            (
+                page.content.source_span_ids.as_slice(),
+                page.content.beat_refs.as_slice(),
+            )
+        }),
+        slots.pages.len(),
+        adaptation,
+        source_spans,
+        context,
+    )?;
+    Ok(slots)
+}
+
+pub(crate) fn parse_manga_page_outline(
+    value: &Value,
+    adaptation: &PreparedAdaptation,
+    source_spans: &[SourceSpan],
+) -> Result<MangaPageOutlineV1, AppError> {
+    let outline: MangaPageOutlineV1 = serde_json::from_value(value.clone())?;
+    outline.validate().map_err(AppError::InvalidArgument)?;
+    validate_page_assignments(
+        outline
+            .pages
+            .iter()
+            .map(|page| (page.source_span_ids.as_slice(), page.beat_refs.as_slice())),
+        outline.pages.len(),
+        adaptation,
+        source_spans,
+        "manga_page_outline",
+    )?;
+    Ok(outline)
+}
+
+pub(crate) fn parse_manga_page_content(
+    value: &Value,
+    outline: &MangaPageOutlineV1,
+    index: usize,
+) -> Result<MangaPageContentDraftV1, AppError> {
+    let draft: MangaPageContentDraftV1 = serde_json::from_value(value.clone())?;
+    outline
+        .page_slot(index, draft.clone())
+        .map_err(AppError::InvalidArgument)?;
+    Ok(draft)
+}
+
+fn validate_page_assignments<'a>(
+    pages: impl Iterator<Item = (&'a [String], &'a [AdaptationBeatRef])>,
+    page_count: usize,
+    adaptation: &PreparedAdaptation,
+    source_spans: &[SourceSpan],
+    context: &str,
+) -> Result<(), AppError> {
     let planned_page_count = adaptation
         .plan
         .validate_manga_page_count()
         .map_err(AppError::InvalidArgument)? as usize;
-    if slots.pages.len() != planned_page_count {
+    if page_count != planned_page_count {
         return Err(AppError::InvalidArgument(format!(
             "{context} 必须生成 {planned_page_count} 页，实际为 {} 页",
-            slots.pages.len()
+            page_count
         )));
     }
 
@@ -75,15 +131,15 @@ pub(crate) fn parse_manga_page_slots(
         }
     }
     let mut used_beats = HashSet::new();
-    for (page_index, page) in slots.pages.iter().enumerate() {
-        for span_id in &page.content.source_span_ids {
+    for (page_index, (source_span_ids, beat_refs)) in pages.enumerate() {
+        for span_id in source_span_ids {
             if !available_spans.contains(span_id.as_str()) {
                 return Err(AppError::InvalidArgument(format!(
                     "{context} pages[{page_index}] 引用了不存在的 source_span_id: {span_id}"
                 )));
             }
         }
-        for beat_ref in &page.content.beat_refs {
+        for beat_ref in beat_refs {
             if !available_beats.contains_key(beat_ref) {
                 return Err(AppError::InvalidArgument(format!(
                     "{context} pages[{page_index}] 引用了不存在的改编节拍: unit_id={}, beat_id={}",
@@ -102,7 +158,7 @@ pub(crate) fn parse_manga_page_slots(
             beat_ref.unit_id, beat_ref.beat_id
         )));
     }
-    Ok(slots)
+    Ok(())
 }
 
 pub(crate) fn parse_manga_page_adaptation(

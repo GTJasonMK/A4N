@@ -23,7 +23,6 @@ mod workflow;
 
 pub(crate) use pipeline::json::parse_manga_page_plan;
 pub(in crate::manga) use pipeline::preview::MangaPipelineRequestPreviewStep;
-pub(in crate::manga) use pipeline::state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipelineStage};
 pub(in crate::manga) use prompt_optimization::MangaPromptOptimizationInput;
 pub(crate) use record_errors::manga_prompt_record_error;
 pub use source::ensure_manga_source_can_write;

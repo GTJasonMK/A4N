@@ -146,7 +146,7 @@ pub(super) fn run() {
         &typescript_api_commands(),
         &typescript_project_package_suffixes(),
         &typescript_import_constants(),
-        &typescript_generation_start_paths(),
+        &typescript_generation_constants(),
         &typescript_runtime_config_policies(),
         &format!(
             "export const CANVAS_MEDIA_INPUT_REF_TYPES: Readonly<Record<string, string>> = {};\n\

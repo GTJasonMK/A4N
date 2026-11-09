@@ -1,27 +1,8 @@
-use super::super::super::{MANGA_PIPELINE_TOTAL_STEPS, OrchestratorContext};
+use super::super::super::OrchestratorContext;
 use a4n_db::workflow::WorkflowProgressEventInput;
 use a4n_error::AppError;
 
 impl OrchestratorContext {
-    pub(in crate::manga) async fn record_manga_pipeline_progress(
-        &self,
-        workflow_run_id: i64,
-        task_id: &str,
-        stage: &str,
-        current: i32,
-        message: &str,
-    ) -> Result<(), AppError> {
-        self.record_manga_pipeline_progress_with_total(
-            workflow_run_id,
-            task_id,
-            stage,
-            current,
-            MANGA_PIPELINE_TOTAL_STEPS,
-            message,
-        )
-        .await
-    }
-
     pub(in crate::manga) async fn record_manga_pipeline_progress_with_total(
         &self,
         workflow_run_id: i64,

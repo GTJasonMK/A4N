@@ -34,8 +34,8 @@ fn manga_page_with_participants(participants: &[&str]) -> MangaPageV4 {
 }
 
 #[test]
-fn manga_page_slots_input_uses_preprocessing_events() {
-    let page_slots = manga_page_slots_input(
+fn manga_page_outline_input_uses_preprocessing_events() {
+    let page_slots = manga_page_outline_input(
         json!({
             "characters": {"陈恪": {"role": "主角"}},
             "source_events": {"events": [{"event_id": "event-1", "description": "陈恪发现线索"}]},
@@ -58,8 +58,20 @@ fn manga_page_slots_input_uses_preprocessing_events() {
     assert!(!page_slots_text.contains("暗棋初动"));
     assert!(!page_slots_text.contains("重复立绘"));
     assert!(page_slots_text.contains("陈恪发现线索"));
-    assert!(page_slots_text.contains("雨夜长街"));
-    assert!(page_slots_text.contains("密信"));
+    assert_eq!(
+        page_slots["extraction_summary"].as_object().unwrap().len(),
+        2
+    );
+    assert!(
+        page_slots["extraction_summary"]
+            .get("source_events")
+            .is_some()
+    );
+    assert!(
+        page_slots["extraction_summary"]
+            .get("comic_synthesis")
+            .is_some()
+    );
 }
 
 #[test]

@@ -404,7 +404,7 @@ export interface CancelRequestedEvent {
 export interface CompletedEvent {
   batch_summary?: BatchSummary | null;
   /**
-   * @maxItems 64
+   * @maxItems 1024
    */
   final_text_hashes: StreamTextHash[];
   final_usage?: GenerationUsage | null;
@@ -537,7 +537,7 @@ export interface GenerationTaskSnapshot {
   started: StartedEvent;
   status: GenerationTaskStatus;
   /**
-   * @maxItems 64
+   * @maxItems 1024
    */
   streams: TextStreamSnapshot[];
   task_id: string;

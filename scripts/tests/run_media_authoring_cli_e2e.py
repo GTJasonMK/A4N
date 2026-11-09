@@ -11,11 +11,13 @@ import traceback
 import uuid
 import zipfile
 from pathlib import Path
+from urllib.request import urlopen
 
 from mock_openai.fixtures.story import chapter_body_response
 from mock_openai.fixtures.reverse import message_text
 from mock_openai.protocol import PNG_1X1_BASE64
-from mock_openai.prompt_parsing import current_task_prompt_name
+from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
+from mock_openai.contract_guard import fixture_prompt_parts
 from run_cli_contract_e2e import checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
@@ -149,10 +151,11 @@ def main():
                     assert expected_error in json.dumps(task, ensure_ascii=False), task
                 return task
 
-            def preprocessing_model(name):
+            def preprocessing_model(name, max_concurrent=4):
                 snapshot = copy.deepcopy(mock_runtime)
                 snapshot["llm"]["model"] = name
                 snapshot["llm"]["max_output_tokens"] = 20000
+                snapshot["llm"]["max_concurrent"] = max_concurrent
                 secure_json(work / "runtime.json", snapshot)
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "preprocessing model")
 
@@ -190,6 +193,91 @@ def main():
             assert [name for name, _ in failed_calls].count(preprocessing_names[1]) == 2
             assert not any(name == preprocessing_names[3] for name, _ in failed_calls)
             assert not any(item["stage"] == "preprocessing" for item in call("list_manga_pipeline_artifacts", {"project_id": recover_project, "chapter_id": chapter_id}))
+            preprocessing_model("a4n-virtual-text")
+
+            def planning_project(title, count=2):
+                preprocessing_model("a4n-virtual-text")
+                project = derive("comic", title)
+                manga_run(project, run_stage="preprocessing")
+                record = generate(project)
+                if count != record["document"]["page_count"]:
+                    document = copy.deepcopy(record["document"])
+                    document["page_count"] = count
+                    record = save(record, document)
+                adopt(record)
+                return project
+
+            def planning_calls(offset):
+                result = []
+                for row in llm_calls()[offset:]:
+                    body = row["body"]
+                    text = fixture_prompt_parts(body["messages"])[1]
+                    name = current_task_prompt_name(text)
+                    if name in {"manga_page_outline", "manga_page_content"}:
+                        result.append((name, body, json_task_payload(text)["output_contract"].get("page_number")))
+                return result
+
+            parallel_project = planning_project("分页逐页并发")
+            preprocessing_model("a4n-page-planning-parallel")
+            preview = call("preview_start_manga_pipeline_request", {"project_id": parallel_project, "chapter_number": 1, "run_stage": "page_slots"})
+            assert [step["state"] for step in preview["steps"]] == ["ready", "waiting_dependencies", "waiting_dependencies"]
+            assert [step["prompt_name"] for step in preview["steps"]] == ["manga_page_outline", "manga_page_content", "manga_page_content"]
+            assert preview["steps"][0]["request"]["max_tokens"] == 20000
+            before = len(llm_calls())
+            manga_run(parallel_project, run_stage="page_slots")
+            observed = planning_calls(before)
+            assert len(observed) == 3 and observed[0][0] == "manga_page_outline", observed
+            assert sorted(page for name, _, page in observed if name == "manga_page_content") == [1, 2]
+            assert all(body["max_tokens"] == 20000 for _, body, _ in observed)
+            with urlopen(args.provider_url.removesuffix("/v1") + "/fixtures/page-planning", timeout=5) as response:
+                assert json.load(response)["a4n-page-planning-parallel"]["max_active"] == 2
+            passed("分页按已采用页数执行 1 次轻量页纲与 N 次单页内容；真实 Provider 屏障证明两页并发，预算保持 20000")
+
+            partial_project = planning_project("分页单页失败局部续跑", count=4)
+            preprocessing_model("a4n-page-planning-fail-content")
+            before = len(llm_calls())
+            manga_run(partial_project, run_stage="page_slots", expected_error="reaction")
+            observed = planning_calls(before)
+            assert len(observed) == 4, [(name, page) for name, _, page in observed]
+            assert sorted(page for name, _, page in observed if name == "manga_page_content") == [1, 2, 2]
+            assert not any(item["stage"] in {"page_slots", "page_content"} for item in call("list_manga_pipeline_artifacts", {"project_id": partial_project, "chapter_id": chapter_id}))
+            preprocessing_model("a4n-virtual-text")
+            preview = call("preview_resume_manga_pipeline_request", {"project_id": partial_project, "chapter_number": 1, "run_stage": "page_slots"})
+            assert [step["state"] for step in preview["steps"]] == ["reused", "reused", "ready", "ready", "ready"]
+            before = len(llm_calls())
+            manga_run(partial_project, run_stage="page_slots", resume=True)
+            observed = planning_calls(before)
+            assert sorted((name, page) for name, _, page in observed) == [("manga_page_content", 2), ("manga_page_content", 3), ("manga_page_content", 4)]
+            complete = next(item for item in call("list_manga_pipeline_artifacts", {"project_id": partial_project, "chapter_id": chapter_id}) if item["stage"] == "page_slots")
+            assert len(complete["payload"]["pages"]) == 4
+            for previous, following in zip(complete["payload"]["pages"], complete["payload"]["pages"][1:]):
+                assert previous["content"]["exit_state"] == following["content"]["entry_state"]
+            passed("第 2 页缺字段仅纠正一次；失败后停止派发后续页，不发布残缺产物；续跑只补第 2–4 页")
+
+            correction_project = planning_project("分页单页纠正")
+            preprocessing_model("a4n-page-planning-recover-content")
+            before = len(llm_calls())
+            manga_run(correction_project, run_stage="page_slots")
+            observed = planning_calls(before)
+            assert len(observed) == 4 and [page for name, _, page in observed if name == "manga_page_content"].count(2) == 2
+            passed("单页缺失 nullable 字段经过唯一纠正后完成，不重调页纲和其他页面")
+
+            eof_project = planning_project("分页断流恢复")
+            preprocessing_model("a4n-page-planning-eof")
+            manga_run(eof_project, run_stage="page_slots", expected_error="LLM")
+            assert not any(item["stage"] == "page_slots" for item in call("list_manga_pipeline_artifacts", {"project_id": eof_project, "chapter_id": chapter_id}))
+            preprocessing_model("a4n-virtual-text")
+            before = len(llm_calls())
+            manga_run(eof_project, run_stage="page_slots", resume=True)
+            assert [(name, page) for name, _, page in planning_calls(before)] == [("manga_page_content", 2)]
+            passed("单页 Provider 断流显式失败；恢复仅调用失败页，不重调成功页和页纲")
+
+            serial_project = planning_project("分页遵循模型并发限制")
+            preprocessing_model("a4n-page-planning-serial", max_concurrent=1)
+            manga_run(serial_project, run_stage="page_slots")
+            with urlopen(args.provider_url.removesuffix("/v1") + "/fixtures/page-planning", timeout=5) as response:
+                assert json.load(response)["a4n-page-planning-serial"]["max_active"] == 1
+            passed("模型配置 max_concurrent=1 时，逐页规划真实请求串行执行")
             preprocessing_model("a4n-virtual-text")
             preview = call("preview_resume_manga_pipeline_request", {"project_id": recover_project, "chapter_number": 1, "run_stage": "preprocessing"})
             assert [step["state"] for step in preview["steps"]] == ["reused", "ready", "reused", "waiting_dependencies"]
@@ -262,7 +350,7 @@ def main():
             provider_request_offset = len(provider_log_entries(args.provider_log))
             manga_run()
             pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(pages) == 2 and len(llm_calls()) - before == len(pages) * 4 + 1
+            assert len(pages) == 2 and len(llm_calls()) - before == len(pages) * 5 + 1
             assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["reference_discovery"] and page["drawing_prompt"] for page in pages)
             assert pages[0]["source"]["adaptation_plan_id"] == comic_adaptation["id"]
             assert all(page["generated_image_id"] for page in pages)

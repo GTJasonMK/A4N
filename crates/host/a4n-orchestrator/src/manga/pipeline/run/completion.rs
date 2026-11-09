@@ -137,8 +137,11 @@ pub(super) async fn complete_pipeline(
         works[index].row = row;
     }
 
-    let total_steps =
-        manga_page_pipeline_total_steps(selected_page_indexes.len(), context.stop_after)?;
+    let total_steps = manga_page_pipeline_total_steps(
+        selected_page_indexes.len(),
+        total_pages,
+        context.stop_after,
+    )?;
     if matches!(
         context.stop_after,
         Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots)
@@ -153,7 +156,10 @@ pub(super) async fn complete_pipeline(
         .await;
     }
 
-    let progress = MangaPagePipelineProgress::new(total_steps);
+    let progress = MangaPagePipelineProgress::new(
+        total_steps,
+        super::super::state::manga_page_planning_total_steps(total_pages)?,
+    );
     let results = stream::iter(
         works
             .into_iter()

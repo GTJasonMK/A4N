@@ -2,10 +2,13 @@ pub(super) mod error_codes;
 pub const GENERATION_EVENT_SCHEMA_VERSION: u16 = 1;
 pub const JS_SAFE_INTEGER_U64: u64 = 9_007_199_254_740_991;
 pub const JS_SAFE_INTEGER_I64: i64 = 9_007_199_254_740_991;
-pub const MAX_GENERATION_EVENT_BYTES: usize = 64 * 1024;
+// Terminal events include one hash per stream, including bounded corrections.
+pub const MAX_GENERATION_EVENT_BYTES: usize = 256 * 1024;
 pub const MAX_TEXT_DELTA_BYTES: usize = 16 * 1024;
 pub const MAX_GENERATION_SNAPSHOT_BYTES: usize = 4 * 1024 * 1024;
-const MAX_GENERATION_STREAMS: usize = 64;
+// A 100-page manga may emit five per-page calls and one correction per call.
+// Snapshot/event byte limits and runtime memory admission still apply.
+const MAX_GENERATION_STREAMS: usize = 1_024;
 const MAX_GENERATION_ARTIFACTS: usize = 4_096;
 pub const DEFAULT_GENERATION_ACTIVE_SESSION_MAX: usize = 64;
 

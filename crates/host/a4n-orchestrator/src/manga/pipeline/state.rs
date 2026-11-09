@@ -6,36 +6,57 @@ use a4n_error::AppError;
 const MANGA_PAGE_PIPELINE_CALL_ORDER_BASE: i32 = 800;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::manga) enum MangaPipelineStage {
-    PageSlots,
+pub(in crate::manga) enum MangaPagePlanningStep {
+    Outline,
+    Content(usize),
 }
 
-impl MangaPipelineStage {
-    pub(in crate::manga) const fn key(self) -> &'static str {
+impl MangaPagePlanningStep {
+    pub(in crate::manga) fn prompt_name(self) -> &'static str {
         match self {
-            Self::PageSlots => "page_slots",
+            Self::Outline => "manga_page_outline",
+            Self::Content(_) => "manga_page_content",
         }
     }
 
-    const fn order(self) -> i32 {
+    pub(in crate::manga) fn title(self) -> String {
         match self {
-            Self::PageSlots => 1,
+            Self::Outline => "轻量页纲".into(),
+            Self::Content(index) => format!("第 {} 页剧情内容", index + 1),
+        }
+    }
+
+    pub(in crate::manga) fn key(self) -> String {
+        match self {
+            Self::Outline => self.prompt_name().into(),
+            Self::Content(index) => format!("manga_page_content.{}", index + 1),
+        }
+    }
+
+    pub(in crate::manga) fn call_key(self, chapter_id: i64) -> String {
+        format!("manga_pipeline:{chapter_id}:{}:v1", self.key())
+    }
+
+    pub(in crate::manga) fn call_order(self) -> Result<i32, AppError> {
+        match self {
+            Self::Outline => Ok(6),
+            Self::Content(index) if index < a4n_domain::manga::MANGA_PAGE_SLOT_LIMIT => {
+                Ok(7 + index as i32)
+            }
+            Self::Content(_) => Err(AppError::InvalidArgument("漫画页面索引超出页数上限".into())),
         }
     }
 }
 
-// The shared setup includes one durable page-slot checkpoint; page work is
-// counted dynamically per page after the explicit preprocessing step.
-pub(in crate::manga) const MANGA_PIPELINE_TOTAL_STEPS: i32 =
-    MangaPipelineStage::PageSlots.order() + 1;
-
-pub(in crate::manga) fn manga_pipeline_stage_status(
-    stage: MangaPipelineStage,
-) -> (&'static str, i32, &'static str) {
-    let message = match stage {
-        MangaPipelineStage::PageSlots => "正在确定漫画页数和每页内容",
-    };
-    (stage.key(), stage.order(), message)
+pub(in crate::manga) fn manga_page_planning_total_steps(
+    page_count: usize,
+) -> Result<i32, AppError> {
+    if !(1..=a4n_domain::manga::MANGA_PAGE_SLOT_LIMIT).contains(&page_count) {
+        return Err(AppError::InvalidArgument(
+            "漫画页数必须在 1–100 之间".into(),
+        ));
+    }
+    Ok(page_count as i32 + 2)
 }
 
 pub(in crate::manga) fn manga_page_pipeline_call_order(

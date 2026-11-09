@@ -29,8 +29,8 @@ from mock_openai.protocol import (
     VideoIdempotencyConflict,
 )
 from mock_openai.response import response_for, validated_fixture_response
-from mock_openai.prompt_parsing import current_task_prompt_name
-from mock_openai.contract_guard import split_output_contracts, unique_object, validate_business_request
+from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
+from mock_openai.contract_guard import split_output_contracts, unique_object, validate_business_request, fixture_prompt_parts
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
 
@@ -77,6 +77,11 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return
         if normalized_path == "/health":
             self._json(200, {"status": "ok"})
+            return
+        if normalized_path == "/fixtures/page-planning":
+            with self.server.page_planning_lock:
+                stats = {model: dict(value) for model, value in self.server.page_planning_stats.items()}
+            self._json(200, stats)
             return
         if normalized_path == "/fixtures/video.mp4":
             self._bytes(200, "video/mp4", base64.b64decode(self.server.video_base64))
@@ -339,9 +344,12 @@ class ProviderHandler(BaseHTTPRequestHandler):
                             time.sleep(2)
                 # Deliberate fault responses must reach the production recovery path.
                 # Validate their normal fixture, then send the injected response unchanged.
-                content = validated_fixture_response(body)
+                content = self._page_planning_response(body)
+                if content is None:
+                    self.close_connection = True
+                    return
             except threading.BrokenBarrierError:
-                self._json(422, {"error": {"message": "preprocessing branches did not overlap", "type": "parallelism_required"}})
+                self._json(422, {"error": {"message": "model branches did not overlap", "type": "parallelism_required"}})
                 return
             except (UnhandledPromptError, ValueError) as error:
                 self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
@@ -563,6 +571,32 @@ class ProviderHandler(BaseHTTPRequestHandler):
         return True
 
 
+    def _page_planning_response(self, body: dict) -> str | None:
+        model = str(body.get("model", ""))
+        combined = fixture_prompt_parts(body.get("messages", []))[1]
+        if not model.startswith("a4n-page-planning-") or current_task_prompt_name(combined) != "manga_page_content":
+            return validated_fixture_response(body)
+        page_number = json_task_payload(combined)["output_contract"]["page_number"]
+        with self.server.page_planning_lock:
+            stats = self.server.page_planning_stats.setdefault(model, {"active": 0, "max_active": 0})
+            stats["active"] += 1
+            stats["max_active"] = max(stats["max_active"], stats["active"])
+        try:
+            if model == "a4n-page-planning-parallel":
+                self.server.page_planning_barrier.wait(timeout=10)
+            elif model in {"a4n-page-planning-slow", "a4n-page-planning-serial"}:
+                time.sleep(2)
+            elif model in {"a4n-page-planning-fail-content", "a4n-page-planning-eof"}:
+                if page_number == 1:
+                    time.sleep(1)
+                elif model == "a4n-page-planning-eof" and page_number == 2:
+                    return None
+            return validated_fixture_response(body)
+        finally:
+            with self.server.page_planning_lock:
+                stats["active"] -= 1
+
+
 class ProviderServer(ThreadingHTTPServer):
     def __init__(
         self,
@@ -580,6 +614,9 @@ class ProviderServer(ThreadingHTTPServer):
         self.log_lock = threading.Lock()
         self.request_index = 0
         self.preprocessing_barrier = threading.Barrier(2)
+        self.page_planning_barrier = threading.Barrier(2)
+        self.page_planning_lock = threading.Lock()
+        self.page_planning_stats: dict[str, dict[str, int]] = {}
         self.video_lock = threading.Lock()
         self.video_jobs: dict[str, dict[str, Any]] = {}
         self.video_idempotency: dict[str, tuple[str, str]] = {}

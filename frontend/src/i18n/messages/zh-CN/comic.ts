@@ -331,7 +331,7 @@ export const comic = {
     artifactEditor: {
       listInputHint: "每行填写一项，空行会忽略。",
       pageReferencesHint: "节拍与原文关联保留不变。",
-      pageSlotsHint: "页数和顺序由已确认的改编方案决定。",
+      pageSlotsHint: "页数沿用已采用的改编方案。先生成轻量页纲，再逐页生成内容；全部通过校验后可在此编辑。",
       storyboardHint: "结合当前页面状态和节拍，调整每格分镜表现。",
       requiredField: "请填写“{field}”。",
       beatReferencesRequired: "缺少有效的改编节拍关联，请回到页面内容或分页阶段调整。",

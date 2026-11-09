@@ -1063,9 +1063,10 @@ class MockOpenAIProviderTest(unittest.TestCase):
             "messages": [{
                 "role": "user",
                 "content": json.dumps({
-                    "task": {"prompt_name": "manga_page_slots"},
+                    "task": {"prompt_name": "manga_page_outline"},
                     "input": {
                         "source": "#0 林岚在通道检查怀表。",
+                        "extraction_summary": {"source_events": {"events": [{"source_span_ids": ["#0"]}]}},
                         "adaptation_plan": {
                             "page_count": 2,
                             "units": [{"id": beat_ref["unit_id"], "beats": [{"id": beat_ref["beat_id"]}]}],
@@ -1077,17 +1078,18 @@ class MockOpenAIProviderTest(unittest.TestCase):
             }],
         }
         slots = json.loads(response_for(slots_request))
-        self.assertEqual(slots["schema_version"], "manga_page_slots_v1")
+        self.assertEqual(slots["schema_version"], "manga_page_outline_v1")
         self.assertEqual(len(slots["pages"]), 2)
-        self.assertEqual(slots["pages"][0]["content"]["source_span_ids"], ["#0"])
-        self.assertEqual(slots["pages"][1]["content"]["source_span_ids"], ["#0"])
-        self.assertEqual(slots["pages"][0]["content"]["beat_refs"], [beat_ref])
-        self.assertEqual(
-            slots["pages"][1]["content"]["entry_state"],
-            slots["pages"][0]["content"]["exit_state"],
-        )
-
-        content = slots["pages"][1]["content"]
+        self.assertEqual(slots["pages"][0]["source_span_ids"], ["#0"])
+        self.assertEqual(slots["pages"][1]["source_span_ids"], ["#0"])
+        self.assertEqual(slots["pages"][0]["beat_refs"], [beat_ref])
+        content = json.loads(response_for({"messages": [{"role": "user", "content": json.dumps({
+            "task": {"prompt_name": "manga_page_content"}, "input": {"page_number": 2, "page_outline": slots["pages"][1]},
+        }, ensure_ascii=False)}]}))
+        self.assertEqual(set(content), {"page_number", "summary", "action", "reaction", "dialogue_intent"})
+        self.assertEqual(content.pop("page_number"), 2)
+        content.update(source_span_ids=slots["pages"][1]["source_span_ids"], beat_refs=slots["pages"][1]["beat_refs"],
+                       entry_state=slots["pages"][0]["exit_state"], exit_state=slots["pages"][1]["exit_state"])
         adaptation = json.loads(response_for({"messages": [{
             "role": "user",
             "content": json.dumps({

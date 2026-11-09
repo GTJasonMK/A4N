@@ -655,8 +655,13 @@ fn typescript_api_commands() -> String {
     )
 }
 
-fn typescript_generation_start_paths() -> String {
-    let mut output = String::from(
+fn typescript_generation_constants() -> String {
+    let mut output = format!(
+        "export const MAX_GENERATION_EVENT_BYTES = {};\nexport const MAX_GENERATION_SNAPSHOT_BYTES = {};\n\n",
+        a4n_service_protocol::MAX_GENERATION_EVENT_BYTES,
+        a4n_service_protocol::MAX_GENERATION_SNAPSHOT_BYTES,
+    );
+    output.push_str(
         "export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<string, string>([\n",
     );
     for (command, path) in GENERATION_START_ROUTES {

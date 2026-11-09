@@ -2747,14 +2747,6 @@
     {
       "callee": "render_and_validate_manga_call",
       "crate": "a4n-orchestrator",
-      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/prompt/llm/execution.rs",
-      "function": "render_and_validate_manga_call_with_markers",
-      "ordinal": 1,
-      "receiver": "self"
-    },
-    {
-      "callee": "render_and_validate_manga_call",
-      "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/drawing_prompt/page.rs",
       "function": "run_single_page_drawing_prompt",
       "ordinal": 1,
@@ -2795,18 +2787,18 @@
     {
       "callee": "render_and_validate_manga_call_observed",
       "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots/progress.rs",
+      "function": "run_call",
+      "ordinal": 1,
+      "receiver": "service"
+    },
+    {
+      "callee": "render_and_validate_manga_call_observed",
+      "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs",
       "function": "run_step",
       "ordinal": 1,
       "receiver": "context"
-    },
-    {
-      "callee": "render_and_validate_manga_call_with_markers",
-      "crate": "a4n-orchestrator",
-      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots.rs",
-      "function": "run_page_slots",
-      "ordinal": 1,
-      "receiver": "service"
     },
     {
       "callee": "render_boundary_frame_checkpoint",
@@ -3661,22 +3653,6 @@
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/outline/generation.rs",
       "function": "run_task",
-      "ordinal": 1,
-      "receiver": null
-    },
-    {
-      "callee": "run_page_slots",
-      "crate": "a4n-orchestrator",
-      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/pipeline/execution.rs",
-      "function": "generate_page_prompts",
-      "ordinal": 1,
-      "receiver": null
-    },
-    {
-      "callee": "run_page_slots",
-      "crate": "a4n-orchestrator",
-      "file": "crates/host/a4n-orchestrator/src/manga/pipeline/run/single_stage.rs",
-      "function": "run_single_stage",
       "ordinal": 1,
       "receiver": null
     },

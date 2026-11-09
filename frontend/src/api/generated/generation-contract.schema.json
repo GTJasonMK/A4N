@@ -234,7 +234,7 @@
           "items": {
             "$ref": "#/$defs/StreamTextHash"
           },
-          "maxItems": 64,
+          "maxItems": 1024,
           "type": "array"
         },
         "final_usage": {
@@ -959,7 +959,7 @@
           "items": {
             "$ref": "#/$defs/TextStreamSnapshot"
           },
-          "maxItems": 64,
+          "maxItems": 1024,
           "type": "array"
         },
         "task_id": {

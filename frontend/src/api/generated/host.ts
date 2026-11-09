@@ -487,6 +487,9 @@ export const CANVAS_PROJECT_PACKAGE_SUFFIX = ".a4n-canvas.zip";
 export const MAX_PROJECT_TEXT_UPLOAD_BYTES = 104857600;
 export const REVERSE_ENGINEERING_PROGRESS_TOTAL = 3;
 
+export const MAX_GENERATION_EVENT_BYTES = 262144;
+export const MAX_GENERATION_SNAPSHOT_BYTES = 4194304;
+
 export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<string, string>([
   ["start_blueprint_generation", "/generation-tasks/blueprint"],
   ["start_blueprint_refinement", "/generation-tasks/blueprint-refinement"],

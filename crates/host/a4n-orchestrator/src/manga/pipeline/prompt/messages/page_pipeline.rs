@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use a4n_domain::{
     manga::{
-        MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_SLOTS_V1, MangaPageAdaptationV1,
-        MangaPageContentV1, MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaPageV4,
+        MANGA_PAGE_DRAWING_PROMPT_V2, MangaPageAdaptationV1, MangaPageContentV1,
+        MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaPageV4,
         MangaReferenceBindingSummary,
     },
     media::GeneratedImageRecord,
@@ -15,44 +15,8 @@ use serde_json::{Value, json};
 
 use super::super::page_context::{character_names_for_page, filter_characters};
 use super::common::build_manga_step_user_message;
-use super::inputs::{
-    manga_page_drawing_prompt_page_input, manga_page_slots_input,
-    manga_page_storyboard_source_input,
-};
+use super::inputs::{manga_page_drawing_prompt_page_input, manga_page_storyboard_source_input};
 use crate::source_markers::SourceMarkerMap;
-
-pub(in crate::manga) fn manga_page_slots_user_message(
-    extraction_summary: Value,
-    adaptation_plan: Value,
-    source_spans: &[SourceSpan],
-    chapter_content: &str,
-    source_markers: &SourceMarkerMap,
-) -> Result<LlmContextManifest, AppError> {
-    let mut input = manga_page_slots_input(extraction_summary, adaptation_plan)?;
-    input
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidArgument("分页内容上下文必须是 JSON 对象".into()))?
-        .insert(
-            "source".into(),
-            json!(source_markers.mark_text(chapter_content, source_spans)?),
-        );
-    let input = source_markers.encode_input(&input)?;
-    build_manga_step_user_message(
-        "manga_page_slots",
-        "严格按改编计划确定的页数拆分每页承载的剧情内容，不重新决定页数，不规划画格或图像提示词",
-        input,
-        json!({
-            "format": "json_object",
-            "prompt_name": "manga_page_slots",
-            "schema_version": MANGA_PAGE_SLOTS_V1,
-            "required_fields": ["schema_version", "pages"],
-            "page_count_rule": "pages 数组长度必须恰好等于 input.adaptation_plan.page_count；页数已由改编计划确定，不得增减；每页只输出一条 content，不输出 panel 或绘图描述",
-            "source_span_rule": "source_span_ids 只能引用 input.source 中出现的 #序号标记",
-            "source_event_rule": "input.extraction_summary.source_events.events 是原文事件骨架，作为分页事实依据；不得以改编节拍替换或删改原文事件",
-            "beat_ref_rule": "beat_refs 只能引用 input.adaptation_plan.units[].beats 中的节拍；所有 required 节拍必须覆盖",
-        }),
-    )
-}
 
 pub(in crate::manga) fn manga_page_adaptation_user_message(
     page_number: u32,

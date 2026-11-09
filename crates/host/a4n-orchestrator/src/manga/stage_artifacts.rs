@@ -643,7 +643,7 @@ impl OrchestratorContext {
         validate_manga_page_reference_discovery_candidates(&discovery, &candidates)
     }
 
-    async fn current_manga_adaptation_and_source_spans(
+    pub(in crate::manga) async fn current_manga_adaptation_and_source_spans(
         &self,
         project_id: i64,
         chapter_id: i64,

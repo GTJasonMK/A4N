@@ -331,7 +331,7 @@ export const comic = {
     artifactEditor: {
       listInputHint: "Enter one item per line. Blank lines are ignored.",
       pageReferencesHint: "Beat and source references are preserved.",
-      pageSlotsHint: "Page count and order follow the confirmed adaptation plan.",
+      pageSlotsHint: "Page count follows the adopted adaptation plan. A brief outline is followed by one content request per page; editing opens after every page passes validation.",
       storyboardHint: "Adjust each panel to fit the current page state and beats.",
       requiredField: "Enter {field}.",
       beatReferencesRequired: "Valid adaptation beat references are missing. Update them in page content or pagination.",

@@ -36,7 +36,7 @@ use super::super::{
         manga_page_reference_discovery_user_message, manga_page_storyboard_source_input,
         manga_page_storyboard_user_message,
     },
-    state::{MANGA_PIPELINE_TOTAL_STEPS, manga_page_pipeline_call_order},
+    state::{manga_page_pipeline_call_order, manga_page_planning_total_steps},
 };
 use super::{
     contracts::{MangaRunContext, should_generate_manga_stage},
@@ -66,14 +66,16 @@ pub(super) struct MangaPageWork {
 pub(super) struct MangaPagePipelineProgress {
     completed: AtomicU32,
     total: i32,
+    base: i32,
     lock: Mutex<()>,
 }
 
 impl MangaPagePipelineProgress {
-    pub(super) fn new(total: i32) -> Self {
+    pub(super) fn new(total: i32, base: i32) -> Self {
         Self {
             completed: AtomicU32::new(0),
             total,
+            base,
             lock: Mutex::new(()),
         }
     }
@@ -93,7 +95,7 @@ impl MangaPagePipelineProgress {
             .checked_add(1)
             .ok_or_else(|| AppError::InvalidArgument("漫画页面进度计数溢出".into()))?;
         let current =
-            MANGA_PIPELINE_TOTAL_STEPS
+            self.base
                 .checked_add(i32::try_from(completed).map_err(|_| {
                     AppError::InvalidArgument("漫画页面进度计数超出 i32 范围".into())
                 })?)
@@ -136,7 +138,8 @@ impl MangaPagePipelineProgress {
         trace: &MangaPromptGenerationTrace,
     ) -> Result<(), AppError> {
         let _guard = self.lock.lock().await;
-        let current = MANGA_PIPELINE_TOTAL_STEPS
+        let current = self
+            .base
             .checked_add(
                 i32::try_from(self.completed.load(Ordering::Acquire)).map_err(|_| {
                     AppError::InvalidArgument("漫画页面进度计数超出 i32 范围".into())
@@ -171,7 +174,7 @@ impl MangaPagePipelineProgress {
         let Ok(completed) = i32::try_from(self.completed.load(Ordering::Acquire)) else {
             return;
         };
-        let current = MANGA_PIPELINE_TOTAL_STEPS + completed;
+        let current = self.base + completed;
         let label = format!("第 {page_number}/{total_pages} 页：{message}");
         context.publish_progress(
             "image_progress",
@@ -189,6 +192,7 @@ impl MangaPagePipelineProgress {
 
 pub(super) fn manga_page_pipeline_total_steps(
     page_count: usize,
+    total_page_count: usize,
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 ) -> Result<i32, AppError> {
     let stages_per_page = match stop_after {
@@ -206,7 +210,7 @@ pub(super) fn manga_page_pipeline_total_steps(
         .ok()
         .and_then(|pages| pages.checked_mul(stages_per_page))
         .ok_or_else(|| AppError::InvalidArgument("漫画页面进度总数超出 i32 范围".into()))?;
-    MANGA_PIPELINE_TOTAL_STEPS
+    manga_page_planning_total_steps(total_page_count)?
         .checked_add(page_steps)
         .ok_or_else(|| AppError::InvalidArgument("漫画页面进度总数超出 i32 范围".into()))
 }

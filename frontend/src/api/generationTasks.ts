@@ -31,6 +31,7 @@ import {
   shouldUseHttpBackend,
 } from "./runtime";
 import { readSseStream } from "../utils/sseParser";
+import { MAX_GENERATION_EVENT_BYTES } from "./generated/host";
 import { sha256Hex } from "../utils/contentHash";
 import { utf8ByteLength } from "../utils/text";
 import { getActiveLocale, translateMessage } from "../i18n";
@@ -397,7 +398,7 @@ async function runWebTransport(
         cursor = event.sequence;
         retry = 0;
         terminalVerification = handleEvent(handle, event) ?? terminalVerification;
-      }, session.controller.signal);
+      }, session.controller.signal, MAX_GENERATION_EVENT_BYTES);
       await terminalVerification;
     } catch (error) {
       if (session.controller.signal.aborted) return;

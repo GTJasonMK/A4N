@@ -63,6 +63,24 @@ describe("generation web transport", () => {
     useGenerationTasksStore.getState().clear(generationTaskKey(taskId, 1));
   });
 
+  it("reads a hundred-page terminal frame through SSE without snapshot recovery", async () => {
+    const ids = Array.from({ length: 1002 }, (_, index) => `page_${index}_content.correction`);
+    const deltas: GenerationTaskEvent[] = ids.map((streamId, index) => ({
+      schema_version: 1, task_id: taskId, attempt: 1, sequence: index + 2, emitted_at_ms: index + 2,
+      event: { kind: "text_delta", data: { stream_id: streamId, chunk_index: 0, offset: 0, delta: "hello" } },
+    }));
+    const terminal = completedEvent(ids.length + 2, ids.map((stream_id) => ({ stream_id, utf8_bytes: 5, sha256: helloHash })));
+    expect(new TextEncoder().encode(JSON.stringify(terminal)).byteLength).toBeGreaterThan(64 * 1024);
+    mocks.authenticatedWebFetch.mockResolvedValueOnce(sseResponse(startedEvent(), ...deltas, terminal));
+    const { generationClient } = await import("./generationTasks");
+    await generationClient.attach(handle);
+    const task = getGenerationTaskViewState(taskId, 1);
+    expect(task?.terminalReceived).toBe(true);
+    expect(task?.taskStatus).toBe("completed");
+    expect(Object.keys(task?.streams ?? {})).toHaveLength(ids.length);
+    expect(mocks.authenticatedWebFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("resumes from the last event after a network stream failure", async () => {
     mocks.authenticatedWebFetch
       .mockResolvedValueOnce(networkFailureAfter(startedEvent()))

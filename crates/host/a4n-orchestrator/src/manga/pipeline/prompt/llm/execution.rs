@@ -5,7 +5,6 @@ use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use crate::source_markers::SourceMarkerMap;
 use crate::{
     OrchestratorContext,
     structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response},
@@ -34,23 +33,6 @@ pub(in crate::manga) struct MangaRenderTraceInput<'a> {
 }
 
 impl OrchestratorContext {
-    pub(in crate::manga) async fn render_and_validate_manga_call_with_markers<T, F>(
-        &self,
-        input: MangaRenderTraceInput<'_>,
-        source_markers: &SourceMarkerMap,
-        mut validate: F,
-    ) -> Result<(MangaPromptGenerationTrace, T), AppError>
-    where
-        T: serde::Serialize,
-        F: FnMut(&Value) -> Result<T, AppError>,
-    {
-        self.render_and_validate_manga_call(input, |value| {
-            let value = source_markers.decode_output(value)?;
-            validate(&value)
-        })
-        .await
-    }
-
     pub(in crate::manga) async fn render_and_validate_manga_call<T, F>(
         &self,
         input: MangaRenderTraceInput<'_>,

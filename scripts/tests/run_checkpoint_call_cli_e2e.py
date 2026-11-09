@@ -343,7 +343,8 @@ def main():
                 )
 
             early_faults = [
-                ("manga-slots", 0, "不存在的改编节拍"),
+                ("manga-outline", 0, "不存在的改编节拍"),
+                ("manga-page-content", 0, "reaction"),
                 # These prefixes count completed provider calls before each
                 # injected page fault in the current pipeline contract.
                 ("manga-speech", 5, "beat_refs 必须来自页面内容节拍"),
@@ -398,14 +399,14 @@ def main():
                 })
                 failed = manga_result(project_id, expected, expected_task=started)
                 start_calls = len(calls()) - before
-                if fault == "manga-slots":
+                if fault == "manga-outline":
                     assert start_calls == prefix + 2, (fault, start_calls)
                 else:
                     # Page work is scheduled independently; whichever page
                     # reaches the injected invalid response first is valid.
                     assert start_calls > 0, (fault, start_calls)
                 pages_before_resume = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
-                if fault == "manga-slots":
+                if fault == "manga-outline":
                     assert failed["can_resume"] is False, failed
                     model()
                     before = len(calls())
@@ -415,7 +416,7 @@ def main():
                     manga_result(project_id, previous=failed, expected_task=restarted)
                     pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
                     restart_calls = len(calls()) - before
-                    assert pages and restart_calls == 1 + 4 * len(pages), (restart_calls, len(pages))
+                    assert pages and restart_calls == 1 + 5 * len(pages), (restart_calls, len(pages))
                     assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
                     report["checks"].append({
                         "fault": fault,
@@ -440,6 +441,9 @@ def main():
                     page.get("drawing_prompt") is None
                     for page in pages_before_resume
                 )
+                if fault == "manga-page-content":
+                    assert not pages_before_resume and not saved_content
+                    expected_retry_calls = 1 + 4 * adaptation["document"]["page_count"]
                 model()
                 before = len(calls())
                 resumed = call("resume_manga_pipeline", {
@@ -449,7 +453,8 @@ def main():
                 resumed_content = [artifact for artifact in call("list_manga_pipeline_artifacts", {
                     "project_id": project_id, "chapter_id": chapter_id,
                 }) if artifact["stage"] == "page_content"]
-                assert resumed_content == saved_content, "Resume must preserve saved page content and its revisions"
+                if fault != "manga-page-content":
+                    assert resumed_content == saved_content, "Resume must preserve saved page content and its revisions"
                 pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
                 assert pages and len(calls()) - before == expected_retry_calls, (fault, len(calls()) - before, expected_retry_calls, len(pages))
                 assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)

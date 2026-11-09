@@ -3,9 +3,89 @@ use super::*;
 use a4n_generation_artifact_contract::GenerationArtifactRef;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::Digest;
 
 const TASK_ID: &str = "550e8400-e29b-41d4-a716-446655440000";
 const SHA256_HELLO: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+#[test]
+fn page_scoped_streams_fit_a_long_chapter_without_removing_byte_limits() {
+    let empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    let mut snapshot = GenerationTaskSnapshot {
+        schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+        task_id: TASK_ID.into(),
+        attempt: 1,
+        covers_through_sequence: 1,
+        status: GenerationTaskStatus::Running,
+        started: started(TASK_ID),
+        cancel_reason: None,
+        progress: None,
+        streams: (0..202)
+            .map(|index| TextStreamSnapshot {
+                stream_id: format!("page_{index}"),
+                text: String::new(),
+                next_offset: 0,
+                sha256: empty_hash.into(),
+            })
+            .collect(),
+        artifacts: vec![],
+        usage: None,
+        latest_checkpoint: None,
+        terminal_event: None,
+        updated_at_ms: 0,
+    };
+    snapshot.validate().unwrap();
+    let schema = schemars::schema_for!(GenerationTaskSnapshot).to_value();
+    assert_eq!(
+        schema["properties"]["streams"]["maxItems"],
+        MAX_GENERATION_STREAMS
+    );
+    snapshot.streams = (0..=MAX_GENERATION_STREAMS)
+        .map(|index| TextStreamSnapshot {
+            stream_id: format!("page_{index}"),
+            text: String::new(),
+            next_offset: 0,
+            sha256: empty_hash.into(),
+        })
+        .collect();
+    assert!(
+        snapshot
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("snapshot text stream")
+    );
+    snapshot.streams.truncate(1);
+    let text = "x".repeat(MAX_GENERATION_SNAPSHOT_BYTES);
+    snapshot.streams[0].sha256 = format!("{:x}", sha2::Sha256::digest(text.as_bytes()));
+    snapshot.streams[0].next_offset = text.len() as u64;
+    snapshot.streams[0].text = text;
+    assert!(snapshot.validate().is_err());
+}
+
+#[test]
+fn terminal_hashes_cover_a_hundred_pages_with_one_correction_per_call() {
+    let hashes = (0..1_002)
+        .map(|index| StreamTextHash {
+            stream_id: format!("page_{index}_content.correction"),
+            utf8_bytes: 100_000,
+            sha256: SHA256_HELLO.into(),
+        })
+        .collect::<Vec<_>>();
+    let event = envelope(
+        2,
+        GenerationEvent::Completed(CompletedEvent {
+            result_ref: None,
+            final_text_hashes: hashes,
+            final_usage: None,
+            finish_reason: Some(GenerationFinishReason::Stop),
+            summary: None,
+            batch_summary: None,
+        }),
+    );
+    assert!(serde_json::to_vec(&event).unwrap().len() > 64 * 1024);
+    event.validate().unwrap();
+}
 
 fn started(task_id: &str) -> StartedEvent {
     StartedEvent {

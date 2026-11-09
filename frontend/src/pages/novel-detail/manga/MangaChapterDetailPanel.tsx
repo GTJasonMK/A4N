@@ -1336,7 +1336,7 @@ export function MangaChapterDetailPanel({
       ? "secondary"
       : "primary";
   const pipelineDirectLabel = pipelineActionTargetLabel
-    ? pipelineCanResume || (hasIncompletePages && !pipelineFailed)
+    ? pipelineCanResume || (hasMangaResult && hasIncompletePages && !pipelineFailed)
       ? t("comic.continueToStage", { stage: pipelineActionTargetLabel })
       : pipelineFailed
         ? t("comic.regenerateToStage", { stage: pipelineActionTargetLabel })
@@ -1459,6 +1459,22 @@ export function MangaChapterDetailPanel({
                 </div>}
                 {canEditManga ? (
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    {stageMode === "page_planning" && !pipelineRunning && showPipelineDirectAction ? (
+                      <BookButton
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onPreviewPipeline(
+                          pipelineCanResume ? "resume" : "start",
+                          pipelineStopAfter,
+                          pipelinePageNumber,
+                          pipelineRunStage,
+                        )}
+                        disabled={pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy}
+                      >
+                        <Eye size={13} />
+                        {pipelinePreviewLabel}
+                      </BookButton>
+                    ) : null}
                     {pipelineMenuItems.length > 0 ? (
                       <Dropdown items={pipelineMenuItems} />
                     ) : null}

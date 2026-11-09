@@ -20,10 +20,10 @@ pub(super) async fn run_single_stage(
             operation: "请通过章节预处理步骤运行".into(),
         }),
         MangaPipelineArtifactStage::PageSlots => {
-            let slots = run_page_slots(context, extraction_summary).await?;
             let scoped_context = context.with_stop_after(Some(
                 a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots,
             ));
+            let slots = run_page_slots(&scoped_context, extraction_summary).await?;
             return complete_pipeline(&scoped_context, extraction_summary, slots).await;
         }
         MangaPipelineArtifactStage::PageContent => Err(AppError::InvalidState {

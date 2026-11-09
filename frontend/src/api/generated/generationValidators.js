@@ -2150,7 +2150,7 @@ return errors === 0;
 }
 validate33.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema53 = {"additionalProperties":false,"properties":{"batch_summary":{"anyOf":[{"$ref":"#/$defs/BatchSummary"},{"type":"null"}]},"final_text_hashes":{"items":{"$ref":"#/$defs/StreamTextHash"},"maxItems":64,"type":"array"},"final_usage":{"anyOf":[{"$ref":"#/$defs/GenerationUsage"},{"type":"null"}]},"finish_reason":{"anyOf":[{"$ref":"#/$defs/GenerationFinishReason"},{"type":"null"}]},"result_ref":{"anyOf":[{"$ref":"#/$defs/GenerationResultRef"},{"type":"null"}]},"summary":{"maxLength":2048,"type":["string","null"]}},"required":["final_text_hashes"],"type":"object"};
+const schema53 = {"additionalProperties":false,"properties":{"batch_summary":{"anyOf":[{"$ref":"#/$defs/BatchSummary"},{"type":"null"}]},"final_text_hashes":{"items":{"$ref":"#/$defs/StreamTextHash"},"maxItems":1024,"type":"array"},"final_usage":{"anyOf":[{"$ref":"#/$defs/GenerationUsage"},{"type":"null"}]},"finish_reason":{"anyOf":[{"$ref":"#/$defs/GenerationFinishReason"},{"type":"null"}]},"result_ref":{"anyOf":[{"$ref":"#/$defs/GenerationResultRef"},{"type":"null"}]},"summary":{"maxLength":2048,"type":["string","null"]}},"required":["final_text_hashes"],"type":"object"};
 const schema56 = {"additionalProperties":false,"properties":{"sha256":{"maxLength":64,"minLength":64,"type":"string"},"stream_id":{"maxLength":64,"minLength":1,"type":"string"},"utf8_bytes":{"format":"uint64","maximum":9007199254740991,"minimum":0,"type":"integer"}},"required":["stream_id","utf8_bytes","sha256"],"type":"object"};
 const schema58 = {"enum":["stop","tool_calls_complete"],"type":"string"};
 const schema59 = {"additionalProperties":false,"properties":{"id":{"maxLength":256,"minLength":1,"type":"string"},"kind":{"maxLength":128,"minLength":1,"type":"string"},"revision":{"maxLength":256,"minLength":1,"type":"string"}},"required":["kind","id","revision"],"type":"object"};
@@ -2556,8 +2556,8 @@ vErrors = null;
 if(data.final_text_hashes !== undefined){
 let data1 = data.final_text_hashes;
 if(Array.isArray(data1)){
-if(data1.length > 64){
-const err4 = {instancePath:instancePath+"/final_text_hashes",schemaPath:"#/properties/final_text_hashes/maxItems",keyword:"maxItems",params:{limit: 64},message:"must NOT have more than 64 items"};
+if(data1.length > 1024){
+const err4 = {instancePath:instancePath+"/final_text_hashes",schemaPath:"#/properties/final_text_hashes/maxItems",keyword:"maxItems",params:{limit: 1024},message:"must NOT have more than 1024 items"};
 if(vErrors === null){
 vErrors = [err4];
 }
@@ -5923,7 +5923,7 @@ return errors === 0;
 validate117.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const snapshotValidator = validate119;
-const schema85 = {"additionalProperties":false,"properties":{"artifacts":{"items":{"$ref":"#/$defs/GenerationArtifactRef"},"maxItems":4096,"type":"array"},"attempt":{"format":"uint32","minimum":1,"type":"integer"},"cancel_reason":{"anyOf":[{"$ref":"#/$defs/CancellationReason"},{"type":"null"}]},"covers_through_sequence":{"format":"uint64","maximum":9007199254740991,"minimum":1,"type":"integer"},"latest_checkpoint":{"anyOf":[{"$ref":"#/$defs/CheckpointEvent"},{"type":"null"}]},"progress":{"anyOf":[{"$ref":"#/$defs/ProgressEvent"},{"type":"null"}]},"schema_version":{"format":"uint16","maximum":1,"minimum":1,"type":"integer"},"started":{"$ref":"#/$defs/StartedEvent"},"status":{"$ref":"#/$defs/GenerationTaskStatus"},"streams":{"items":{"$ref":"#/$defs/TextStreamSnapshot"},"maxItems":64,"type":"array"},"task_id":{"maxLength":36,"minLength":36,"type":"string"},"terminal_event":{"anyOf":[{"$ref":"#/$defs/GenerationTaskEvent"},{"type":"null"}]},"updated_at_ms":{"format":"int64","maximum":9007199254740991,"minimum":0,"type":"integer"},"usage":{"anyOf":[{"$ref":"#/$defs/GenerationUsage"},{"type":"null"}]}},"required":["schema_version","task_id","attempt","covers_through_sequence","status","started","streams","artifacts","updated_at_ms"],"type":"object"};
+const schema85 = {"additionalProperties":false,"properties":{"artifacts":{"items":{"$ref":"#/$defs/GenerationArtifactRef"},"maxItems":4096,"type":"array"},"attempt":{"format":"uint32","minimum":1,"type":"integer"},"cancel_reason":{"anyOf":[{"$ref":"#/$defs/CancellationReason"},{"type":"null"}]},"covers_through_sequence":{"format":"uint64","maximum":9007199254740991,"minimum":1,"type":"integer"},"latest_checkpoint":{"anyOf":[{"$ref":"#/$defs/CheckpointEvent"},{"type":"null"}]},"progress":{"anyOf":[{"$ref":"#/$defs/ProgressEvent"},{"type":"null"}]},"schema_version":{"format":"uint16","maximum":1,"minimum":1,"type":"integer"},"started":{"$ref":"#/$defs/StartedEvent"},"status":{"$ref":"#/$defs/GenerationTaskStatus"},"streams":{"items":{"$ref":"#/$defs/TextStreamSnapshot"},"maxItems":1024,"type":"array"},"task_id":{"maxLength":36,"minLength":36,"type":"string"},"terminal_event":{"anyOf":[{"$ref":"#/$defs/GenerationTaskEvent"},{"type":"null"}]},"updated_at_ms":{"format":"int64","maximum":9007199254740991,"minimum":0,"type":"integer"},"usage":{"anyOf":[{"$ref":"#/$defs/GenerationUsage"},{"type":"null"}]}},"required":["schema_version","task_id","attempt","covers_through_sequence","status","started","streams","artifacts","updated_at_ms"],"type":"object"};
 const schema90 = {"additionalProperties":false,"properties":{"next_offset":{"format":"uint64","maximum":9007199254740991,"minimum":0,"type":"integer"},"sha256":{"maxLength":64,"minLength":64,"type":"string"},"stream_id":{"maxLength":64,"minLength":1,"type":"string"},"text":{"type":"string"}},"required":["stream_id","text","next_offset","sha256"],"type":"object"};
 
 function validate21(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
@@ -7083,8 +7083,8 @@ errors++;
 if(data.streams !== undefined){
 let data21 = data.streams;
 if(Array.isArray(data21)){
-if(data21.length > 64){
-const err71 = {instancePath:instancePath+"/streams",schemaPath:"#/properties/streams/maxItems",keyword:"maxItems",params:{limit: 64},message:"must NOT have more than 64 items"};
+if(data21.length > 1024){
+const err71 = {instancePath:instancePath+"/streams",schemaPath:"#/properties/streams/maxItems",keyword:"maxItems",params:{limit: 1024},message:"must NOT have more than 1024 items"};
 if(vErrors === null){
 vErrors = [err71];
 }
