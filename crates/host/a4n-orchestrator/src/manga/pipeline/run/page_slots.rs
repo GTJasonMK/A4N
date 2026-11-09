@@ -8,12 +8,12 @@ use serde_json::Value;
 
 use super::super::super::adaptation_projection::manga_page_slots_source;
 use super::super::json::{
-    parse_manga_page_content, parse_manga_page_outline, parse_manga_page_slots,
+    parse_manga_page_content, parse_manga_page_outline, reuse_manga_page_slots,
     validate_manga_page_slots,
 };
 use super::super::prompt::{MangaPageContentMessages, manga_page_outline_user_message};
 use super::super::state::MangaPagePlanningStep;
-use super::contracts::{MangaRunContext, manga_stage_output_exists_error};
+use super::contracts::MangaRunContext;
 use super::page::{MANGA_PAGE_PIPELINE_CONCURRENCY, manga_page_pipeline_total_steps};
 use progress::PagePlanningProgress;
 
@@ -22,13 +22,6 @@ pub(super) async fn run_page_slots(
     extraction_summary: &Value,
 ) -> Result<MangaPageSlotsV1, AppError> {
     context.check_cancelled()?;
-    let user_content = manga_page_outline_user_message(
-        extraction_summary.clone(),
-        manga_page_slots_source(&context.adaptation),
-        &context.source_markers,
-    )?;
-    let input_fingerprint =
-        context.artifact_input_fingerprint(MangaPipelineArtifactStage::PageSlots, &user_content)?;
     let total_pages = context
         .adaptation
         .plan
@@ -46,21 +39,12 @@ pub(super) async fn run_page_slots(
         )
         .await?
     {
-        if artifact.stale
-            || artifact.input_fingerprint != input_fingerprint
-            || (context.run_stage == Some(MangaPipelineArtifactStage::PageSlots)
-                && !context.resume_from_checkpoint)
-        {
-            return Err(manga_stage_output_exists_error(
-                MangaPipelineArtifactStage::PageSlots,
-                None,
-            ));
-        }
-        let slots = parse_manga_page_slots(
-            &artifact.payload,
+        let slots = reuse_manga_page_slots(
+            &artifact,
             &context.adaptation,
             &context.source_spans,
-            "manga_page_slots",
+            context.run_stage == Some(MangaPipelineArtifactStage::PageSlots)
+                && !context.resume_from_checkpoint,
         )?;
         progress
             .report(
@@ -72,6 +56,13 @@ pub(super) async fn run_page_slots(
             .await?;
         return Ok(slots);
     }
+    let user_content = manga_page_outline_user_message(
+        extraction_summary.clone(),
+        manga_page_slots_source(&context.adaptation),
+        &context.source_markers,
+    )?;
+    let input_fingerprint =
+        context.artifact_input_fingerprint(MangaPipelineArtifactStage::PageSlots, &user_content)?;
     let outline = progress
         .run_call(MangaPagePlanningStep::Outline, user_content, |value| {
             parse_manga_page_outline(value, &context.adaptation, &context.source_spans)

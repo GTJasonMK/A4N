@@ -224,6 +224,38 @@ fn saved_page_content_keeps_the_same_source_and_beat_checks_as_pagination() {
 }
 
 #[test]
+fn pagination_reuse_validates_saved_artifacts_without_matching_request_fingerprints() {
+    use a4n_domain::manga::{MangaPipelineArtifactRecord, MangaPipelineArtifactStage};
+    let (adaptation, spans, raw) = page_planning_fixture();
+    let outline = parse_manga_page_outline(&raw, &adaptation, &spans).unwrap();
+    let drafts = (1..=2).map(|page| serde_json::from_value(json!({"page_number":page,"summary":"查看信件","action":"调查","reaction":null,"dialogue_intent":null})).unwrap()).collect();
+    let slots = outline.assemble(drafts).unwrap();
+    let mut artifact = MangaPipelineArtifactRecord {
+        id: 1,
+        project_id: 2,
+        chapter_id: 9,
+        stage: MangaPipelineArtifactStage::PageSlots,
+        page_number: None,
+        input_fingerprint: "previous-template-or-manual-edit".into(),
+        output_fingerprint: "output".into(),
+        payload: serde_json::to_value(&slots).unwrap(),
+        stale: false,
+        created_at: "now".into(),
+        updated_at: "now".into(),
+    };
+    assert_eq!(
+        reuse_manga_page_slots(&artifact, &adaptation, &spans, false).unwrap(),
+        slots
+    );
+    assert!(reuse_manga_page_slots(&artifact, &adaptation, &spans, true).is_err());
+    artifact.stale = true;
+    assert!(reuse_manga_page_slots(&artifact, &adaptation, &spans, false).is_err());
+    artifact.stale = false;
+    artifact.payload["pages"][0]["content"]["source_span_ids"] = json!(["outside-source"]);
+    assert!(reuse_manga_page_slots(&artifact, &adaptation, &spans, false).is_err());
+}
+
+#[test]
 fn extracts_single_page_drawing_prompt() {
     let page = page_drawing_prompt_from_response(
         &json!({

@@ -1093,6 +1093,50 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
     .unwrap();
     let expected_artifact_ids = plan.iter().map(|artifact| artifact.id).collect::<Vec<_>>();
 
+    let invalid_reset = MangaPipelineArtifactProjectionReset {
+        page_prompt_id: prompt.id,
+        page_number: 1,
+        expected_layout: layout.clone(),
+        expected_generated_image_id: Some(image.id),
+        layout: json!({"schema_version":"manga_page_generation_v4", "pipeline":{"stage":"slots"}}),
+        image_prompt: String::new(),
+        clear_generated_image: true,
+    };
+    assert!(
+        delete_manga_pipeline_artifact(
+            &db,
+            project_id,
+            chapter_id,
+            MangaPipelineArtifactStage::DrawingPrompt,
+            Some(1),
+            &expected_artifact_ids,
+            &[invalid_reset],
+        )
+        .await
+        .is_err()
+    );
+    let preserved = chapter_manga_prompt::Entity::find_by_id(prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(preserved.layout.as_ref(), Some(&layout));
+    assert_eq!(preserved.generated_image_id, Some(image.id));
+    assert!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+
     delete_manga_pipeline_artifact(
         &db,
         project_id,
@@ -1105,7 +1149,7 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
             page_number: 1,
             expected_layout: layout,
             expected_generated_image_id: Some(image.id),
-            layout: json!({"schema_version": "manga_page_generation_v3", "page_number": 1}),
+            layout: page_layout(1),
             image_prompt: String::new(),
             clear_generated_image: true,
         }],

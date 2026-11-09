@@ -279,6 +279,35 @@ def main():
                 assert json.load(response)["a4n-page-planning-serial"]["max_active"] == 1
             passed("模型配置 max_concurrent=1 时，逐页规划真实请求串行执行")
             preprocessing_model("a4n-virtual-text")
+
+            deletion_project = planning_project("分页删除与手工产物续跑回归")
+            saved_slots = next(item for item in call("list_manga_pipeline_artifacts", {"project_id": parallel_project, "chapter_id": chapter_id}) if item["stage"] == "page_slots")
+            manual_slots = copy.deepcopy(saved_slots["payload"])
+            manual_slots["pages"][0]["content"]["summary"] += "人工保留的页面修改。"
+            call("save_manga_pipeline_artifact", {
+                "project_id": deletion_project, "chapter_id": chapter_id, "stage": "page_slots",
+                "page_number": None, "expected_prompt_updated_at": None, "payload": manual_slots,
+            })
+            preview = call("preview_start_manga_pipeline_request", {"project_id": deletion_project, "chapter_number": 1, "stop_after": "page_adaptation"})
+            assert preview["steps"][0]["key"] == "page_slots" and preview["steps"][0]["state"] == "reused", preview
+            assert not any(step.get("prompt_name") in {"manga_page_outline", "manga_page_content"} for step in preview["steps"]), preview
+            before = len(llm_calls())
+            manga_run(deletion_project, stop_after="page_adaptation")
+            assert len(llm_calls()) - before == 2
+            assert call("list_manga_page_prompts", {"project_id": deletion_project, "chapter_id": chapter_id})[0]["page_content"]["summary"].endswith("人工保留的页面修改。")
+            passed("手工分页的请求指纹不同仍复用有效产物，预览与执行均只生成后续单页改编并保留人工内容")
+            for deleted_stage in ("page_slots", "preprocessing"):
+                delete_input = {"project_id": deletion_project, "chapter_id": chapter_id, "stage": deleted_stage, "page_number": None}
+                deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
+                call("delete_manga_pipeline_artifact", {**delete_input, "expected_artifact_ids": [item["artifact_id"] for item in [deletion["target"], *deletion["downstream"]]]}, destructive=True)
+                cleared = call("list_manga_page_prompts", {"project_id": deletion_project, "chapter_id": chapter_id})
+                assert len(cleared) == 2 and all(page["pipeline_stage"] == "content" and page["page_content"] is None and page["status"] == "pending" for page in cleared), cleared
+                assert workspace(deletion_project)["chapters"]
+                if deleted_stage == "page_slots":
+                    manga_run(deletion_project, run_stage="page_slots")
+                    assert len(call("list_manga_page_prompts", {"project_id": deletion_project, "chapter_id": chapter_id})) == 2
+            passed("删除章节分页及预处理后页面投影仍可读取，工作区可打开，分页可以重新生成")
+
             preview = call("preview_resume_manga_pipeline_request", {"project_id": recover_project, "chapter_number": 1, "run_stage": "preprocessing"})
             assert [step["state"] for step in preview["steps"]] == ["reused", "ready", "reused", "waiting_dependencies"]
             before = len(llm_calls())

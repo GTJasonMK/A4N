@@ -1,10 +1,11 @@
-use a4n_domain::manga::MangaPageSlotsV1;
+use a4n_domain::manga::{MangaPageSlotsV1, MangaPipelineArtifactStage};
 use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::super::adaptation_projection::manga_page_slots_source;
 use super::super::super::json::{
-    parse_manga_page_content, parse_manga_page_outline, validate_manga_page_slots,
+    parse_manga_page_content, parse_manga_page_outline, reuse_manga_page_slots,
+    validate_manga_page_slots,
 };
 use super::super::super::prompt::{MangaPageContentMessages, manga_page_outline_user_message};
 use super::super::super::state::MangaPagePlanningStep;
@@ -18,6 +19,33 @@ pub(super) async fn preview_page_slots(
     steps: &mut Vec<MangaPipelineRequestPreviewStep>,
     extraction_summary: &Value,
 ) -> Result<Option<MangaPageSlotsV1>, AppError> {
+    if let Some(artifact) = context
+        .service
+        .manga_pipeline_artifact(
+            context.project_id,
+            context.chapter_id,
+            MangaPipelineArtifactStage::PageSlots,
+            None,
+        )
+        .await?
+    {
+        let slots = reuse_manga_page_slots(
+            &artifact,
+            &context.adaptation,
+            &context.source_spans,
+            context.run_stage == Some(MangaPipelineArtifactStage::PageSlots)
+                && !context.resume_from_checkpoint,
+        )?;
+        steps.push(MangaPipelineRequestPreviewStep {
+            key: "page_slots".into(),
+            title: "已保存的分页与每页内容".into(),
+            prompt_name: None,
+            state: "reused".into(),
+            note: Some("复用有效分页产物，不发送页纲或页面内容模型请求".into()),
+            request: None,
+        });
+        return Ok(Some(slots));
+    }
     let count = context
         .adaptation
         .plan

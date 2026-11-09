@@ -173,6 +173,25 @@ describe("Per-page manga planning against the real Host", () => {
     assert.match(await dialog().getText(), /已复用检查点/);
     await closeDialog();
     checks.push("Failure identifies page 2; resume previews and reuses the outline and successful page");
+    await $('button[aria-label="分页产物操作"]').click();
+    await clickButton("删除分页产物");
+    await waitText(/删除阶段产物/);
+    await clickButton("删除", await dialog());
+    await waitForNoDialog();
+    await browser.waitUntil(async () => {
+      const saved = await callBrowserApiCommand("list_manga_pipeline_artifacts", { input: { project_id: failed.projectId, chapter_id: failed.chapterId } });
+      return !saved.some((item) => item.stage === "page_slots");
+    }, { timeout: 30_000, interval: 100 });
+    const cleared = await callBrowserApiCommand("list_manga_page_prompts", { input: { project_id: failed.projectId, chapter_id: failed.chapterId } });
+    assert.equal(cleared.length, 2);
+    assert.ok(cleared.every((page) => page.pipeline_stage === "content" && page.page_content === null));
+    await browser.refresh();
+    await choosePlanning();
+    await $('//button[normalize-space(.)="生成至页数与页面规划" or normalize-space(.)="继续生成至页数与页面规划"]').click();
+    await waitText(/任务已完成/);
+    await capture("regenerated-after-delete", 1440);
+    await closeDialog();
+    checks.push("Deleting pagination keeps the workspace readable after refresh and allows fresh regeneration");
     complete = true;
   });
 });

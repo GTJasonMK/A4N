@@ -188,6 +188,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::project_content_revision::Migration),
             Box::new(crate::migrations::manga_pipeline_artifact_project_fk_cascade::Migration),
             Box::new(crate::migrations::creator_notification_table_names::Migration),
+            Box::new(crate::migrations::manga_page_slots_reset_repair::Migration),
         ]
     }
 }

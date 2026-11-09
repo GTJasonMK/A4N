@@ -95,6 +95,7 @@ pub mod llm_request_options;
 pub mod manga_page_image_artifacts;
 pub mod manga_page_layout_identity_cleanup;
 pub mod manga_page_prompt_contract_cleanup;
+pub mod manga_page_slots_reset_repair;
 pub mod manga_pipeline_artifact_project_fk_cascade;
 pub mod manga_pipeline_artifacts;
 pub mod manga_preprocessing;

@@ -13,6 +13,29 @@ use serde_json::Value;
 
 use crate::media_authoring::PreparedAdaptation;
 
+pub(crate) fn reuse_manga_page_slots(
+    artifact: &MangaPipelineArtifactRecord,
+    adaptation: &PreparedAdaptation,
+    source_spans: &[SourceSpan],
+    explicit_regeneration: bool,
+) -> Result<MangaPageSlotsV1, AppError> {
+    if artifact.stale || explicit_regeneration {
+        return Err(
+            crate::manga::record_errors::manga_stage_output_exists_error(
+                MangaPipelineArtifactStage::PageSlots,
+                None,
+            ),
+        );
+    }
+    // Accepted artifacts survive request/prompt changes; only unpublished call checkpoints use request fingerprints.
+    parse_manga_page_slots(
+        &artifact.payload,
+        adaptation,
+        source_spans,
+        "manga_page_slots",
+    )
+}
+
 pub(crate) fn parse_manga_page_slots(
     value: &Value,
     adaptation: &PreparedAdaptation,

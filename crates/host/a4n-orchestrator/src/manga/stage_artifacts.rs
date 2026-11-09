@@ -530,6 +530,9 @@ impl OrchestratorContext {
             layout.pipeline.status = MangaPagePipelineStatus::Pending;
             layout.pipeline.stage = page_pipeline_stage_for_deleted_artifact(input.stage);
             layout.pipeline.error = None;
+            layout
+                .validate(page_number)
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
             let image_prompt = layout
                 .pipeline
                 .drawing_prompt
@@ -963,10 +966,9 @@ fn page_pipeline_stage_for_deleted_artifact(
     stage: MangaPipelineArtifactStage,
 ) -> MangaPagePipelineStage {
     match stage {
-        MangaPipelineArtifactStage::Preprocessing | MangaPipelineArtifactStage::PageSlots => {
-            MangaPagePipelineStage::Slots
-        }
-        MangaPipelineArtifactStage::PageContent => MangaPagePipelineStage::Content,
+        MangaPipelineArtifactStage::Preprocessing
+        | MangaPipelineArtifactStage::PageSlots
+        | MangaPipelineArtifactStage::PageContent => MangaPagePipelineStage::Content,
         MangaPipelineArtifactStage::PageAdaptation => MangaPagePipelineStage::Adaptation,
         MangaPipelineArtifactStage::Storyboard => MangaPagePipelineStage::Storyboard,
         MangaPipelineArtifactStage::ReferenceDiscovery

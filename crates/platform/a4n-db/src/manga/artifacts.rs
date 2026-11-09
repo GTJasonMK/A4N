@@ -18,6 +18,7 @@ use std::hash::{Hash, Hasher};
 use super::{
     MangaPromptRecordError, manga_record_database, manga_video_error,
     records::update_manga_page_prompt_layout_expected, require_positive_manga_id,
+    validate_manga_page_prompt_layout,
 };
 
 #[derive(Debug, Clone)]
@@ -470,6 +471,12 @@ pub async fn delete_manga_pipeline_artifact(
             "漫画阶段产物删除范围无效，请重新预览".into(),
         ));
     }
+    for reset in projection_resets {
+        let page_number = i32::try_from(reset.page_number)
+            .map_err(|_| MangaPromptRecordError::InvalidArgument("漫画页面页码超出范围".into()))?;
+        validate_manga_page_prompt_layout(page_number, Some(&reset.layout))
+            .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+    }
     let txn = db
         .begin()
         .await
@@ -553,11 +560,13 @@ pub async fn delete_manga_pipeline_artifact(
             } else {
                 prompt.generated_image_id
             }),
-            status: Set(if reset.clear_generated_image {
-                "pending".to_string()
-            } else {
-                prompt.status
-            }),
+            status: Set(
+                if reset.clear_generated_image || prompt.generated_image_id.is_none() {
+                    "pending".to_string()
+                } else {
+                    prompt.status
+                },
+            ),
             updated_at: Set(Utc::now().naive_utc()),
             ..Default::default()
         }

@@ -6,7 +6,7 @@ use a4n_domain::manga::MangaPreprocessingStep;
 pub(crate) use page_pipeline::{
     parse_manga_page_adaptation, parse_manga_page_content, parse_manga_page_outline,
     parse_manga_page_slots, parse_manga_page_storyboard, resolve_manga_page_slots,
-    validate_manga_page_slots,
+    reuse_manga_page_slots, validate_manga_page_slots,
 };
 pub(crate) use page_plan::parse_manga_page_plan;
 pub(crate) use page_prompts::page_drawing_prompt_from_response;
