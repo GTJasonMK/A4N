@@ -13,6 +13,7 @@ import zipfile
 from pathlib import Path
 
 from mock_openai.fixtures.story import chapter_body_response
+from mock_openai.fixtures.reverse import message_text
 from mock_openai.protocol import PNG_1X1_BASE64
 from mock_openai.prompt_parsing import current_task_prompt_name
 from run_cli_contract_e2e import checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
@@ -234,6 +235,28 @@ def main():
             assert comic_adaptation["document"]["target"] == "manga" and game_adaptation["document"]["target"] == "galgame"
             assert comic_adaptation["inputs"]["video_reference"] is None
             passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
+
+            recovery_project = derive("galgame", "改编尾部 JSON 纠正")
+            snapshot = copy.deepcopy(mock_runtime)
+            snapshot["llm"].update(provider="openai-responses", model="a4n-output-recover-trailing-json", max_output_tokens=20000)
+            secure_json(work / "runtime.json", snapshot)
+            checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "configure Responses correction")
+            offset = len(provider_log_entries(args.provider_log))
+            recovered = generate(recovery_project)
+            attempts = [row for row in provider_log_entries(args.provider_log)[offset:]
+                        if row.get("body", {}).get("model") == "a4n-output-recover-trailing-json"]
+            assert len(attempts) == 2 and all(row["path"] == "/v1/responses" for row in attempts), attempts
+            assert all(row["body"]["text"]["format"]["name"] == "chapter_media_adaptation_plan" for row in attempts)
+            feedback = json.loads(message_text(attempts[1]["body"]["input"][-1]["content"]))
+            assert feedback["kind"] == "model_output_correction" and feedback["previous_response_chars"] > 24_676
+            assert "trailing characters" in feedback["validation_error"]
+            assert len(feedback["previous_response_excerpt"]) <= 8_000
+            assert feedback["previous_response_excerpt"].endswith('{"unexpected":"TRAILING_ADAPTATION_MARKER"}')
+            assert latest(recovery_project, "adaptation_plan", "draft")["document"] == recovered["document"]
+            assert "TRAILING_ADAPTATION_MARKER" not in json.dumps(recovered["document"])
+            adopt(recovered)
+            passed("Responses 改编的长 JSON 尾部非法内容被拒绝，纠正反馈保留错误尾部，仅一次纠正后持久化并采用有效计划")
+            preprocessing_model("a4n-virtual-text")
 
             before = len(llm_calls())
             provider_request_offset = len(provider_log_entries(args.provider_log))

@@ -62,6 +62,28 @@ def optimization_messages(observations, user_message="请提出局部补丁"):
 
 
 class MockOpenAIProviderTest(unittest.TestCase):
+    def test_adaptation_trailing_json_fixture_requires_correction_and_a_valid_source(self):
+        template = Path(__file__).resolve().parents[2] / "prompts/novel/06_manga/chapter_media_adaptation_plan.md"
+        messages = [{"role": "system", "content": template.read_text()}, {"role": "user", "content": json.dumps({
+            "target": "galgame", "chapter": {"content": "#0 林岚检查怀表。"},
+        }, ensure_ascii=False)}]
+        body = {"model": "a4n-output-recover-trailing-json", "messages": messages}
+        invalid = response_for(body)
+        with self.assertRaisesRegex(json.JSONDecodeError, "Extra data"):
+            json.loads(invalid)
+        prefix, end = json.JSONDecoder().raw_decode(invalid)
+        self.assertEqual(prefix["schema_version"], "adaptation_plan_v1")
+        self.assertGreater(end, 24_676)
+        self.assertEqual(json.loads(invalid[end:]), {"unexpected": "TRAILING_ADAPTATION_MARKER"})
+        feedback = {"role": "user", "content": json.dumps({"kind": "model_output_correction"})}
+        corrected = response_for({**body, "messages": [*messages, feedback]})
+        self.assertEqual(corrected, response_for({**body, "model": "a4n-virtual-text"}))
+        self.assertNotIn("TRAILING_ADAPTATION_MARKER", corrected)
+        with self.assertRaisesRegex(UnhandledPromptError, "no source evidence"):
+            response_for({**body, "messages": [messages[0], {"role": "user", "content": json.dumps({
+                "target": "galgame", "chapter": {"content": "没有来源标签的原文"},
+            }, ensure_ascii=False)}]})
+
     def test_anchor_faults_do_not_mutate_other_contracts_with_the_same_root_name(self):
         from mock_openai.fixtures.story import chapter_body_response
         content = json.dumps({"content":"#0 " + chapter_body_response()}, ensure_ascii=False)

@@ -89,6 +89,79 @@ async fn valid_output_does_not_call_model_again() {
     assert_eq!(id, 1);
 }
 
+#[tokio::test(start_paused = true)]
+async fn correction_can_finish_after_ninety_seconds_without_a_second_deadline() {
+    let (_, id) =
+        correct_llm_response(&request(), response("{}"), "test", None, parse, |_| async {
+            tokio::time::sleep(std::time::Duration::from_secs(120)).await;
+            Ok(response(r#"{"id":1}"#))
+        })
+        .await
+        .unwrap();
+    assert_eq!(id, 1);
+}
+
+#[tokio::test]
+async fn long_json_with_trailing_content_is_rejected_and_its_tail_reaches_correction() {
+    let trailing = r#"{"unexpected":"TRAILING_JSON_MARKER"}"#;
+    let invalid = format!(
+        r#"{{"id":1,"padding":"{}"}}{trailing}"#,
+        "原文".repeat(12_000)
+    );
+    assert!(
+        parse(&invalid)
+            .unwrap_err()
+            .to_string()
+            .contains("trailing characters")
+    );
+    let (_, id) = correct_llm_response(
+        &request(),
+        response(&invalid),
+        "test",
+        None,
+        parse,
+        |corrected| async move {
+            let feedback: Value =
+                serde_json::from_str(&corrected.messages.last().unwrap().content).unwrap();
+            let excerpt = feedback["previous_response_excerpt"].as_str().unwrap();
+            assert!(excerpt.starts_with(r#"{"id":1,"padding":""#));
+            assert!(excerpt.ends_with(trailing));
+            assert_eq!(excerpt.chars().count(), MAX_RESPONSE_EXCERPT_CHARS);
+            assert_eq!(feedback["previous_response_chars"], invalid.chars().count());
+            assert!(
+                feedback["validation_error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("trailing characters")
+            );
+            Ok(response(r#"{"id":2}"#))
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(id, 2, "only the validated replacement may be adopted");
+}
+
+#[test]
+fn response_excerpts_keep_short_outputs_and_bound_multibyte_head_and_tail() {
+    for count in [
+        0,
+        MAX_RESPONSE_EXCERPT_CHARS - 1,
+        MAX_RESPONSE_EXCERPT_CHARS,
+        MAX_RESPONSE_EXCERPT_CHARS + 1,
+    ] {
+        let content = "中".repeat(count);
+        let excerpt = response_excerpt(&content);
+        assert!(excerpt.chars().count() <= MAX_RESPONSE_EXCERPT_CHARS);
+        if count <= MAX_RESPONSE_EXCERPT_CHARS {
+            assert_eq!(excerpt, content);
+        } else {
+            assert!(excerpt.starts_with('中') && excerpt.ends_with('中'));
+            assert!(excerpt.contains("中间内容省略"));
+        }
+    }
+}
+
 #[tokio::test]
 async fn correction_repeats_schema_for_missing_state_without_filling_it() {
     let schema = json!({

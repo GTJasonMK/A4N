@@ -86,6 +86,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 a4n-import-core = { workspace = true }
 a4n-export-core = { workspace = true }
 a4n-migration = { workspace = true }
