@@ -42,7 +42,6 @@ pub(super) fn should_generate_manga_stage(
     Ok(true)
 }
 
-#[derive(Clone)]
 pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) chapter_id: i64,
@@ -69,21 +68,11 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) variables: HashMap<String, Value>,
     pub(super) reference_assets: Value,
     pub(super) source_metadata: MangaPagePromptSourceSummary,
-    pub(super) reference_assets_metadata: Value,
     pub(super) available_reference_images: Vec<GeneratedImageRecord>,
     pub(super) prompt_fingerprint: Value,
 }
 
 impl MangaRunContext<'_> {
-    pub(super) fn with_stop_after(
-        &self,
-        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
-    ) -> Self {
-        let mut context = self.clone();
-        context.stop_after = stop_after;
-        context
-    }
-
     pub(super) async fn persist_artifact(
         &self,
         stage: MangaPipelineArtifactStage,

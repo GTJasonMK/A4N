@@ -9,7 +9,7 @@ use super::page_slots::run_page_slots;
 use crate::manga::is_manga_visual_design_range;
 
 pub(super) async fn run_single_stage(
-    context: &MangaRunContext<'_>,
+    context: &mut MangaRunContext<'_>,
     stage: MangaPipelineArtifactStage,
     extraction_summary: &Value,
 ) -> Result<Vec<a4n_domain::manga::MangaPagePromptRecord>, AppError> {
@@ -20,11 +20,9 @@ pub(super) async fn run_single_stage(
             operation: "请通过章节预处理步骤运行".into(),
         }),
         MangaPipelineArtifactStage::PageSlots => {
-            let scoped_context = context.with_stop_after(Some(
-                a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots,
-            ));
-            let slots = run_page_slots(&scoped_context, extraction_summary).await?;
-            return complete_pipeline(&scoped_context, extraction_summary, slots).await;
+            context.stop_after = Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots);
+            let slots = run_page_slots(context, extraction_summary).await?;
+            complete_pipeline(context, extraction_summary, slots).await
         }
         MangaPipelineArtifactStage::PageContent => Err(AppError::InvalidState {
             current: "page_content_is_user_editable".into(),
@@ -111,8 +109,8 @@ pub(super) async fn run_single_stage(
                 }
                 _ => unreachable!(),
             });
-            let scoped_context = context.with_stop_after(stop_after);
-            return complete_pipeline(&scoped_context, extraction_summary, slots).await;
+            context.stop_after = stop_after;
+            complete_pipeline(context, extraction_summary, slots).await
         }
         MangaPipelineArtifactStage::ReferenceBindings => Err(AppError::InvalidArgument(
             "参考图绑定通过参考图面板管理".into(),

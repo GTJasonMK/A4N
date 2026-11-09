@@ -157,10 +157,18 @@ def response_for(body: dict[str, Any]) -> str:
         return raw
     if model.startswith("a4n-output-recover-"):
         fault = model.removeprefix("a4n-output-recover-")
-        if fault not in {"string_ids", "missing_anchor", "unknown_anchor", "trailing-json"}:
+        if fault not in {"string_ids", "missing_anchor", "unknown_anchor", "trailing-json", "manga-placement"}:
             raise ValueError(f"unknown recovery fixture: {fault}")
         if body.get("_a4n_correction"):
             return response_for({**body, "model": "a4n-virtual-text"})
+        if fault == "manga-placement":
+            value = json.loads(response_for({**body, "model": "a4n-virtual-text"}))
+            if "dominant_panel_number" in value:
+                value["panels"][0]["text_layers"] = [{
+                    "layer_index": 1, "kind": "narration", "speaker": None,
+                    "text": "车站归于寂静。", "placement": "upper_right", "avoid_covering": [],
+                }]
+            return json.dumps(value, ensure_ascii=False)
         if fault == "trailing-json":
             value = json.loads(response_for({**body, "model": "a4n-virtual-text"}))
             if value.get("schema_version") != "adaptation_plan_v1":

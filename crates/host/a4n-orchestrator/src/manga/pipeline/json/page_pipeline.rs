@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use a4n_domain::{
     manga::{
         MangaPageAdaptationV1, MangaPageContentDraftV1, MangaPageContentV1, MangaPageOutlineV1,
-        MangaPageSlotsV1, MangaPageV4,
+        MangaPageSlotsV1, MangaPageV4, MangaPipelineArtifactRecord, MangaPipelineArtifactStage,
     },
     media_authoring::{AdaptationBeatRef, AdaptationImportance},
     source_spans::SourceSpan,
@@ -12,28 +12,6 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::media_authoring::PreparedAdaptation;
-
-const MODEL_TEXT_PLACEMENT_ALIASES: [(&str, &str); 6] = [
-    ("upper_left", "top_left"),
-    ("upper_right", "top_right"),
-    ("top_center", "upper_center"),
-    ("lower_left", "bottom_left"),
-    ("lower_right", "bottom_right"),
-    ("bottom_center", "lower_center"),
-];
-
-pub(super) fn storyboard_output_schema() -> Value {
-    let mut schema = a4n_domain::json_contract::typed_output_schema::<MangaPageV4>();
-    let placements = schema["$defs"]["MangaTextPlacementV2"]["enum"]
-        .as_array_mut()
-        .expect("typed placement enum");
-    placements.extend(
-        MODEL_TEXT_PLACEMENT_ALIASES
-            .iter()
-            .map(|(alias, _)| serde_json::json!(alias)),
-    );
-    schema
-}
 
 pub(crate) fn parse_manga_page_slots(
     value: &Value,
@@ -46,6 +24,16 @@ pub(crate) fn parse_manga_page_slots(
             "{context} 不符合 manga_page_slots_v1 合同: {error}"
         ))
     })?;
+    validate_manga_page_slots(&slots, adaptation, source_spans, context)?;
+    Ok(slots)
+}
+
+pub(crate) fn validate_manga_page_slots(
+    slots: &MangaPageSlotsV1,
+    adaptation: &PreparedAdaptation,
+    source_spans: &[SourceSpan],
+    context: &str,
+) -> Result<(), AppError> {
     slots
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("{context}: {error}")))?;
@@ -60,7 +48,25 @@ pub(crate) fn parse_manga_page_slots(
         adaptation,
         source_spans,
         context,
-    )?;
+    )
+}
+
+pub(crate) fn resolve_manga_page_slots(
+    mut slots: MangaPageSlotsV1,
+    artifacts: &[MangaPipelineArtifactRecord],
+    adaptation: &PreparedAdaptation,
+    source_spans: &[SourceSpan],
+) -> Result<MangaPageSlotsV1, AppError> {
+    for slot in &mut slots.pages {
+        if let Some(artifact) = artifacts.iter().find(|artifact| {
+            artifact.stage == MangaPipelineArtifactStage::PageContent
+                && artifact.page_number == Some(slot.page_number)
+                && !artifact.stale
+        }) {
+            slot.content = serde_json::from_value(artifact.payload.clone())?;
+        }
+    }
+    validate_manga_page_slots(&slots, adaptation, source_spans, "manga_page_slots")?;
     Ok(slots)
 }
 
@@ -181,48 +187,6 @@ pub(crate) fn parse_manga_page_adaptation(
         )));
     }
     Ok(adaptation)
-}
-
-pub(crate) fn parse_manga_page_storyboard_model_output(
-    value: &Value,
-    page_number: u32,
-    content: &MangaPageContentV1,
-    adaptation: &MangaPageAdaptationV1,
-    context: &str,
-) -> Result<MangaPageV4, AppError> {
-    let mut normalized = value.clone();
-    let mut normalized_placements = Vec::new();
-    if let Some(panels) = normalized.get_mut("panels").and_then(Value::as_array_mut) {
-        for (panel_index, panel) in panels.iter_mut().enumerate() {
-            let Some(text_layers) = panel.get_mut("text_layers").and_then(Value::as_array_mut)
-            else {
-                continue;
-            };
-            for (layer_index, layer) in text_layers.iter_mut().enumerate() {
-                let Some(Value::String(placement)) = layer.get_mut("placement") else {
-                    continue;
-                };
-                if let Some((_, canonical)) = MODEL_TEXT_PLACEMENT_ALIASES
-                    .iter()
-                    .find(|(alias, _)| *alias == placement.as_str())
-                {
-                    normalized_placements.push(format!(
-                        "panels[{panel_index}].text_layers[{layer_index}]:{placement}->{canonical}"
-                    ));
-                    *placement = (*canonical).to_string();
-                }
-            }
-        }
-    }
-    if !normalized_placements.is_empty() {
-        tracing::warn!(
-            page_number,
-            normalized_placements = ?normalized_placements,
-            "LLM 漫画分镜输出的文字位置别名已规范化"
-        );
-    }
-
-    parse_manga_page_storyboard(&normalized, page_number, content, adaptation, context)
 }
 
 pub(crate) fn parse_manga_page_storyboard(

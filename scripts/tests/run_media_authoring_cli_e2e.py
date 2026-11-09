@@ -360,6 +360,25 @@ def main():
             assert not any(artifact["stale"] for artifact in manga_artifacts), manga_artifacts
             passed("漫画一次完成页面槽位、页面改编、分镜、绘图提示词和成图")
 
+            placement_project = planning_project("分镜位置合同一致性")
+            manga_run(placement_project, stop_after="page_adaptation")
+            preprocessing_model("a4n-output-recover-manga-placement")
+            before = len(llm_calls())
+            manga_run(placement_project, stop_after="storyboard", run_stage="storyboard", page_number=1)
+            attempts = llm_calls()[before:]
+            assert len(attempts) == 2, attempts
+            assert all(current_task_prompt_name(fixture_prompt_parts(row["body"]["messages"])[1]) == "manga_page_storyboard" for row in attempts)
+            feedback = json.loads(attempts[1]["body"]["messages"][-1]["content"])
+            assert feedback["kind"] == "model_output_correction"
+            assert "placement" in feedback["validation_error"] and "upper_right" in feedback["previous_response_excerpt"]
+            for row in attempts:
+                placements = row["body"]["response_format"]["json_schema"]["schema"]["$defs"]["MangaTextPlacementV2"]["enum"]
+                assert len(placements) == 8 and "upper_right" not in placements, placements
+            saved_page = next(page for page in call("list_manga_page_prompts", {"project_id": placement_project, "chapter_id": chapter_id}) if page["page_number"] == 1)
+            assert "upper_right" not in json.dumps(saved_page["page_plan"])
+            passed("分镜请求 Schema 与提示词均拒绝位置别名，原始输出触发唯一纠正后才保存，不隐式改写")
+            preprocessing_model("a4n-virtual-text")
+
             storyboard_preview = call("preview_start_manga_pipeline_request", {
                 "project_id": comic,
                 "chapter_number": 1,

@@ -34,6 +34,49 @@ fn manga_page_with_participants(participants: &[&str]) -> MangaPageV4 {
 }
 
 #[test]
+fn storyboard_request_schema_and_parser_reject_the_same_placement_aliases() {
+    use crate::manga::pipeline::json::{output_schema, parse_manga_page_storyboard};
+    use a4n_domain::json_contract::OutputSchemaValidator;
+    let mut page = serde_json::to_value(manga_page_with_participants(&["林岚"])).unwrap();
+    let refs = json!([{"unit_id":"station", "beat_id":"clue"}]);
+    page["beat_refs"] = refs.clone();
+    page["panels"][0]["beat_refs"] = refs.clone();
+    page["panels"][0]["text_layers"] = json!([{
+        "layer_index":1, "kind":"narration", "speaker":null,
+        "text":"车站归于寂静。", "placement":"top_right", "avoid_covering":[]
+    }]);
+    let content = serde_json::from_value(json!({
+        "summary":"检查线索", "action":"查看信件", "reaction":null, "dialogue_intent":null,
+        "source_span_ids":[], "beat_refs":refs, "entry_state":"平静", "exit_state":"紧张"
+    }))
+    .unwrap();
+    let adaptation = serde_json::from_value(json!({
+        "visual_intent":"揭示线索", "continuity_requirements":[], "retained_details":[], "omitted_details":[], "beat_refs":refs
+    })).unwrap();
+    let validator =
+        OutputSchemaValidator::new(&output_schema("manga_page_storyboard").unwrap()).unwrap();
+    validator.validate(&page).unwrap();
+    parse_manga_page_storyboard(&page, 2, &content, &adaptation, "test").unwrap();
+    for alias in [
+        "upper_left",
+        "upper_right",
+        "top_center",
+        "lower_left",
+        "lower_right",
+        "bottom_center",
+    ] {
+        let mut invalid = page.clone();
+        invalid["panels"][0]["text_layers"][0]["placement"] = json!(alias);
+        assert!(validator.validate(&invalid).is_err(), "{alias}");
+        assert!(
+            parse_manga_page_storyboard(&invalid, 2, &content, &adaptation, "test").is_err(),
+            "{alias}"
+        );
+        assert_eq!(invalid["panels"][0]["text_layers"][0]["placement"], alias);
+    }
+}
+
+#[test]
 fn manga_page_outline_input_uses_preprocessing_events() {
     let page_slots = manga_page_outline_input(
         json!({

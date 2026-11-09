@@ -43,7 +43,7 @@ mod tests {
             resume_from_checkpoint:false,stop_after:None,run_stage:None,image_size:None,image_generator:None,cancel_token:None,
             progress_reporter:Some(&reporter),stream_reporter:None,chapter_content:"正文".into(),
             source_markers:crate::source_markers::SourceMarkerMap::from_source_spans(&spans).unwrap(), source_spans:spans,
-            variables:Default::default(),reference_assets:json!({}),reference_assets_metadata:json!({}), available_reference_images:vec![],prompt_fingerprint:json!({}),
+            variables:Default::default(),reference_assets:json!({}), available_reference_images:vec![],prompt_fingerprint:json!({}),
             source_metadata:serde_json::from_value(json!({"root_project_id":1,"source_chapter_id":9,"source_snapshot_id":null,"source_snapshot_chapter_id":null,"source_revision_key":"source","content_sha256":"sha","adaptation_plan_id":1,"adaptation_plan_revision":1,"adaptation_plan_sha256":"plan"})).unwrap(),
         };
         let progress = PagePlanningProgress::new(&context, 4);

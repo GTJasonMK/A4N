@@ -5,7 +5,8 @@ use a4n_domain::manga::MangaPreprocessingStep;
 
 pub(crate) use page_pipeline::{
     parse_manga_page_adaptation, parse_manga_page_content, parse_manga_page_outline,
-    parse_manga_page_slots, parse_manga_page_storyboard, parse_manga_page_storyboard_model_output,
+    parse_manga_page_slots, parse_manga_page_storyboard, resolve_manga_page_slots,
+    validate_manga_page_slots,
 };
 pub(crate) use page_plan::parse_manga_page_plan;
 pub(crate) use page_prompts::page_drawing_prompt_from_response;
@@ -19,7 +20,7 @@ pub(in crate::manga) fn output_schema(
         json_contract::typed_output_schema,
         manga::{
             MangaPageAdaptationV1, MangaPageContentDraftV1, MangaPageDrawingPromptV2,
-            MangaPageOutlineV1,
+            MangaPageOutlineV1, MangaPageV4,
         },
     };
     Ok(match prompt_name {
@@ -30,7 +31,7 @@ pub(in crate::manga) fn output_schema(
         "manga_page_outline" => typed_output_schema::<MangaPageOutlineV1>(),
         "manga_page_content" => typed_output_schema::<MangaPageContentDraftV1>(),
         "manga_page_adaptation_plan" => typed_output_schema::<MangaPageAdaptationV1>(),
-        "manga_page_storyboard" => page_pipeline::storyboard_output_schema(),
+        "manga_page_storyboard" => typed_output_schema::<MangaPageV4>(),
         "manga_page_reference_discovery" => {
             crate::manga::reference_assets::manga_reference_discovery_output_schema()
         }

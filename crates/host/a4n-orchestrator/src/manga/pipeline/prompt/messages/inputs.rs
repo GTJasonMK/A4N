@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_domain::manga::{MangaPageContentV1, MangaPageV4};
+use a4n_domain::manga::MangaPageV4;
 use a4n_domain::manga::{
     MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaReferenceAssetKind,
     MangaReferenceBindingSummary,
@@ -16,23 +16,7 @@ use super::super::page_context::{
 use super::super::validation::required_manga_string;
 use crate::source_markers::SourceMarkerMap;
 
-pub(in crate::manga) fn manga_page_storyboard_source_input(
-    content: &MangaPageContentV1,
-    extraction: &Value,
-    source_spans: &[SourceSpan],
-    chapter_content: &str,
-    source_markers: &SourceMarkerMap,
-) -> Result<Value, AppError> {
-    manga_page_source_input(
-        &content.source_span_ids,
-        extraction,
-        source_spans,
-        chapter_content,
-        source_markers,
-    )
-}
-
-pub(super) fn manga_page_source_input(
+pub(in crate::manga) fn manga_page_source_input(
     source_span_ids: &[String],
     extraction: &Value,
     source_spans: &[SourceSpan],

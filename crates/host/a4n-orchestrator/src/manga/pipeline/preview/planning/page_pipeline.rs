@@ -6,14 +6,14 @@ use a4n_domain::manga::{
 use a4n_error::AppError;
 use serde_json::Value;
 
-use super::super::super::super::adaptation_projection::manga_page_adaptation_source;
+use super::super::super::super::adaptation_projection::manga_page_beats_source;
 use super::super::super::super::reference_assets::{
     manga_page_reference_discovery_candidates, page_reference_bindings,
     parse_manga_page_reference_discovery,
 };
 use super::super::super::json::{
     page_drawing_prompt_from_response, parse_manga_page_adaptation, parse_manga_page_slots,
-    parse_manga_page_storyboard, parse_manga_page_storyboard_model_output,
+    parse_manga_page_storyboard, resolve_manga_page_slots,
 };
 use super::super::super::prompt::{
     manga_page_adaptation_user_message, manga_page_drawing_prompt_pipeline_user_message,
@@ -41,26 +41,17 @@ pub(super) async fn preview_single_page_stage(
         .await?;
     let slots_artifact =
         required_artifact(&artifacts, MangaPipelineArtifactStage::PageSlots, None)?;
-    let mut slots = parse_manga_page_slots(
+    let slots = parse_manga_page_slots(
         &slots_artifact.payload,
         &context.adaptation,
         &context.source_spans,
         "manga_page_slots",
     )?;
-    for slot in &mut slots.pages {
-        if let Some(artifact) = artifacts.iter().find(|artifact| {
-            artifact.stage == MangaPipelineArtifactStage::PageContent
-                && artifact.page_number == Some(slot.page_number)
-                && !artifact.stale
-        }) {
-            slot.content = serde_json::from_value(artifact.payload.clone())?;
-        }
-    }
-    slots = parse_manga_page_slots(
-        &serde_json::to_value(slots)?,
+    let slots = resolve_manga_page_slots(
+        slots,
+        &artifacts,
         &context.adaptation,
         &context.source_spans,
-        "manga_page_slots",
     )?;
     required_artifact(
         &artifacts,
@@ -450,7 +441,7 @@ async fn preview_page_adaptation(
             page_number,
             total_pages,
             content,
-            manga_page_adaptation_source(&context.adaptation, content),
+            manga_page_beats_source(&context.adaptation, &content.beat_refs),
             previous_content,
             next_content,
             &context.source_markers,
@@ -495,7 +486,7 @@ async fn preview_page_storyboard(
 ) -> Result<Option<MangaPageV4>, AppError> {
     let key = format!("manga_page_storyboard_page_{page_number}");
     let title = format!("第 {page_number} 页分镜");
-    let adaptation_beats = manga_page_adaptation_source(&context.adaptation, content);
+    let adaptation_beats = manga_page_beats_source(&context.adaptation, &content.beat_refs);
     let call = build_manga_preview_call(MangaPreviewCallInput {
         service: context.service,
         prompt_name: "manga_page_storyboard",
@@ -533,14 +524,8 @@ async fn preview_page_storyboard(
                 &title,
                 "manga_page_storyboard",
             ));
-            parse_manga_page_storyboard_model_output(
-                &parsed_output,
-                page_number,
-                content,
-                adaptation,
-                &title,
-            )
-            .map(Some)
+            parse_manga_page_storyboard(&parsed_output, page_number, content, adaptation, &title)
+                .map(Some)
         }
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(

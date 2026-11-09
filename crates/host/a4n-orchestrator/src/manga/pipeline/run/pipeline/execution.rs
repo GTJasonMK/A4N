@@ -126,7 +126,6 @@ impl OrchestratorContext {
             adaptation_plan_sha256: adaptation.record.sha256.clone(),
         };
         let variables = HashMap::new();
-        let reference_assets_metadata = reference_assets.clone();
         let prompt_fingerprint = serde_json::json!({
             "pipeline_contract": "manga_page_pipeline_v2",
             "prompts": manga_pipeline_prompt_fingerprint(
@@ -136,7 +135,7 @@ impl OrchestratorContext {
             )
             .await?,
         });
-        let context = MangaRunContext {
+        let mut context = MangaRunContext {
             service: self,
             chapter_id,
             chapter_number,
@@ -161,14 +160,13 @@ impl OrchestratorContext {
             variables,
             reference_assets,
             source_metadata,
-            reference_assets_metadata,
             available_reference_images,
             prompt_fingerprint,
         };
         let extraction_summary = manga_preprocessing_summary(&preprocessing)?;
         if let Some(stage) = run_stage {
             return super::super::single_stage::run_single_stage(
-                &context,
+                &mut context,
                 stage,
                 &extraction_summary,
             )

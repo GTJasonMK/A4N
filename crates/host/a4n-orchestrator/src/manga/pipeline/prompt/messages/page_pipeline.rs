@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 
 use super::super::page_context::{character_names_for_page, filter_characters};
 use super::common::build_manga_step_user_message;
-use super::inputs::{manga_page_drawing_prompt_page_input, manga_page_storyboard_source_input};
+use super::inputs::{manga_page_drawing_prompt_page_input, manga_page_source_input};
 use crate::source_markers::SourceMarkerMap;
 
 pub(in crate::manga) fn manga_page_adaptation_user_message(
@@ -74,7 +74,7 @@ pub(in crate::manga) fn manga_page_storyboard_user_message(
             "next_content": next_content,
         },
         "characters": extraction_summary.get("characters"),
-        "source_context": manga_page_storyboard_source_input(content, extraction_summary, source_spans, chapter_content, source_markers)?,
+        "source_context": manga_page_source_input(&content.source_span_ids, extraction_summary, source_spans, chapter_content, source_markers)?,
         "reference_assets": participants,
     }))?;
     build_manga_step_user_message(

@@ -23,6 +23,7 @@ use serde_json::{Value, json};
 use super::output_sync::MangaPagePromptDraft;
 use super::pipeline::json::{
     parse_manga_page_adaptation, parse_manga_page_slots, parse_manga_page_storyboard,
+    validate_manga_page_slots,
 };
 use super::reference_assets::validate_manga_page_reference_discovery_candidates;
 use super::{
@@ -755,12 +756,7 @@ impl OrchestratorContext {
                 "页面内容不属于当前分页计划".into(),
             ));
         }
-        parse_manga_page_slots(
-            &serde_json::to_value(slots)?,
-            &adaptation,
-            &source_spans,
-            "manga_page_slots",
-        )?;
+        validate_manga_page_slots(&slots, &adaptation, &source_spans, "manga_page_slots")?;
         Ok(())
     }
 

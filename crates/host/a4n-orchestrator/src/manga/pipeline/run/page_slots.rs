@@ -9,6 +9,7 @@ use serde_json::Value;
 use super::super::super::adaptation_projection::manga_page_slots_source;
 use super::super::json::{
     parse_manga_page_content, parse_manga_page_outline, parse_manga_page_slots,
+    validate_manga_page_slots,
 };
 use super::super::prompt::{MangaPageContentMessages, manga_page_outline_user_message};
 use super::super::state::MangaPagePlanningStep;
@@ -127,8 +128,8 @@ pub(super) async fn run_page_slots(
     let slots = outline
         .assemble(drafts)
         .map_err(AppError::InvalidArgument)?;
-    let slots = parse_manga_page_slots(
-        &serde_json::to_value(slots)?,
+    validate_manga_page_slots(
+        &slots,
         &context.adaptation,
         &context.source_spans,
         "manga_page_slots",

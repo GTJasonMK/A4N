@@ -345,8 +345,8 @@ fn manga_storyboard_includes_only_current_page_original_speech() {
     invalid_content
         .source_span_ids
         .push("outside-source".into());
-    let error = crate::manga::pipeline::prompt::manga_page_storyboard_source_input(
-        &invalid_content,
+    let error = crate::manga::pipeline::prompt::manga_page_source_input(
+        &invalid_content.source_span_ids,
         &extraction,
         &spans,
         raw_source,

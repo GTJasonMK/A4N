@@ -24,16 +24,16 @@ use tokio::sync::Mutex;
 
 use crate::manga::{is_manga_visual_design_range, layout_rules::manga_page_pipeline_layout};
 
-use super::super::super::adaptation_projection::manga_page_adaptation_source;
+use super::super::super::adaptation_projection::manga_page_beats_source;
 use super::super::super::reference_assets::{
     manga_page_reference_discovery_candidates, parse_manga_page_reference_discovery,
 };
 use super::super::{
-    json::{parse_manga_page_adaptation, parse_manga_page_storyboard_model_output},
+    json::{parse_manga_page_adaptation, parse_manga_page_storyboard},
     persist::{MangaPipelinePersistInput, pipeline_page_draft},
     prompt::{
         MangaPromptGenerationTrace, MangaRenderTraceInput, manga_page_adaptation_user_message,
-        manga_page_reference_discovery_user_message, manga_page_storyboard_source_input,
+        manga_page_reference_discovery_user_message, manga_page_source_input,
         manga_page_storyboard_user_message,
     },
     state::{manga_page_pipeline_call_order, manga_page_planning_total_steps},
@@ -247,7 +247,7 @@ pub(super) fn prepare_manga_page_work(
             json!({"page_content": slot.content}),
         )?,
     };
-    let adaptation_plan = manga_page_adaptation_source(&context.adaptation, &slot.content);
+    let adaptation_plan = manga_page_beats_source(&context.adaptation, &slot.content.beat_refs);
     let adaptation_fingerprint = page_stage_fingerprint(
         context,
         MangaPagePipelineStage::Adaptation,
@@ -510,13 +510,13 @@ fn storyboard_fingerprint_input(
     Ok(json!({
         "page_content": slot.content,
         "page_adaptation": adaptation,
-        "adaptation_beats": manga_page_adaptation_source(&context.adaptation, &slot.content),
+        "adaptation_beats": manga_page_beats_source(&context.adaptation, &slot.content.beat_refs),
         "previous_page_content": previous_content,
         "next_page_content": next_content,
         "characters": extraction_summary.get("characters"),
         "reference_assets": context.reference_assets,
-        "source_context": manga_page_storyboard_source_input(
-            &slot.content, extraction_summary, &context.source_spans,
+        "source_context": manga_page_source_input(
+            &slot.content.source_span_ids, extraction_summary, &context.source_spans,
             &context.chapter_content, &context.source_markers,
         )?,
     }))
@@ -651,7 +651,7 @@ async fn process_manga_page_stages(
         ));
     }
 
-    let adaptation_plan = manga_page_adaptation_source(&context.adaptation, &content);
+    let adaptation_plan = manga_page_beats_source(&context.adaptation, &content.beat_refs);
     let adaptation_fingerprint = page_stage_fingerprint(
         context,
         MangaPagePipelineStage::Adaptation,
@@ -814,7 +814,7 @@ async fn process_manga_page_stages(
         work.pipeline.error = None;
         persist_page_state(context, persist, work, Vec::new()).await?;
         context.check_cancelled()?;
-        let adaptation_beats = manga_page_adaptation_source(&context.adaptation, &content);
+        let adaptation_beats = manga_page_beats_source(&context.adaptation, &content.beat_refs);
         let user_content = manga_page_storyboard_user_message(
             page_number,
             total_pages,
@@ -851,7 +851,7 @@ async fn process_manga_page_stages(
                     stream_reporter: context.stream_reporter,
                 },
                 |value| {
-                    parse_manga_page_storyboard_model_output(
+                    parse_manga_page_storyboard(
                         value,
                         page_number,
                         &content,

@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use super::super::super::super::adaptation_projection::manga_page_slots_source;
 use super::super::super::json::{
-    parse_manga_page_content, parse_manga_page_outline, parse_manga_page_slots,
+    parse_manga_page_content, parse_manga_page_outline, validate_manga_page_slots,
 };
 use super::super::super::prompt::{MangaPageContentMessages, manga_page_outline_user_message};
 use super::super::super::state::MangaPagePlanningStep;
@@ -36,10 +36,9 @@ pub(super) async fn preview_page_slots(
     .await?
     .map(|value| parse_manga_page_outline(&value, &context.adaptation, &context.source_spans))
     .transpose()?;
-    let mut drafts = Vec::with_capacity(count);
-    for index in 0..count {
-        let step = MangaPagePlanningStep::Content(index);
-        let Some(outline) = outline.as_ref() else {
+    let Some(outline) = outline else {
+        for index in 0..count {
+            let step = MangaPagePlanningStep::Content(index);
             steps.push(MangaPipelineRequestPreviewStep {
                 key: step.key(),
                 title: step.title(),
@@ -48,34 +47,37 @@ pub(super) async fn preview_page_slots(
                 note: Some("等待轻量页纲完成后，使用本页真实分配构建请求".into()),
                 request: None,
             });
-            continue;
-        };
-        let messages = MangaPageContentMessages {
-            outline,
-            extraction_summary,
-            adaptation: &context.adaptation,
-            source_spans: &context.source_spans,
-            chapter_content: &context.chapter_content,
-            source_markers: &context.source_markers,
-        };
+        }
+        return Ok(None);
+    };
+    let messages = MangaPageContentMessages {
+        outline: &outline,
+        extraction_summary,
+        adaptation: &context.adaptation,
+        source_spans: &context.source_spans,
+        chapter_content: &context.chapter_content,
+        source_markers: &context.source_markers,
+    };
+    let mut drafts = Vec::with_capacity(count);
+    for index in 0..count {
+        let step = MangaPagePlanningStep::Content(index);
         if let Some(value) = preview_call(context, steps, step, messages.build(index)?).await? {
-            drafts.push(parse_manga_page_content(&value, outline, index)?);
+            drafts.push(parse_manga_page_content(&value, &outline, index)?);
         }
     }
     if drafts.len() != count {
         return Ok(None);
     }
-    let outline = outline.expect("drafts require a validated outline");
     let slots = outline
         .assemble(drafts)
         .map_err(AppError::InvalidArgument)?;
-    parse_manga_page_slots(
-        &serde_json::to_value(slots)?,
+    validate_manga_page_slots(
+        &slots,
         &context.adaptation,
         &context.source_spans,
         "manga_page_slots",
-    )
-    .map(Some)
+    )?;
+    Ok(Some(slots))
 }
 
 async fn preview_call(

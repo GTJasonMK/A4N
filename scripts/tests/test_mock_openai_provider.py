@@ -1099,17 +1099,25 @@ class MockOpenAIProviderTest(unittest.TestCase):
         }]}))
         self.assertEqual(adaptation["beat_refs"], content["beat_refs"])
 
-        storyboard = json.loads(response_for({"messages": [{
+        storyboard_request = {"messages": [{
             "role": "user",
             "content": json.dumps({
                 "task": {"prompt_name": "manga_page_storyboard"},
                 "input": {"page_number": 2, "page_content": content, "page_adaptation": adaptation,
                           "source_context": {"source": "#0 林岚停下脚步。", "speech": {"dialogues": [], "narrations": []}}},
             }, ensure_ascii=False),
-        }]}))
+        }]}
+        storyboard = json.loads(response_for(storyboard_request))
         self.assertEqual(storyboard["page_number"], 2)
         self.assertEqual(storyboard["beat_refs"], adaptation["beat_refs"])
         self.assertEqual(storyboard["entry_state"], content["entry_state"])
+        fault_request = {**storyboard_request, "model": "a4n-output-recover-manga-placement"}
+        invalid = json.loads(response_for(fault_request))
+        self.assertEqual(invalid["panels"][0]["text_layers"][0]["placement"], "upper_right")
+        corrected = response_for({**fault_request, "messages": [*fault_request["messages"], {
+            "role": "user", "content": json.dumps({"kind": "model_output_correction"}),
+        }]})
+        self.assertEqual(json.loads(corrected), storyboard)
 
     def test_galgame_branch_resolves_shared_context_reference(self) -> None:
         projection = {

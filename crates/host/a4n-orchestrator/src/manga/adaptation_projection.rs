@@ -1,4 +1,4 @@
-use a4n_domain::{manga::MangaPageContentV1, media_authoring::AdaptationBeatRef};
+use a4n_domain::media_authoring::AdaptationBeatRef;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -12,13 +12,6 @@ pub(super) fn manga_page_slots_source(adaptation: &PreparedAdaptation) -> Value 
         "intention": adaptation.plan.intention,
         "units": adaptation.plan.units,
     })
-}
-
-pub(super) fn manga_page_adaptation_source(
-    adaptation: &PreparedAdaptation,
-    content: &MangaPageContentV1,
-) -> Value {
-    manga_page_beats_source(adaptation, &content.beat_refs)
 }
 
 pub(in crate::manga) fn manga_page_beats_source(

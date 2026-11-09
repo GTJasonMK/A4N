@@ -15,7 +15,7 @@ pub(in crate::manga) use llm::{
 pub(in crate::manga) use messages::{
     MangaPageContentMessages, MangaPreprocessingMessages, manga_page_adaptation_user_message,
     manga_page_drawing_prompt_pipeline_user_message, manga_page_outline_user_message,
-    manga_page_reference_discovery_user_message, manga_page_storyboard_source_input,
+    manga_page_reference_discovery_user_message, manga_page_source_input,
     manga_page_storyboard_user_message, manga_preprocessing_summary,
 };
 #[cfg(test)]

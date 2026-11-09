@@ -6,7 +6,7 @@ mod preprocessing;
 
 #[cfg(test)]
 pub(in crate::manga) use common::build_manga_step_user_message;
-pub(in crate::manga) use inputs::manga_page_storyboard_source_input;
+pub(in crate::manga) use inputs::manga_page_source_input;
 #[cfg(test)]
 pub(in crate::manga) use inputs::{manga_page_drawing_prompt_page_input, manga_page_outline_input};
 pub(in crate::manga) use page_pipeline::{

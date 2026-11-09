@@ -148,6 +148,82 @@ fn complete_slots_reject_mismatched_states_without_overwriting_model_data() {
 }
 
 #[test]
+fn saved_page_content_keeps_the_same_source_and_beat_checks_as_pagination() {
+    use a4n_domain::manga::{MangaPipelineArtifactRecord, MangaPipelineArtifactStage};
+    let (adaptation, spans, raw) = page_planning_fixture();
+    let outline = parse_manga_page_outline(&raw, &adaptation, &spans).unwrap();
+    let drafts = (1..=2).map(|page| serde_json::from_value(json!({"page_number":page,"summary":"查看信件","action":"调查","reaction":null,"dialogue_intent":null})).unwrap()).collect();
+    let slots = outline.assemble(drafts).unwrap();
+    let original = serde_json::to_value(&slots.pages[1].content).unwrap();
+    let artifact = |payload, stale| MangaPipelineArtifactRecord {
+        id: 1,
+        project_id: 2,
+        chapter_id: 9,
+        stage: MangaPipelineArtifactStage::PageContent,
+        page_number: Some(2),
+        input_fingerprint: "input".into(),
+        output_fingerprint: "output".into(),
+        payload,
+        stale,
+        created_at: "now".into(),
+        updated_at: "now".into(),
+    };
+    let mut edited = original.clone();
+    edited["summary"] = json!("已保存的人工修改");
+    let resolved = resolve_manga_page_slots(
+        slots.clone(),
+        &[artifact(edited, false)],
+        &adaptation,
+        &spans,
+    )
+    .unwrap();
+    assert_eq!(resolved.pages[1].content.summary, "已保存的人工修改");
+    assert_eq!(resolved.pages[0], slots.pages[0]);
+    for (field, value, expected) in [
+        (
+            "source_span_ids",
+            json!(["outside-source"]),
+            "不存在的 source_span_id",
+        ),
+        (
+            "beat_refs",
+            serde_json::to_value(&slots.pages[0].content.beat_refs).unwrap(),
+            "遗漏关键改编节拍",
+        ),
+        ("entry_state", json!("凭空换了地点"), "上一页"),
+    ] {
+        let mut invalid = original.clone();
+        invalid[field] = value;
+        assert!(
+            resolve_manga_page_slots(
+                slots.clone(),
+                &[artifact(invalid.clone(), false)],
+                &adaptation,
+                &spans
+            )
+            .unwrap_err()
+            .to_string()
+            .contains(expected),
+            "{field}"
+        );
+        assert_eq!(
+            resolve_manga_page_slots(
+                slots.clone(),
+                &[artifact(invalid, true)],
+                &adaptation,
+                &spans
+            )
+            .unwrap(),
+            slots
+        );
+    }
+    assert!(
+        resolve_manga_page_slots(slots, &[artifact(json!({}), false)], &adaptation, &spans)
+            .is_err()
+    );
+}
+
+#[test]
 fn extracts_single_page_drawing_prompt() {
     let page = page_drawing_prompt_from_response(
         &json!({

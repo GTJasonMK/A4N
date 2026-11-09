@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_domain::manga::{
-    MangaPageContentV1, MangaPagePromptRecord, MangaPageSlotsV1, MangaPipelineArtifactStage,
-};
+use a4n_domain::manga::{MangaPagePromptRecord, MangaPageSlotsV1, MangaPipelineArtifactStage};
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use futures::{StreamExt, stream};
@@ -10,6 +8,7 @@ use serde_json::Value;
 
 use crate::manga::layout_rules::manga_page_pipeline_layout;
 
+use super::super::json::resolve_manga_page_slots;
 use super::super::persist::{MangaPipelinePersistInput, pipeline_page_draft};
 use super::contracts::MangaRunContext;
 use super::page::{
@@ -21,24 +20,19 @@ use crate::manga::validate_manga_page_scope;
 pub(super) async fn complete_pipeline(
     context: &MangaRunContext<'_>,
     extraction_summary: &Value,
-    mut slots: MangaPageSlotsV1,
+    slots: MangaPageSlotsV1,
 ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
     validate_manga_page_scope(context.page_number, context.stop_after)?;
     let artifacts = context
         .service
         .manga_pipeline_artifacts_by_chapter(context.project_id, context.chapter_id)
         .await?;
-    for slot in &mut slots.pages {
-        if let Some(artifact) = artifacts.iter().find(|artifact| {
-            artifact.stage == MangaPipelineArtifactStage::PageContent
-                && artifact.page_number == Some(slot.page_number)
-                && !artifact.stale
-        }) {
-            slot.content = serde_json::from_value::<MangaPageContentV1>(artifact.payload.clone())?;
-            slot.content.validate().map_err(AppError::InvalidArgument)?;
-        }
-    }
-    slots.validate().map_err(AppError::InvalidArgument)?;
+    let slots = resolve_manga_page_slots(
+        slots,
+        &artifacts,
+        &context.adaptation,
+        &context.source_spans,
+    )?;
     let total_pages = slots.pages.len();
     let page_numbers = slots
         .pages
@@ -50,7 +44,7 @@ pub(super) async fn complete_pipeline(
         chapter_id: context.chapter_id,
         project_id: context.project_id,
         source_metadata: &context.source_metadata,
-        reference_assets_metadata: &context.reference_assets_metadata,
+        reference_assets_metadata: &context.reference_assets,
         prompt_fingerprint: &context.prompt_fingerprint,
         page_plan_ref: None,
     };
