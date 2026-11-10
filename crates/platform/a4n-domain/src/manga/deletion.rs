@@ -28,9 +28,7 @@ impl MangaPageGenerationLayoutV4 {
                 .stage_fingerprints
                 .remove(stage.fingerprint_key());
         }
-        self.pipeline.status = MangaPagePipelineStatus::Pending;
-        self.pipeline.error = None;
-        self.pipeline.stage = match deleted_stage {
+        let reset_stage = match deleted_stage {
             MangaPipelineArtifactStage::Preprocessing
             | MangaPipelineArtifactStage::PageSlots
             | MangaPipelineArtifactStage::PageContent => MangaPagePipelineStage::Content,
@@ -43,5 +41,10 @@ impl MangaPageGenerationLayoutV4 {
             MangaPipelineArtifactStage::DrawingPrompt => MangaPagePipelineStage::DrawingPrompt,
             MangaPipelineArtifactStage::Image => MangaPagePipelineStage::Image,
         };
+        if self.pipeline.stage >= reset_stage {
+            self.pipeline.status = MangaPagePipelineStatus::Pending;
+            self.pipeline.error = None;
+            self.pipeline.stage = reset_stage;
+        }
     }
 }

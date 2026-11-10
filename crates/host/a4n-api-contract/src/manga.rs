@@ -208,6 +208,7 @@ pub struct DeleteMangaPipelineArtifactInput {
     #[schemars(range(min = 1))]
     pub chapter_id: i64,
     pub stage: MangaPipelineArtifactStage,
+    /// Omit to delete this stage across all pages in the chapter, including dependent outputs.
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub page_number: Option<u32>,
@@ -223,6 +224,7 @@ pub struct PreviewMangaPipelineArtifactDeletionInput {
     #[schemars(range(min = 1))]
     pub chapter_id: i64,
     pub stage: MangaPipelineArtifactStage,
+    /// Omit to preview this stage across all pages in the chapter.
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub page_number: Option<u32>,
@@ -238,6 +240,7 @@ pub struct MangaPipelineArtifactDeletionItem {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct MangaPipelineArtifactDeletionPreview {
     pub target: MangaPipelineArtifactDeletionItem,
+    /// Concrete affected artifacts; includes target-stage page records for a chapter-wide target.
     pub downstream: Vec<MangaPipelineArtifactDeletionItem>,
     pub fingerprint: String,
 }

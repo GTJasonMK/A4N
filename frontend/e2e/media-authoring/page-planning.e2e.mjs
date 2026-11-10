@@ -39,7 +39,7 @@ async function chooseStage(label) {
 }
 
 const choosePlanning = () => chooseStage("页数与页面规划");
-const deleteAllButton = () => $('//button[normalize-space(.)="删除本章全部产物"]');
+const deleteStageButton = () => $('//button[normalize-space(.)="删除本章本阶段全部产物"]');
 
 async function openProject(id) {
   await browser.url(`/comic-project/${id}`);
@@ -134,7 +134,7 @@ describe("Per-page manga planning against the real Host", () => {
       await browser.waitUntil(() => preview.isFocused(), { timeout: 3000, interval: 50 });
       await $('//button[normalize-space(.)="生成至页数与页面规划"]').click();
       await waitText(/第 [12] 页剧情内容：生成中/);
-      assert.equal(await deleteAllButton().isEnabled(), false);
+      assert.equal(await deleteStageButton().isEnabled(), false);
       await capture("running", width);
       if (width === 390) {
         await clickButton("取消流水线", await dialog());
@@ -210,40 +210,43 @@ describe("Per-page manga planning against the real Host", () => {
     checks.push("Deleting pagination keeps the workspace readable after refresh and allows fresh regeneration");
     const scope = { input: { project_id: failed.projectId, chapter_id: failed.chapterId } };
     const beforeDeleteAll = await callBrowserApiCommand("list_manga_pipeline_artifacts", scope);
+    const beforeDeletePages = await callBrowserApiCommand("list_manga_page_prompts", scope);
     assert.ok(beforeDeleteAll.some((item) => item.stage === "preprocessing"));
     assert.ok(beforeDeleteAll.some((item) => item.stage === "page_slots"));
     for (const width of [1440, 1024, 390]) {
       await browser.setWindowSize(width, 1000);
       await chooseStage("漫画预处理");
-      await deleteAllButton().waitForEnabled();
-      await capture("delete-all-entry", width);
-      await deleteAllButton().execute((element) => element.focus());
+      await deleteStageButton().waitForEnabled();
+      await capture("delete-stage-entry", width);
+      await deleteStageButton().execute((element) => element.focus());
       await browser.keys("Enter");
-      await waitText(/删除本章全部漫画产物/);
+      await waitText(/删除本章「漫画预处理」产物/);
       assert.match(await dialog().getText(), /第 1 章.*旧车站/);
-      assert.match(await dialog().getText(), /原文、改编计划和基础素材会保留/);
+      assert.match(await dialog().getText(), /上游产物、原文、改编计划和基础素材会保留/);
       assert.match(await dialog().getText(), /不可撤销/);
-      await capture("delete-all-confirm", width);
+      await capture("delete-stage-confirm", width);
       await closeDialog();
-      await browser.waitUntil(() => deleteAllButton().isFocused(), { timeout: 3000, interval: 50 });
+      await browser.waitUntil(() => deleteStageButton().isFocused(), { timeout: 3000, interval: 50 });
       assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", scope), beforeDeleteAll);
     }
-    checks.push("Delete-all is disabled during generation; its chapter-scoped confirmation works by keyboard, restores focus, and cancellation preserves artifacts at all three widths");
-    await deleteAllButton().click();
-    await waitText(/删除本章全部漫画产物/);
-    await clickButton("删除本章全部产物", await dialog());
+    checks.push("Chapter-stage deletion is disabled during generation; its stage-specific confirmation works by keyboard, restores focus, and cancellation preserves artifacts at all three widths");
+    await deleteStageButton().click();
+    await waitText(/删除本章「漫画预处理」产物/);
+    await clickButton("删除本章本阶段全部产物", await dialog());
     await waitForNoDialog();
     await browser.waitUntil(async () => (await callBrowserApiCommand("list_manga_pipeline_artifacts", scope)).length === 0, { timeout: 30_000, interval: 100 });
-    assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", scope), []);
-    await deleteAllButton().waitForEnabled();
-    await capture("delete-all-empty", 390);
+    const afterPreprocessingDelete = await callBrowserApiCommand("list_manga_page_prompts", scope);
+    assert.deepEqual(afterPreprocessingDelete.map((page) => page.id), beforeDeletePages.map((page) => page.id));
+    assert.ok(afterPreprocessingDelete.every((page) => page.page_content === null && page.generated_image_id === null));
+    assert.equal(await deleteStageButton().isEnabled(), false);
+    await capture("delete-stage-empty", 390);
     await choosePlanning();
     await browser.refresh();
     await choosePlanning();
-    assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", scope), []);
+    assert.deepEqual(await callBrowserApiCommand("list_manga_page_prompts", scope), afterPreprocessingDelete);
     assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", scope), []);
-    await capture("delete-all-refreshed", 390);
-    checks.push("Confirming delete-all clears the chapter pages and artifacts; the empty workspace stays readable after refresh");
+    await capture("delete-stage-refreshed", 390);
+    checks.push("Deleting preprocessing clears its dependent outputs while retaining page identities; the workspace stays readable after refresh");
 
     await browser.execute((config) => {
       const key = "a4n:local-runtime-settings:v1";
@@ -257,9 +260,60 @@ describe("Per-page manga planning against the real Host", () => {
     await generateManga(deletion);
     await openProject(deletion.projectId);
     const deletionScope = { input: { project_id: deletion.projectId, chapter_id: deletion.chapterId } };
-    const originalPages = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
+    let originalPages = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
     assert.equal(originalPages.length, 2);
     assert.ok(originalPages.every((page) => page.generated_image_id));
+    for (const [label, stage, removedStages, clearedFields] of [
+      ["提示词与成图", "drawing_prompt", ["drawing_prompt", "image"], ["drawing_prompt", "generated_image_id"]],
+      ["分镜与参考图", "storyboard", ["storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"], ["page_plan", "reference_discovery", "drawing_prompt", "generated_image_id"]],
+      ["页数与页面规划", "page_slots", ["page_slots", "page_content", "page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"], ["page_content", "page_adaptation", "page_plan", "reference_discovery", "drawing_prompt", "generated_image_id"]],
+    ]) {
+      const before = await callBrowserApiCommand("list_manga_pipeline_artifacts", deletionScope);
+      const beforePages = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
+      for (const width of [1440, 1024, 390]) {
+        await browser.setWindowSize(width, 1000);
+        await chooseStage(label);
+        await deleteStageButton().waitForEnabled();
+        await deleteStageButton().execute((element) => element.focus());
+        await browser.keys("Enter");
+        await waitText(new RegExp(`删除本章「${label}」产物`));
+        assert.match(await dialog().getText(), /本章所有页面，不限当前选中页/);
+        assert.match(await dialog().getText(), /上游产物、原文、改编计划和基础素材会保留/);
+        await capture(`chapter-${stage}-confirm`, width);
+        await closeDialog();
+        assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", deletionScope), before);
+      }
+      await deleteStageButton().click();
+      await waitText(new RegExp(`删除本章「${label}」产物`));
+      await clickButton("删除本章本阶段全部产物", await dialog());
+      await waitForNoDialog();
+      await browser.waitUntil(async () => (await callBrowserApiCommand("list_manga_pipeline_artifacts", deletionScope)).every((artifact) => !removedStages.includes(artifact.stage)));
+      const retained = await callBrowserApiCommand("list_manga_pipeline_artifacts", deletionScope);
+      assert.deepEqual(retained, before.filter((artifact) => !removedStages.includes(artifact.stage)));
+      const afterPages = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
+      assert.deepEqual(afterPages.map((page) => page.id), originalPages.map((page) => page.id));
+      for (let index = 0; index < afterPages.length; index += 1) {
+        for (const field of ["page_content", "page_adaptation", "page_plan", "reference_discovery", "drawing_prompt", "generated_image_id"]) {
+          if (clearedFields.includes(field)) assert.equal(afterPages[index][field], null, `${label}: ${field}`);
+          else assert.deepEqual(afterPages[index][field], beforePages[index][field], `${label}: upstream ${field}`);
+        }
+      }
+      await browser.refresh();
+      await chooseStage(label);
+      await deleteStageButton().waitForDisplayed();
+      assert.equal(await deleteStageButton().isEnabled(), false);
+      assert.deepEqual(await callBrowserApiCommand("list_manga_pipeline_artifacts", deletionScope), retained);
+      await capture(`chapter-${stage}-deleted`, 390);
+      checks.push(`${label}: chapter-wide deletion clears both pages from the current stage, preserves upstream artifacts and page identities, survives refresh, and cancellation preserves data at three widths`);
+    }
+    for (const label of ["基础素材", "改编计划"]) {
+      await chooseStage(label);
+      assert.equal(await deleteStageButton().isExisting(), false);
+    }
+    checks.push("Materials and adaptation use their own controls and do not expose pipeline chapter-stage deletion");
+    await generateManga(deletion);
+    await openProject(deletion.projectId);
+    originalPages = await callBrowserApiCommand("list_manga_page_prompts", deletionScope);
     const promptSection = () => $('//section[./div/h3[normalize-space(.)="整页提示词"]]');
     const selectedPage = () => $('nav[aria-label="漫画页列表"] button[aria-current="true"]');
     for (const width of [1440, 1024, 390]) {

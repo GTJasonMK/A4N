@@ -64,6 +64,138 @@ async fn checkpoint_keys(db: &DatabaseConnection, run_id: i64) -> Vec<String> {
         .unwrap()
 }
 
+#[tokio::test]
+async fn chapter_stage_deletion_is_atomic_and_preserves_upstream_and_other_projects() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "本章当前阶段批量删除").await;
+    let (other_project, other_chapter) = project_and_chapter(&db, "保留其他项目").await;
+    let run_id = failed_workflow_with_checkpoints(&db, project_id, chapter_id).await;
+    let before_keys = checkpoint_keys(&db, run_id).await;
+    for (project, chapter) in [(project_id, chapter_id), (other_project, other_chapter)] {
+        for (stage, page) in [
+            (MangaPipelineArtifactStage::Preprocessing, None),
+            (MangaPipelineArtifactStage::PageSlots, None),
+            (MangaPipelineArtifactStage::PageContent, Some(1)),
+            (MangaPipelineArtifactStage::PageContent, Some(10)),
+            (MangaPipelineArtifactStage::Storyboard, Some(1)),
+            (MangaPipelineArtifactStage::Storyboard, Some(10)),
+            (MangaPipelineArtifactStage::ReferenceDiscovery, Some(1)),
+            (MangaPipelineArtifactStage::DrawingPrompt, Some(10)),
+            (MangaPipelineArtifactStage::Image, Some(10)),
+        ] {
+            upsert_manga_pipeline_artifact(
+                &db,
+                MangaPipelineArtifactDraft {
+                    project_id: project,
+                    chapter_id: chapter,
+                    stage,
+                    page_number: page,
+                    input_fingerprint: "original".into(),
+                    payload: json!({"fixture": stage.key()}),
+                    stale: false,
+                },
+                fixed_time(1),
+            )
+            .await
+            .unwrap();
+        }
+    }
+    let other_before = manga_pipeline_artifacts_by_chapter(&db, other_project, other_chapter)
+        .await
+        .unwrap();
+    let stage = MangaPipelineArtifactStage::Storyboard;
+    for (stage, page) in [
+        (stage, Some(0)),
+        (stage, Some(u32::MAX)),
+        (MangaPipelineArtifactStage::Preprocessing, Some(1)),
+    ] {
+        assert!(
+            manga_pipeline_artifact_deletion_plan(&db, project_id, chapter_id, stage, page)
+                .await
+                .is_err()
+        );
+    }
+    let preview = manga_pipeline_artifact_deletion_plan(&db, project_id, chapter_id, stage, None)
+        .await
+        .unwrap();
+    assert_eq!(preview.artifacts.len(), 5);
+    upsert_manga_pipeline_artifact(
+        &db,
+        MangaPipelineArtifactDraft {
+            project_id,
+            chapter_id,
+            stage,
+            page_number: Some(10),
+            input_fingerprint: "concurrent-edit".into(),
+            payload: json!({"fixture": "edited during confirmation"}),
+            stale: false,
+        },
+        fixed_time(2),
+    )
+    .await
+    .unwrap();
+    let before_rejection = manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+        .await
+        .unwrap();
+    assert!(
+        delete_manga_pipeline_artifact(
+            &db,
+            project_id,
+            chapter_id,
+            stage,
+            None,
+            &preview.fingerprint,
+            &[],
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("范围已变化")
+    );
+    assert_eq!(
+        manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap(),
+        before_rejection
+    );
+    assert_eq!(checkpoint_keys(&db, run_id).await, before_keys);
+    let preview = manga_pipeline_artifact_deletion_plan(&db, project_id, chapter_id, stage, None)
+        .await
+        .unwrap();
+    delete_manga_pipeline_artifact(
+        &db,
+        project_id,
+        chapter_id,
+        stage,
+        None,
+        &preview.fingerprint,
+        &[],
+    )
+    .await
+    .unwrap();
+    let retained = manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+        .await
+        .unwrap();
+    assert_eq!(retained.len(), 4);
+    assert!(retained.iter().all(|artifact| matches!(
+        artifact.stage,
+        MangaPipelineArtifactStage::Preprocessing
+            | MangaPipelineArtifactStage::PageSlots
+            | MangaPipelineArtifactStage::PageContent
+    )));
+    let keys = checkpoint_keys(&db, run_id).await;
+    assert!(keys.contains(&MangaModelCall::PageContent(10).call_key(chapter_id)));
+    assert!(!keys.contains(&MangaModelCall::Storyboard(1).call_key(chapter_id)));
+    assert!(!keys.contains(&MangaModelCall::Storyboard(10).call_key(chapter_id)));
+    assert!(!keys.contains(&MangaModelCall::DrawingPrompt(1).call_key(chapter_id)));
+    assert_eq!(
+        manga_pipeline_artifacts_by_chapter(&db, other_project, other_chapter)
+            .await
+            .unwrap(),
+        other_before
+    );
+}
+
 async fn resume_workflow(db: &DatabaseConnection, run_id: i64) {
     let run = workflow_run::Entity::find_by_id(run_id)
         .one(db)

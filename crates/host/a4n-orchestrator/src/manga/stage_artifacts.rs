@@ -485,7 +485,7 @@ impl OrchestratorContext {
             .chapter_manga_source_by_id(input.chapter_id, input.project_id, false)
             .await?;
         ensure_manga_source_can_write(&source, "删除漫画阶段产物")?;
-        let page_number = validated_artifact_page_number(input.stage, input.page_number)?;
+        let page_number = validated_artifact_deletion_page_number(input.stage, input.page_number)?;
         if let Some(page_number) = page_number {
             self.page_prompt_for_stage(input.project_id, input.chapter_id, page_number)
                 .await?;
@@ -497,7 +497,7 @@ impl OrchestratorContext {
         {
             let page_number = u32::try_from(prompt.page_number)
                 .map_err(|_| AppError::InvalidArgument("漫画页面页码无效".into()))?;
-            if input.stage.page_scoped() && input.page_number != Some(page_number) {
+            if input.page_number.is_some_and(|page| page != page_number) {
                 continue;
             }
             let clear_image = input.stage == MangaPipelineArtifactStage::Image
@@ -554,7 +554,7 @@ impl OrchestratorContext {
             .chapter_manga_source_by_id(input.chapter_id, input.project_id, false)
             .await?;
         ensure_manga_source_can_write(&source, "预览漫画阶段产物删除")?;
-        let page_number = validated_artifact_page_number(input.stage, input.page_number)?;
+        let page_number = validated_artifact_deletion_page_number(input.stage, input.page_number)?;
         if let Some(page_number) = page_number {
             self.page_prompt_for_stage(input.project_id, input.chapter_id, page_number)
                 .await?;
@@ -893,6 +893,16 @@ fn validate_payload(
         MangaPipelineArtifactStage::ReferenceBindings | MangaPipelineArtifactStage::Image => Err(
             AppError::InvalidArgument("该阶段需通过专用操作修改产物".into()),
         ),
+    }
+}
+
+fn validated_artifact_deletion_page_number(
+    stage: MangaPipelineArtifactStage,
+    page_number: Option<u32>,
+) -> Result<Option<u32>, AppError> {
+    match page_number {
+        None => Ok(None),
+        Some(_) => validated_artifact_page_number(stage, page_number),
     }
 }
 

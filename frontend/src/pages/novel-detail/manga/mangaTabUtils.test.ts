@@ -12,9 +12,19 @@ import {
   mangaStageAllowsReferenceBinding,
   mangaChapterRowFromIndex,
   mangaChapterRowFromSummary,
+  mangaWorkspaceDeletionStage,
 } from "./mangaTabUtils";
 
 describe("manga pipeline workspace groups", () => {
+  it("deletes from the current workspace stage and never maps materials or adaptation to chapter reset", () => {
+    expect(mangaWorkspaceDeletionStage("preprocessing")).toBe("preprocessing");
+    expect(mangaWorkspaceDeletionStage("page_planning")).toBe("page_slots");
+    expect(mangaWorkspaceDeletionStage("visual_design")).toBe("storyboard");
+    expect(mangaWorkspaceDeletionStage("image_creation")).toBe("drawing_prompt");
+    expect(mangaWorkspaceDeletionStage("materials")).toBeNull();
+    expect(mangaWorkspaceDeletionStage("adaptation")).toBeNull();
+  });
+
   const emptyPage: Parameters<typeof mangaPageStageNeedsGeneration>[0] = {
     page_content: null,
     page_adaptation: null,

@@ -35,7 +35,6 @@ import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgress
 import { generationClient } from "../../api/generationTasks";
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import {
-  deleteMangaByChapter,
   getMangaPipelineStatus,
   listMangaPagePrompts,
   listMangaPipelineArtifacts,
@@ -97,6 +96,7 @@ import {
   countStaleMangaPagePrompts,
   isMangaPageWorkspaceStage,
   mangaDeletionDownstreamSummary,
+  mangaWorkspaceDeletionStage,
   mangaChapterRowFromIndex,
   mangaChapterRowFromSummary,
   mangaStageLabel,
@@ -1536,10 +1536,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     }
   };
 
-  const handleDeleteManga = async () => {
+  const handleDeleteChapterStage = async () => {
     if (!ensureCanEditManga()) return;
     const chapter = selectedChapter;
-    if (!chapter) return;
+    const stage = mangaWorkspaceDeletionStage(workspaceStage);
+    if (!chapter || !stage) return;
     if (!ensureChapterReadCurrent() || !ensurePipelineStatusCurrent(chapter.id)) return;
     if (isChapterGenerating(chapter)) {
       addToast(
@@ -1551,14 +1552,24 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
     const requestProjectId = projectId;
     if (!await confirmLeaveStage() || !isChapterCurrent(requestProjectId, chapter.id)) return;
-    const actionKey = `delete-${chapter.id}`;
+    const actionKey = `delete-${chapter.id}-${stage}`;
     if (!beginAction(actionKey)) return;
-    let actionSeq: number | null = null;
+    const actionSeq = actionSeqRef.current + 1;
+    actionSeqRef.current = actionSeq;
+    setActing(actionKey);
     try {
+      const input = { project_id: requestProjectId, chapter_id: chapter.id, stage, page_number: null };
+      const preview = await previewDeleteMangaPipelineArtifact(input);
+      if (!isActionCurrent(requestProjectId, actionSeq) || !isChapterCurrent(requestProjectId, chapter.id)) return;
+      const stageLabel = stageTabs.find((tab) => tab.id === workspaceStage)!.label;
+      const downstream = mangaDeletionDownstreamSummary(preview, t);
       const confirmed = await confirmDialog({
-        title: t("comic.deleteArtifactsTitle"),
-        message: t("comic.deleteArtifactsMessage", { chapter: chapterHeading(chapter, t) }),
-        confirmText: t("comic.deleteAllArtifacts"),
+        title: t("comic.deleteStageArtifactsTitle", { stage: stageLabel }),
+        message: [
+          t("comic.deleteStageArtifactsMessage", { chapter: chapterHeading(chapter, t), stage: stageLabel }),
+          downstream ? t("comic.deleteStageArtifactsDownstream", { downstream }) : null,
+        ].filter(Boolean).join("\n\n"),
+        confirmText: t("comic.deleteStageArtifacts"),
         dialogType: "danger",
       });
       if (
@@ -1568,28 +1579,21 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         !ensurePipelineStatusCurrent(chapter.id)
       ) return;
 
-      actionSeq = actionSeqRef.current + 1;
-      actionSeqRef.current = actionSeq;
-      setActing(actionKey);
-      try {
-        await deleteMangaByChapter(requestProjectId, chapter.id);
-      } catch (error) {
-        if (isActionCurrent(requestProjectId, actionSeq)) {
-          addToast(extractErrorMessage(error, t("comic.operationFailed")), "error");
-        }
-        return;
-      }
+      await deleteMangaPipelineArtifact({ ...input, expected_impact_fingerprint: preview.fingerprint });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       if (isChapterCurrent(requestProjectId, chapter.id)) {
-        setSelectedPageNumber(null);
         discardStageDrafts();
       }
-      addToast(t("comic.deletedArtifacts"), "success");
+      addToast(t("comic.deletedStageArtifacts", { stage: stageLabel }), "success");
       const refreshed = await refreshPipelineTarget(chapter.id, requestProjectId);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       if (!refreshed) addToast(t("comic.deleteReadbackFailed"), "error");
+    } catch (error) {
+      if (isActionCurrent(requestProjectId, actionSeq)) {
+        addToast(extractErrorMessage(error, t("comic.operationFailed")), "error");
+      }
     } finally {
-      if (actionSeq != null && isActionCurrent(requestProjectId, actionSeq)) {
+      if (isActionCurrent(requestProjectId, actionSeq)) {
         setActing(null);
       }
       endAction(actionKey);
@@ -1939,15 +1943,20 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     );
   }
 
-  const deleteAllArtifactsButton = canEditManga && selectedChapter ? (
+  const deletionStage = mangaWorkspaceDeletionStage(workspaceStage);
+  const deletingChapterStage = selectedChapter != null && acting === `delete-${selectedChapter.id}-${deletionStage}`;
+  const deleteStageArtifactsButton = canEditManga && selectedChapter && deletionStage ? (
     <BookButton
       size="sm"
       variant="danger"
-      onClick={() => void handleDeleteManga()}
-      disabled={acting != null || isMutationBusy() || selectedStatus?.pipeline_status === "running" || isChapterGenerating(selectedChapter) || snapshotChapterLoading}
+      onClick={() => { if (!deletingChapterStage) void handleDeleteChapterStage(); }}
+      aria-disabled={deletingChapterStage || undefined}
+      aria-busy={deletingChapterStage || undefined}
+      className={deletingChapterStage ? "pointer-events-none opacity-50" : undefined}
+      disabled={!deletingChapterStage && (acting != null || isMutationBusy() || chapterArtifactsLoading || chapterArtifactsLoadError != null || !chapterArtifacts.some((artifact) => artifact.stage === deletionStage) || selectedStatus?.pipeline_status === "running" || isChapterGenerating(selectedChapter) || snapshotChapterLoading)}
     >
-      {acting === `delete-${selectedChapter.id}` ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
-      {t("comic.deleteAllArtifacts")}
+      {deletingChapterStage ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
+      {t("comic.deleteStageArtifacts")}
     </BookButton>
   ) : null;
 
@@ -1961,10 +1970,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           setWorkspaceStage(stage);
           return true;
         }}>
-          {deleteAllArtifactsButton}
+          {deleteStageArtifactsButton}
         </MediaStageHeader>}
-      {!staged && deleteAllArtifactsButton ? (
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">{deleteAllArtifactsButton}</div>
+      {!staged && deleteStageArtifactsButton ? (
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">{deleteStageArtifactsButton}</div>
       ) : null}
       {outputState?.stale && (workspaceStage === "visual_design" || workspaceStage === "image_creation") && (
         <p role="status" className="shrink-0 rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-small text-warning">

@@ -423,7 +423,7 @@ pub async fn manga_pipeline_artifact_deletion_plan(
 ) -> Result<MangaPipelineArtifactDeletionPlan, MangaPromptRecordError> {
     require_positive_manga_id(project_id, "project_id")?;
     require_positive_manga_id(chapter_id, "chapter_id")?;
-    let page_number = artifact_scope(stage, page_number)?;
+    let page_number = artifact_deletion_scope(stage, page_number)?;
     manga_pipeline_artifact_deletion_plan_in_connection(
         db,
         project_id,
@@ -445,7 +445,7 @@ pub async fn delete_manga_pipeline_artifact(
 ) -> Result<Vec<MangaPipelineArtifactRecord>, MangaPromptRecordError> {
     require_positive_manga_id(project_id, "project_id")?;
     require_positive_manga_id(chapter_id, "chapter_id")?;
-    let page_number = artifact_scope(stage, page_number)?;
+    let page_number = artifact_deletion_scope(stage, page_number)?;
     if expected_impact_fingerprint.len() != 64
         || !expected_impact_fingerprint
             .bytes()
@@ -517,7 +517,7 @@ pub async fn delete_manga_pipeline_artifact(
             chapter_manga_prompt::Column::PromptType
                 .eq(chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE),
         );
-    if stage.page_scoped() {
+    if let Some(page_number) = page_number {
         page_query = page_query.filter(chapter_manga_prompt::Column::PageNumber.eq(page_number));
     }
     let mut expected_prompt_ids = page_query
@@ -538,8 +538,8 @@ pub async fn delete_manga_pipeline_artifact(
         || projection_resets.iter().any(|reset| {
             reset.page_prompt_id <= 0
                 || reset.page_number == 0
-                || (stage.page_scoped()
-                    && Some(reset.page_number) != u32::try_from(page_number).ok())
+                || page_number
+                    .is_some_and(|page| Some(reset.page_number) != u32::try_from(page).ok())
                 || reset.clear_generated_image
                     != (stage == MangaPipelineArtifactStage::Image
                         || MangaPipelineArtifactStage::Image.depends_on(stage))
@@ -623,7 +623,7 @@ pub async fn delete_manga_pipeline_artifact(
         || MangaPipelineArtifactStage::Image.depends_on(stage)
     {
         generated_image_paths.extend(
-            if stage.page_scoped() {
+            if let Some(page_number) = page_number {
                 crate::video::delete_manga_page_image_records_in(
                     &txn,
                     project_id,
@@ -657,14 +657,7 @@ pub async fn delete_manga_pipeline_artifact(
         &txn,
         &run_ids,
         chapter_id,
-        Some((
-            stage,
-            if stage.page_scoped() {
-                Some(page_number as u32)
-            } else {
-                None
-            },
-        )),
+        Some((stage, page_number.map(|page| page as u32))),
     )
     .await?;
     if !generated_image_paths.is_empty() {
@@ -690,7 +683,7 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
     project_id: i64,
     chapter_id: i64,
     stage: MangaPipelineArtifactStage,
-    page_number: i32,
+    page_number: Option<i32>,
 ) -> Result<MangaPipelineArtifactDeletionPlan, MangaPromptRecordError> {
     let dependent_stages = MangaPipelineArtifactStage::all()
         .iter()
@@ -702,7 +695,7 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
         .filter(ArtifactColumn::ProjectId.eq(project_id))
         .filter(ArtifactColumn::ChapterId.eq(chapter_id))
         .filter(ArtifactColumn::Stage.is_in(dependent_stages));
-    let query = if stage.page_scoped() {
+    let query = if let Some(page_number) = page_number {
         query.filter(ArtifactColumn::PageNumber.eq(page_number))
     } else {
         query
@@ -716,14 +709,6 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
         .into_iter()
         .map(manga_pipeline_artifact_record)
         .collect::<Result<Vec<_>, _>>()?;
-    let expected_page_number = if stage.page_scoped() {
-        Some(
-            u32::try_from(page_number)
-                .map_err(|_| MangaPromptRecordError::InvalidArgument("漫画页码无效".into()))?,
-        )
-    } else {
-        None
-    };
     let mut pages = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
@@ -731,7 +716,7 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
             chapter_manga_prompt::Column::PromptType
                 .eq(chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE),
         );
-    if stage.page_scoped() {
+    if let Some(page_number) = page_number {
         pages = pages.filter(chapter_manga_prompt::Column::PageNumber.eq(page_number));
     }
     let pages = pages
@@ -740,9 +725,7 @@ async fn manga_pipeline_artifact_deletion_plan_in_connection<C: ConnectionTrait>
         .all(db)
         .await
         .map_err(manga_record_database("读取漫画删除投影版本失败"))?;
-    let has_artifact = records
-        .iter()
-        .any(|artifact| artifact.stage == stage && artifact.page_number == expected_page_number);
+    let has_artifact = records.iter().any(|artifact| artifact.stage == stage);
     // Direct page-image generation binds the image without publishing a pipeline artifact.
     if !has_artifact
         && !(stage == MangaPipelineArtifactStage::Image
@@ -833,6 +816,15 @@ async fn mark_downstream_stale<C: sea_orm::ConnectionTrait>(
         .await
         .map_err(manga_record_database("标记漫画下游阶段产物过期失败"))?;
     Ok(())
+}
+
+fn artifact_deletion_scope(
+    stage: MangaPipelineArtifactStage,
+    page_number: Option<u32>,
+) -> Result<Option<i32>, MangaPromptRecordError> {
+    page_number
+        .map(|page| artifact_scope(stage, Some(page)))
+        .transpose()
 }
 
 fn artifact_scope(

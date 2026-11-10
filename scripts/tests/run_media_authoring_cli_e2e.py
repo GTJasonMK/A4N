@@ -472,11 +472,18 @@ def main():
                 ("reference_discovery", 1, {"reference_discovery", "drawing_prompt", "image"}, "reference_discovery", 2),
                 ("drawing_prompt", 1, {"drawing_prompt", "image"}, "drawing_prompt", 1),
                 ("image", 1, {"image"}, "image", 0),
+                ("page_content", None, {"page_content", "page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "content", 8),
+                ("page_adaptation", None, {"page_adaptation", "storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "adaptation", 8),
+                ("storyboard", None, {"storyboard", "reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "storyboard", 6),
+                ("reference_bindings", None, {"reference_bindings", "reference_discovery", "drawing_prompt", "image"}, "reference_discovery", 4),
+                ("reference_discovery", None, {"reference_discovery", "drawing_prompt", "image"}, "reference_discovery", 4),
+                ("drawing_prompt", None, {"drawing_prompt", "image"}, "drawing_prompt", 2),
+                ("image", None, {"image"}, "image", 0),
             ]
             projection_fields = {"page_content": "page_content", "page_adaptation": "page_adaptation", "storyboard": "page_plan",
                 "reference_bindings": "reference_bindings", "reference_discovery": "reference_discovery", "drawing_prompt": "drawing_prompt", "image": "generated_image_id"}
             for deleted_stage, target_page, removed_stages, reset_stage, expected_calls in deletion_cases:
-                audited_project = planning_project("删除阶段审查 " + deleted_stage)
+                audited_project = planning_project(f"删除阶段审查 {deleted_stage} {target_page}")
                 manga_run(audited_project)
                 artifact_scope = {"project_id": audited_project, "chapter_id": chapter_id}
                 original_artifacts = call("list_manga_pipeline_artifacts", artifact_scope)
@@ -485,7 +492,7 @@ def main():
                 delete_scope = {**artifact_scope, "stage": deleted_stage, "page_number": target_page}
                 impact = call("preview_delete_manga_pipeline_artifact", delete_scope)
                 expected_deleted = [item for item in original_artifacts if item["stage"] in removed_stages and (target_page is None or item["page_number"] == target_page)]
-                assert {item["artifact_id"] for item in [impact["target"], *impact["downstream"]]} == {item["id"] for item in expected_deleted}, (deleted_stage, impact)
+                assert {item["artifact_id"] for item in [impact["target"], *impact["downstream"]] if item["artifact_id"] is not None} == {item["id"] for item in expected_deleted}, (deleted_stage, impact)
                 call("delete_manga_pipeline_artifact", {**delete_scope, "expected_impact_fingerprint": impact["fingerprint"]}, destructive=True)
                 retained = call("list_manga_pipeline_artifacts", artifact_scope)
                 assert retained == [item for item in original_artifacts if item not in expected_deleted], deleted_stage
@@ -514,7 +521,32 @@ def main():
                 assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["reference_discovery"] and page["drawing_prompt"] for page in regenerated), deleted_stage
                 manga_run(audited_project, run_stage="image", page_number=1)
                 assert next(page for page in call("list_manga_page_prompts", artifact_scope) if page["page_number"] == 1)["generated_image_id"]
-                passed(f"逐阶段删除 {deleted_stage}：级联范围、页面身份、保留上游及其他页、布局状态和真实重新生成全部通过")
+                passed(f"逐阶段删除 {deleted_stage}（{'本章全部页面' if target_page is None else f'第 {target_page} 页'}）：级联范围、页面身份、保留上游及其他页、布局状态和真实重新生成全部通过")
+
+            mixed_project = planning_project("本章阶段删除的并发修改与未开始页")
+            manga_run(mixed_project, stop_after="page_adaptation")
+            manga_run(mixed_project, stop_after="drawing_prompt", page_number=1)
+            mixed_scope = {"project_id": mixed_project, "chapter_id": chapter_id}
+            mixed_pages = call("list_manga_page_prompts", mixed_scope)
+            assert mixed_pages[0]["drawing_prompt"] and not mixed_pages[1]["page_plan"]
+            bulk_scope = {**mixed_scope, "stage": "drawing_prompt", "page_number": None}
+            impact = call("preview_delete_manga_pipeline_artifact", bulk_scope)
+            edited_prompt = copy.deepcopy(mixed_pages[0]["drawing_prompt"])
+            edited_prompt["image_prompt"] += "，确认期间修改后的提示词"
+            call("save_manga_pipeline_artifact", {**mixed_scope, "stage": "drawing_prompt", "page_number": 1,
+                "expected_prompt_updated_at": mixed_pages[0]["updated_at"], "payload": edited_prompt})
+            before_rejection = call("list_manga_pipeline_artifacts", mixed_scope)
+            pages_before_rejection = call("list_manga_page_prompts", mixed_scope)
+            call("delete_manga_pipeline_artifact", {**bulk_scope, "expected_impact_fingerprint": impact["fingerprint"]}, destructive=True, reject="范围已变化")
+            assert call("list_manga_pipeline_artifacts", mixed_scope) == before_rejection
+            assert call("list_manga_page_prompts", mixed_scope) == pages_before_rejection
+            impact = call("preview_delete_manga_pipeline_artifact", bulk_scope)
+            call("delete_manga_pipeline_artifact", {**bulk_scope, "expected_impact_fingerprint": impact["fingerprint"]}, destructive=True)
+            after_mixed_delete = call("list_manga_page_prompts", mixed_scope)
+            assert after_mixed_delete[0]["drawing_prompt"] is None
+            assert {key: value for key, value in after_mixed_delete[1].items() if key != "updated_at"} == {key: value for key, value in mixed_pages[1].items() if key != "updated_at"}
+            assert call("list_manga_pipeline_artifacts", mixed_scope) == [item for item in before_rejection if item["stage"] != "drawing_prompt"]
+            passed("本章阶段批量删除在确认期间发生修改时原子拒绝；重新预览后只清理目标，不推进尚未开始该阶段的页面")
 
             deleted_plan = latest(audited_project, "adaptation_plan", "adopted")
             document_scope = {"project_id": audited_project, "record_id": deleted_plan["id"], "kind": "adaptation_plan", "expected_revision": deleted_plan["revision"]}

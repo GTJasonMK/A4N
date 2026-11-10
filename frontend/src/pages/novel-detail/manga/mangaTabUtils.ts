@@ -35,6 +35,19 @@ export const isMangaPageWorkspaceStage = (
 ): stage is MangaPageWorkspaceStage =>
   stage === "page_planning" || stage === "visual_design" || stage === "image_creation";
 
+export const mangaWorkspaceDeletionStage = (
+  stage: MangaWorkspaceStage,
+): MangaPipelineArtifactStage | null => {
+  switch (stage) {
+    case "preprocessing": return "preprocessing";
+    case "page_planning": return "page_slots";
+    case "visual_design": return "storyboard";
+    case "image_creation": return "drawing_prompt";
+    case "materials":
+    case "adaptation": return null;
+  }
+};
+
 const PIPELINE_STAGES_BY_WORKSPACE_STAGE: Record<
   MangaWorkspaceStage,
   readonly string[]
@@ -330,6 +343,7 @@ export const mangaDeletionDownstreamSummary = (
     { count: number; pages: Set<number> }
   >();
   for (const artifact of preview.downstream) {
+    if (artifact.stage === preview.target.stage) continue;
     const group = groups.get(artifact.stage) ?? { count: 0, pages: new Set<number>() };
     group.count += 1;
     if (artifact.page_number != null) group.pages.add(artifact.page_number);
