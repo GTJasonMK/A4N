@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import Mocha from "mocha";
-import { captureBrowserDiagnostics, visibleElements, waitAndCloseProgress } from "./user-flow.mjs";
+import { buttonMatching, captureBrowserDiagnostics, visibleElements, waitAndCloseProgress } from "./user-flow.mjs";
 
 test("browser diagnostics fail the Mocha run even when the test body passes", async () => {
   const directory = mkdtempSync(new URL("../../../data/browser-gate-", import.meta.url));
@@ -39,13 +39,51 @@ test("browser diagnostics fail the Mocha run even when the test body passes", as
 });
 
 test("element scans tolerate replaced nodes but propagate transport failures", async () => {
+  const visible = { isDisplayed: async () => true };
   try {
-    globalThis.$$ = async () => [{ isDisplayed: async () => { throw new Error("stale element reference"); } }];
-    assert.deepEqual(await visibleElements("button"), []);
-    globalThis.$$ = async () => [{ isDisplayed: async () => { throw new Error("session disconnected"); } }];
-    await assert.rejects(visibleElements("button"), /session disconnected/);
+    for (const message of [
+      "stale element reference",
+      'WebDriver Bidi command "script.callFunction" failed with error: no such node - SharedId "replaced-button" was not found.',
+    ]) {
+      globalThis.$$ = async () => [
+        { isDisplayed: async () => { throw new Error(message); } },
+        visible,
+      ];
+      assert.deepEqual(await visibleElements("button"), [visible]);
+    }
+    for (const message of ["session disconnected", "no such node - unexpected lookup failure"]) {
+      const failure = new Error(message);
+      globalThis.$$ = async () => [{ isDisplayed: async () => { throw failure; } }];
+      await assert.rejects(visibleElements("button"), (error) => error === failure);
+    }
   } finally {
     delete globalThis.$$;
+  }
+});
+
+test("button matching reads a fresh node after a BiDi reference expires", async () => {
+  let scans = 0;
+  const replacement = {
+    isDisplayed: async () => true,
+    getText: async () => "第 1 页剧情内容",
+    getAttribute: async () => null,
+  };
+  const replaced = {
+    ...replacement,
+    getText: async () => {
+      throw new Error('WebDriver Bidi command "script.callFunction" failed with error: no such node - SharedId "replaced-button" was not found.');
+    },
+  };
+  globalThis.$$ = async () => [++scans === 1 ? replaced : replacement];
+  globalThis.browser = {
+    waitUntil: async (condition) => assert.equal(await condition(), true),
+  };
+  try {
+    assert.equal(await buttonMatching("第 1 页剧情内容"), replacement);
+    assert.equal(scans, 2);
+  } finally {
+    delete globalThis.$$;
+    delete globalThis.browser;
   }
 });
 

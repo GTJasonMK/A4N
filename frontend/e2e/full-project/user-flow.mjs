@@ -9,7 +9,10 @@ const activeDialogs = '.a4n-modal-layer:not([data-modal-state="exiting"]) [role=
 const failedProgress = /生成失败|任务失败|调用失败|分析失败|同步失败|已取消|已停止/;
 
 function ignoreStaleElement(error) {
-  if (!/stale element reference/i.test(String(error))) throw error;
+  // BiDi identifies a replaced DOM node by its expired shared reference.
+  const message = String(error);
+  if (!/stale element reference/i.test(message)
+      && !/no such node - SharedId "[^"]+" was not found\./i.test(message)) throw error;
   return false;
 }
 
