@@ -273,7 +273,6 @@ export const comic = {
     bindFailed: "Failed to bind reference image",
     uploadReference: "Upload and add",
     uploadingReference: "Importing reference…",
-    referenceUploadFailed: "Failed to upload reference image",
     discoveredReferences: "References for this page",
     referenceNumber: "Reference image {number}",
     referenceTarget: {
@@ -334,8 +333,6 @@ export const comic = {
     removeReferenceFromTarget: "Remove reference from {target}",
     showMoreReferenceImages: "Show more images",
     showAllReferenceImages: "Browse all materials",
-    addedUserReference: "User reference added",
-    removedUserReference: "User reference removed",
     removeUserReference: "Remove user reference {index} for {character}",
     preview: "View image generation request",
     regenerateImage: "Regenerate image",

@@ -273,7 +273,6 @@ export const comic = {
     bindFailed: "绑定参考图失败",
     uploadReference: "上传并添加",
     uploadingReference: "正在导入参考图…",
-    referenceUploadFailed: "参考图上传失败",
     discoveredReferences: "本页参考图",
     referenceNumber: "参考图 {number}",
     referenceTarget: {
@@ -334,8 +333,6 @@ export const comic = {
     removeReferenceFromTarget: "从{target}移除参考图",
     showMoreReferenceImages: "显示更多图片",
     showAllReferenceImages: "浏览全部素材",
-    addedUserReference: "已添加用户参考图",
-    removedUserReference: "已移除用户参考图",
     removeUserReference: "移除{character}第 {index} 张用户参考图",
     preview: "查看生成图片请求",
     regenerateImage: "重新生成图片",

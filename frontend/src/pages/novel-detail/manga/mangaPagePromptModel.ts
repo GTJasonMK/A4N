@@ -100,6 +100,16 @@ export const mangaReferenceAssetKey = (
   assetId: number,
 ): string => `${assetKind}:${assetId}`;
 
+export const canReuseMangaReferenceImage = (
+  image: Pick<GeneratedImage, "project_id" | "chapter_id" | "image_type">,
+  projectId: number,
+  chapterId: number,
+): boolean =>
+  image.project_id === projectId &&
+  image.image_type !== "manga_page" &&
+  (image.chapter_id == null || image.chapter_id === chapterId ||
+    image.image_type === "scene_material" || image.image_type === "object_material");
+
 export const sumPipelinePrompts = (
   status: MangaPipelineStatusSummary | null | undefined,
 ): number => {

@@ -24,6 +24,7 @@ import type {
   MangaPageReferenceTargetKind,
   MangaPipelineStatusSummary,
   MangaPagePromptSummary,
+  SaveMangaPipelineArtifactInput,
 } from "../../../api/manga";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
@@ -103,11 +104,7 @@ interface MangaPagePromptListProps {
   ) => Promise<void>;
   uploadingReferenceBindingKey?: string | null;
   onUpdatePrompt?: (promptId: number, imagePrompt: string) => void | Promise<void>;
-  onSaveStageArtifact?: (
-    stage: MangaPipelineArtifactStage,
-    pageNumber: number,
-    payload: unknown,
-  ) => void | Promise<void>;
+  onSaveStageArtifact?: (input: SaveMangaPipelineArtifactInput) => Promise<void>;
   onGenerateStageArtifact?: (
     stage: MangaPipelineArtifactStage,
     pageNumber: number,
@@ -312,7 +309,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   const [detailView, setDetailView] = useState<MangaPageDetailView | null>(null);
   const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
   const [promptSaving, setPromptSaving] = useState(false);
-  const [stageDraft, setStageDraft] = useState<{ key: string; value: unknown } | null>(null);
+  const [stageDraft, setStageDraft] = useState<{ key: string; input: SaveMangaPipelineArtifactInput } | null>(null);
   const [stageSaving, setStageSaving] = useState(false);
   const [selectedCandidateByCharacter, setSelectedCandidateByCharacter] = useState<
     Record<string, string>
@@ -582,10 +579,17 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   const beginStageEdit = (stage: MangaPageEditableArtifactStage) => {
     const key = stageArtifactKey(stage);
     const payload = stageArtifactPayload(stage);
-    if (!canEditManga || !key || payload == null) return;
+    if (!canEditManga || !activePage || !key || payload == null) return;
     setStageDraft({
       key,
-      value: payload,
+      input: {
+        project_id: activePage.prompt.project_id,
+        chapter_id: activePage.prompt.chapter_id,
+        page_number: activePage.pageNumber,
+        stage,
+        expected_prompt_updated_at: activePage.prompt.updated_at,
+        payload,
+      },
     });
   };
 
@@ -595,14 +599,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     if (
       validateMangaPageArtifactDraft(
         stage,
-        stageDraft.value,
+        stageDraft.input.payload,
         activePage.pageNumber,
         t,
       ) != null
     ) return;
     setStageSaving(true);
     try {
-      await onSaveStageArtifact(stage, activePage.pageNumber, stageDraft.value);
+      await onSaveStageArtifact(stageDraft.input);
       setStageDraft(null);
     } catch {
       // 调用方负责 toast；这里保留编辑状态，方便修正后重试。
@@ -615,7 +619,6 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     if (!activePage || !stageArtifactPayload(stage) || !onDeleteStageArtifact) return;
     try {
       await onDeleteStageArtifact(stage, activePage.pageNumber);
-      setStageDraft(null);
     } catch {
       // 调用方负责 toast。
     }
@@ -651,7 +654,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       editing && stageDraft && editableStage && activePage
         ? validateMangaPageArtifactDraft(
             editableStage,
-            stageDraft.value,
+            stageDraft.input.payload,
             activePage.pageNumber,
             t,
           )
@@ -698,10 +701,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
           <>
             <MangaPageStageArtifactEditor
               stage={editableStage}
-              value={stageDraft.value}
+              value={stageDraft.input.payload}
               labels={pagePromptLabels}
               disabled={actionsDisabled || stageSaving}
-              onChange={(value) => setStageDraft({ key: key ?? "", value })}
+              onChange={(value) => setStageDraft({ ...stageDraft, input: { ...stageDraft.input, payload: value } })}
             />
             {draftError ? (
               <p role="alert" className="text-small text-error">

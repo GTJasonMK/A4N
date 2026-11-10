@@ -5,6 +5,7 @@ import type { Portrait } from "../../../api/portrait";
 import { translateMessage, type MessageTranslator } from "../../../i18n";
 import {
   buildPagePrompts,
+  canReuseMangaReferenceImage,
   buildReferenceCandidates,
   searchReferenceCandidates,
   type MangaPagePromptLabels,
@@ -12,6 +13,20 @@ import {
 
 const t: MessageTranslator = (key, params) =>
   translateMessage("zh-CN", key, params);
+
+describe("canReuseMangaReferenceImage", () => {
+  it.each([
+    ["同章参考图", { project_id: 1, chapter_id: 9, image_type: "chapter_reference" }, true],
+    ["项目全局参考图", { project_id: 1, chapter_id: null, image_type: "chapter_reference" }, true],
+    ["其他章的参考副本", { project_id: 1, chapter_id: 10, image_type: "chapter_reference" }, false],
+    ["跨章场景素材", { project_id: 1, chapter_id: 10, image_type: "scene_material" }, true],
+    ["跨章物品素材", { project_id: 1, chapter_id: 10, image_type: "object_material" }, true],
+    ["完整页面需要独立快照", { project_id: 1, chapter_id: 9, image_type: "manga_page" }, false],
+    ["其他项目需要导入", { project_id: 2, chapter_id: null, image_type: "scene_material" }, false],
+  ])("%s", (_name, image, reusable) => {
+    expect(canReuseMangaReferenceImage(image, 1, 9)).toBe(reusable);
+  });
+});
 
 const labels: MangaPagePromptLabels = {
   role: {

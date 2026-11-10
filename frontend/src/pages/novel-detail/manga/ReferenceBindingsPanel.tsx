@@ -249,7 +249,7 @@ export const ReferenceBindingsPanel: React.FC<{
       setReferenceActionError(null);
     } catch (error) {
       setReferenceActionError(
-        error instanceof Error ? error.message : t("comic.prompt.referenceUploadFailed"),
+        error instanceof Error ? error.message : t("comic.prompt.bindFailed"),
       );
     } finally {
       setAddingReferenceTargetKey(null);
@@ -262,6 +262,7 @@ export const ReferenceBindingsPanel: React.FC<{
   ) => {
     if (!onUnbindDiscoveredReference || addingReferenceTargetKey != null) return;
     setAddingReferenceTargetKey(targetKey);
+    setReferenceActionError(null);
     try {
       await onUnbindDiscoveredReference(assetKind, assetId);
       setReferenceActionError(null);
@@ -390,7 +391,7 @@ export const ReferenceBindingsPanel: React.FC<{
                         aria-expanded={bindingPickerOpen}
                         aria-controls={bindingPickerId}
                         title={referenceLimitMessage ?? t("comic.prompt.bindReferenceHint")}
-                        disabled={referenceAdditionDisabled}
+                        disabled={referenceMutationDisabled || (!bindingPickerOpen && referenceLimitMessage != null)}
                         onClick={() => {
                           setBindingReferenceTargetKey(bindingPickerOpen ? null : targetKey);
                           setReferenceImageQuery("");
@@ -726,10 +727,7 @@ export const ReferenceBindingsPanel: React.FC<{
         </section>
       ) : null}
       {page.referenceBindings.map((binding, bindingIndex) => {
-        const candidateSearch = candidatesByCharacter.get(binding.characterName) ?? {
-          candidates: [],
-          totalCount: 0,
-        };
+        const candidateSearch = candidatesByCharacter.get(binding.characterName)!;
         const userCandidates = candidateSearch.candidates;
         const searchQuery = searchQueries[binding.characterName] ?? "";
         const searchHintId = `${searchHintPrefix}-manga-reference-search-hint-${bindingIndex}`;

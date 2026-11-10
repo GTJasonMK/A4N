@@ -276,6 +276,27 @@ describe("Generate and bind discovered manga references against the real Host", 
       assert.equal(uploads.filter((name) => name === "upload_image").length, 1);
       assert.equal(uploads.filter((name) => name === "save_manga_pipeline_artifact").length, 1);
       assert.equal(uploads.some((name) => /^start_.*generation$|^start_manga_pipeline$/.test(name)), false);
+      if (index === 0) {
+        const extra = await bindReference(target).$('..').$('..').$('..').$('button[aria-label^="将 "]');
+        await extra.scrollIntoView({ block: "center" });
+        await extra.click();
+        await browser.waitUntil(async () => (await readPage()).reference_discovery.references.filter((item) => item.target_name === target).length === 2);
+        await browser.setWindowSize(390, 1000);
+        await bindReference(target).scrollIntoView({ block: "center" });
+        await bindReference(target).waitForEnabled();
+        assert.equal(await bindReference(target).getAttribute("aria-expanded"), "true");
+        await capture("picker-full", 390);
+        await bindReference(target).click();
+        assert.equal(await bindReference(target).getAttribute("aria-expanded"), "false");
+        assert.equal(await bindReference(target).isEnabled(), false);
+        const targetArea = await bindReference(target).$('..').$('..').$('..');
+        const boundImages = await targetArea.$$(`button[aria-label=${JSON.stringify(`从${target}移除参考图`)}]`);
+        assert.equal(boundImages.length, 2);
+        await boundImages[1].scrollIntoView({ block: "center" });
+        await boundImages[1].click();
+        await browser.waitUntil(async () => (await readPage()).reference_discovery.references.filter((item) => item.target_name === target).length === 1);
+        checks.push("A full reference picker can still be collapsed; closing it preserves both bindings and disables further additions");
+      }
       await openReferences(width);
       assert.deepEqual((await readPage()).reference_discovery.references.find((item) => item.target_name === target), reference);
       const remove = () => $(`button[aria-label=${JSON.stringify(`从${target}移除参考图`)}]`);
@@ -306,6 +327,66 @@ describe("Generate and bind discovered manga references against the real Host", 
       project_id: projectId, chapter_id: chapterId, page_number: 1, stage: "reference_discovery",
       expected_prompt_updated_at: current.updated_at, payload: original.reference_discovery,
     } });
+  });
+
+  it("keeps a stage draft at its original version after another action refreshes the page", async () => {
+    await openReferences(1024);
+    const workspace = await callBrowserApiCommand("get_media_authoring_workspace", {
+      input: { project_id: projectId, chapter_id: null },
+    });
+    const chapterId = workspace.chapters[0].source.source_chapter_id;
+    const readPage = async () => (await callBrowserApiCommand("list_manga_page_prompts", {
+      input: { project_id: projectId, chapter_id: chapterId },
+    })).find((page) => page.page_number === 1);
+    const original = await readPage();
+    await clickButton("编辑产物");
+    const thesis = () => $('//label[normalize-space()="视觉命题"]/following-sibling::textarea');
+    const draft = `${original.page_plan.visual_thesis}，保留本地未提交的视觉命题`;
+    await thesis().setValue(draft);
+    const referenceHeader = await $('//h3[normalize-space()="发现参考图"]/..');
+    await clickButton("删除", referenceHeader);
+    await dialog().waitForDisplayed();
+    await clickButton("取消", dialog());
+    await waitForNoDialog();
+    await thesis().waitForEnabled();
+    assert.equal(await thesis().getValue(), draft);
+    assert.equal((await readPage()).updated_at, original.updated_at);
+    checks.push("Cancelling reference deletion preserves the other stage's unsaved draft and performs no write");
+    const remove = await $('button[aria-label="从断裂树根移除参考图"]');
+    await remove.scrollIntoView({ block: "center" });
+    await remove.click();
+    await browser.waitUntil(async () => (await readPage()).reference_discovery.references.length === original.reference_discovery.references.length - 1);
+    await thesis().waitForEnabled();
+    const afterBinding = await readPage();
+    assert.notEqual(afterBinding.updated_at, original.updated_at);
+    assert.deepEqual(await captureBrowserDiagnostics(`${artifacts}/before-stale-stage-draft`), []);
+    await clickButton("保存");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("已被其他操作修改"));
+    assert.ok(!(await $("body").getText()).includes("已保存提示词"), "A rejected draft must not retain a misleading save-success toast");
+    assert.equal(await thesis().getValue(), draft);
+    const rejected = await readPage();
+    assert.equal(rejected.updated_at, afterBinding.updated_at);
+    assert.deepEqual(rejected.page_plan, original.page_plan);
+    const errors = await captureBrowserDiagnostics(`${artifacts}/expected-stale-stage-draft`);
+    const responses = errors.filter((entry) => entry.method === "Network.responseReceived");
+    const consoleErrors = errors.filter((entry) => entry.source === "console-api");
+    const networkErrors = errors.filter((entry) => entry.source === "network");
+    assert.equal(responses.length, 1, JSON.stringify(errors));
+    assert.equal(responses[0].status, 400);
+    assert.ok(responses[0].url.endsWith("/commands/save_manga_pipeline_artifact"));
+    assert.equal(consoleErrors.length, 1, JSON.stringify(errors));
+    assert.ok(consoleErrors[0].message.includes("后端调用失败: save_manga_pipeline_artifact"));
+    assert.equal(networkErrors.length, 1, JSON.stringify(errors));
+    assert.ok(networkErrors[0].message.includes("save_manga_pipeline_artifact") && networkErrors[0].message.includes("400"));
+    assert.equal(errors.length, 3, JSON.stringify(errors));
+    await thesis().scrollIntoView({ block: "center" });
+    await capture("stale-draft", 1024);
+    await clickButton("取消");
+    await callBrowserApiCommand("save_manga_pipeline_artifact", { input: {
+      project_id: projectId, chapter_id: chapterId, page_number: 1, stage: "reference_discovery",
+      expected_prompt_updated_at: rejected.updated_at, payload: original.reference_discovery,
+    } });
+    checks.push("An authoritative binding refresh does not silently replace a draft's original CAS version; rejection preserves the local draft and saved storyboard");
     complete = true;
   });
 });
