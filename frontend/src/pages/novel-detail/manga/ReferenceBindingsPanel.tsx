@@ -53,7 +53,7 @@ export const ReferenceBindingsPanel: React.FC<{
     sourceImage?: GeneratedImage,
   ) => void | Promise<void>;
   onBindDiscoveredReference?: (
-    sourceImage: GeneratedImage,
+    sourceImage: GeneratedImage | File,
     target: {
       targetKind: MangaPageReferenceTargetKind;
       targetName: string;
@@ -94,7 +94,7 @@ export const ReferenceBindingsPanel: React.FC<{
   const [referenceActionError, setReferenceActionError] = useState<string | null>(null);
   const [referenceImageQuery, setReferenceImageQuery] = useState("");
   const [visibleImageCounts, setVisibleImageCounts] = useState<Record<string, number>>({});
-  const [showAllImagesByTarget, setShowAllImagesByTarget] = useState<Record<string, boolean>>({});
+  const [bindingReferenceTargetKey, setBindingReferenceTargetKey] = useState<string | null>(null);
   const [addingReferenceTargetKey, setAddingReferenceTargetKey] = useState<string | null>(null);
   const [generatingReferenceTargetKey, setGeneratingReferenceTargetKey] = useState<string | null>(null);
   const referenceRequirements = page.referenceDiscovery?.requirements ?? [];
@@ -237,12 +237,13 @@ export const ReferenceBindingsPanel: React.FC<{
     [page.referenceBindings, profiles, portraits, referenceImages, searchQueries, t, useSearchPicker],
   );
   const bindDiscoveredReference = async (
-    image: GeneratedImage,
+    image: GeneratedImage | File,
     target: ReferenceTarget,
     targetKey: string,
   ) => {
     if (!onBindDiscoveredReference || addingReferenceTargetKey != null) return;
     setAddingReferenceTargetKey(targetKey);
+    setReferenceActionError(null);
     try {
       await onBindDiscoveredReference(image, target);
       setReferenceActionError(null);
@@ -322,15 +323,10 @@ export const ReferenceBindingsPanel: React.FC<{
               <span className="min-w-0 flex-1">{referenceActionError}</span>
             </div>
           ) : null}
-          <BookInput
-            label={t("comic.prompt.searchReferenceMaterials")}
-            placeholder={t("comic.prompt.searchReferenceMaterialsPlaceholder")}
-            value={referenceImageQuery}
-            onChange={(event) => setReferenceImageQuery(event.currentTarget.value)}
-            disabled={chapterLocked || assetsLoading || !canEditReferenceDiscovery}
-          />
           {referenceTargets.map((target, targetIndex) => {
             const targetKey = referenceTargetKey(target, targetIndex);
+            const bindingPickerOpen = bindingReferenceTargetKey === targetKey;
+            const bindingPickerId = `${searchHintPrefix}-reference-picker-${targetIndex}`;
             const imageGroups = referenceImagesByTarget.get(targetKey);
             const targetReferences = discoveredReferences.filter(
               (reference) =>
@@ -342,6 +338,8 @@ export const ReferenceBindingsPanel: React.FC<{
               : discoveredReferences.length >= MANGA_PAGE_REFERENCE_IMAGE_LIMIT
                 ? t("comic.prompt.referencePageLimitReached", { limit: MANGA_PAGE_REFERENCE_IMAGE_LIMIT })
                 : null;
+            const referenceMutationDisabled = chapterLocked || assetsLoading || addingReferenceTargetKey != null || generatingReferenceTargetKey != null;
+            const referenceAdditionDisabled = referenceMutationDisabled || referenceLimitMessage != null;
             const systemPortrait = target.targetKind === "character"
               ? systemPortraitBindings.find((binding) =>
                   binding.characterName === target.targetName,
@@ -356,7 +354,7 @@ export const ReferenceBindingsPanel: React.FC<{
                       : undefined;
                     return image ? [[image.id, image] as const] : [];
                   }),
-                  ...(referenceImageQuery.trim() || showAllImagesByTarget[targetKey]
+                  ...(bindingPickerOpen
                     ? imageGroups.all
                     : imageGroups.matches).map((image) => [image.id, image] as const),
                 ])].map(([, image]) => image);
@@ -366,7 +364,7 @@ export const ReferenceBindingsPanel: React.FC<{
                 key={targetKey}
                 className="space-y-2 rounded-md border border-book-border/40 bg-book-bg-paper/35 p-2"
               >
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <h5 className="truncate text-xs font-semibold text-book-text-main">
                       {referenceTargetKindLabel(target.targetKind)} · {target.targetName}
@@ -382,24 +380,82 @@ export const ReferenceBindingsPanel: React.FC<{
                       </p>
                     ) : null}
                   </div>
-                  {onGenerateDiscoveredReference && referenceRequirements.some((requirement) =>
-                    requirement.target_kind === target.targetKind && requirement.target_name === target.targetName,
-                  ) ? (
-                    <BookButton
-                      size="sm"
-                      variant="secondary"
-                      className="inline-flex shrink-0 items-center justify-center gap-1.5"
-                      aria-label={t("comic.prompt.generateReferenceFor", { target: target.targetName })}
-                      title={referenceLimitMessage ?? t("comic.prompt.generateReferenceHint")}
-                      disabled={chapterLocked || assetsLoading || addingReferenceTargetKey != null || generatingReferenceTargetKey != null || referenceLimitMessage != null}
-                      onClick={() => void generateDiscoveredReference(target, targetKey)}
-                    >
-                      {generatingReferenceTargetKey === targetKey
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {canEditReferenceDiscovery ? (
+                      <BookButton
+                        size="sm"
+                        variant={bindingPickerOpen ? "primary" : "secondary"}
+                        className="inline-flex items-center justify-center gap-1.5"
+                        aria-label={t("comic.prompt.bindReferenceFor", { target: target.targetName })}
+                        aria-expanded={bindingPickerOpen}
+                        aria-controls={bindingPickerId}
+                        title={referenceLimitMessage ?? t("comic.prompt.bindReferenceHint")}
+                        disabled={referenceAdditionDisabled}
+                        onClick={() => {
+                          setBindingReferenceTargetKey(bindingPickerOpen ? null : targetKey);
+                          setReferenceImageQuery("");
+                        }}
+                      >
+                        <Link2 size={14} aria-hidden="true" />
+                        {t("comic.prompt.bindReference")}
+                      </BookButton>
+                    ) : null}
+                    {onGenerateDiscoveredReference && referenceRequirements.some((requirement) =>
+                      requirement.target_kind === target.targetKind && requirement.target_name === target.targetName,
+                    ) ? (
+                      <BookButton
+                        size="sm"
+                        variant="secondary"
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5"
+                        aria-label={t("comic.prompt.generateReferenceFor", { target: target.targetName })}
+                        title={referenceLimitMessage ?? t("comic.prompt.generateReferenceHint")}
+                        disabled={referenceAdditionDisabled}
+                        onClick={() => void generateDiscoveredReference(target, targetKey)}
+                      >
+                        {generatingReferenceTargetKey === targetKey
+                          ? <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                          : <ImagePlus size={14} aria-hidden="true" />}
+                        {generatingReferenceTargetKey === targetKey ? t("comic.prompt.generatingReference") : t("comic.prompt.generateReference")}
+                      </BookButton>
+                    ) : null}
+                  </div>
+                </div>
+                <div id={bindingPickerId} hidden={!bindingPickerOpen} className="space-y-2 rounded-md border border-book-border/50 p-2">
+                  <p className="text-caption text-book-text-sub">{t("comic.prompt.bindReferenceHint")}</p>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-0 flex-1 basis-48">
+                      <BookInput
+                        label={t("comic.prompt.searchReferenceMaterials")}
+                        placeholder={t("comic.prompt.searchReferenceMaterialsPlaceholder")}
+                        value={referenceImageQuery}
+                        onChange={(event) => setReferenceImageQuery(event.currentTarget.value)}
+                        disabled={referenceMutationDisabled}
+                      />
+                    </div>
+                    <label className={[
+                      "relative inline-flex min-h-8 items-center justify-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors focus-within:outline focus-within:outline-1 focus-within:outline-book-primary",
+                      referenceAdditionDisabled
+                        ? "cursor-not-allowed border-book-border/40 text-book-text-muted opacity-50"
+                        : "cursor-pointer border-book-border/60 bg-book-bg-paper/70 text-book-text-sub hover:border-book-primary/60 hover:text-book-text-main",
+                    ].join(" ")}>
+                      {addingReferenceTargetKey === targetKey
                         ? <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-                        : <ImagePlus size={14} aria-hidden="true" />}
-                      {generatingReferenceTargetKey === targetKey ? t("comic.prompt.generatingReference") : t("comic.prompt.generateReference")}
-                    </BookButton>
-                  ) : null}
+                        : <Upload size={14} aria-hidden="true" />}
+                      {addingReferenceTargetKey === targetKey ? t("comic.prompt.uploadingReference") : t("comic.prompt.uploadAndBindReference")}
+                      <input
+                        type="file"
+                        accept={supportedImageAccept()}
+                        aria-label={t("comic.prompt.uploadAndBindReferenceFor", { target: target.targetName })}
+                        disabled={referenceAdditionDisabled}
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          event.currentTarget.value = "";
+                          if (file) void bindDiscoveredReference(file, target, targetKey);
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
                 {systemPortrait ? (
                   <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2">
@@ -438,15 +494,12 @@ export const ReferenceBindingsPanel: React.FC<{
                     </p>
                     {referenceImages.length > 0 &&
                     !referenceImageQuery.trim() &&
-                    !showAllImagesByTarget[targetKey] ? (
+                    !bindingPickerOpen ? (
                       <BookButton
                         size="sm"
                         variant="ghost"
                         disabled={chapterLocked || addingReferenceTargetKey != null}
-                        onClick={() => setShowAllImagesByTarget((current) => ({
-                          ...current,
-                          [targetKey]: true,
-                        }))}
+                        onClick={() => setBindingReferenceTargetKey(targetKey)}
                       >
                         {t("comic.prompt.showAllReferenceImages")}
                       </BookButton>
@@ -531,9 +584,7 @@ export const ReferenceBindingsPanel: React.FC<{
                                       target: target.targetName,
                                     })}
                                 disabled={
-                                  chapterLocked ||
-                                  assetsLoading ||
-                                  addingReferenceTargetKey != null ||
+                                  referenceMutationDisabled ||
                                   (boundToThisTarget
                                     ? !onUnbindDiscoveredReference
                                     : alreadyBound || referenceLimitMessage != null || !canEditReferenceDiscovery)
@@ -590,17 +641,14 @@ export const ReferenceBindingsPanel: React.FC<{
                           {t("comic.prompt.showMoreReferenceImages")}
                         </BookButton>
                       ) : null}
-                      {!showAllImagesByTarget[targetKey] &&
+                      {!bindingPickerOpen &&
                       !referenceImageQuery.trim() &&
                       imageGroups?.all.length !== imageGroups?.matches.length ? (
                         <BookButton
                           size="sm"
                           variant="ghost"
                           disabled={chapterLocked || addingReferenceTargetKey != null}
-                          onClick={() => setShowAllImagesByTarget((current) => ({
-                            ...current,
-                            [targetKey]: true,
-                          }))}
+                          onClick={() => setBindingReferenceTargetKey(targetKey)}
                         >
                           {t("comic.prompt.showAllReferenceImages")}
                         </BookButton>

@@ -787,6 +787,40 @@ export function MangaChapterDetailPanel({
     }
   };
 
+  const uploadLocalReferenceImage = async (
+    file: File,
+    target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
+  ): Promise<GeneratedImage> => {
+    if (!selectedChapter) throw new Error(t("comic.prompt.notFound"));
+    if (!isSupportedImageMime(file.type)) throw new Error(t("characterDetail.portrait.invalidImage"));
+    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+      throw new Error(t("characterDetail.portrait.fileTooLarge", { size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024 }));
+    }
+    const requestScope = scopeKey;
+    const dataBase64 = await readFileAsBase64(file);
+    if (!isCurrentScope(requestScope)) throw new Error(t("comic.pipelineStages.cancelled"));
+    if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
+    const image = await uploadImage(projectId, {
+      file_name: file.name,
+      mime_type: file.type,
+      data_base64: dataBase64,
+      image_type: "chapter_reference",
+      prompt: t("comic.prompt.uploadedReferencePrompt", { target: target.targetName, file: file.name }),
+      chapter_id: selectedChapter.id,
+      panel_id: null,
+      metadata_json: {
+        source: "manga_page_reference_upload",
+        target_kind: target.targetKind,
+        target_name: target.targetName,
+        ...(target.targetKind === "character" ? { character_name: target.targetName } : {}),
+        manual_upload: true,
+      },
+    });
+    if (!isCurrentScope(requestScope)) throw new Error(t("comic.pipelineStages.cancelled"));
+    onProjectImageImported(image);
+    return image;
+  };
+
   const handleUploadReferenceImage = async (
     promptId: number,
     characterName: string,
@@ -807,44 +841,15 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.prompt.operationInProgress"), "error");
       return;
     }
-    if (!isSupportedImageMime(file.type)) {
-      addToast(t("characterDetail.portrait.invalidImage"), "error");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-      addToast(
-        t("characterDetail.portrait.fileTooLarge", {
-          size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024,
-        }),
-        "error",
-      );
-      return;
-    }
-
     const requestScope = scopeKey;
     const bindingKey = `${promptId}:${characterName}`;
     referenceUploadBusyRef.current = true;
     setUploadingReferenceBindingKey(bindingKey);
     try {
-      const dataBase64 = await readFileAsBase64(file);
-      if (!isCurrentScope(requestScope)) return;
-      if (!ensurePagePromptsCurrent()) return;
-      const image = await uploadImage(projectId, {
-        file_name: file.name,
-        mime_type: file.type,
-        data_base64: dataBase64,
-        image_type: "chapter_reference",
-        prompt: `漫画页角色参考图：${characterName}（${file.name}）`,
-        chapter_id: selectedChapter.id,
-        panel_id: null,
-        metadata_json: {
-          source: "manga_page_reference_upload",
-          character_name: characterName,
-          manual_upload: true,
-        },
+      const image = await uploadLocalReferenceImage(file, {
+        targetKind: "character", targetName: characterName,
       });
       if (!isCurrentScope(requestScope)) return;
-      onProjectImageImported(image);
       if (actionBusyRef.current) {
         addToast(t("comic.prompt.operationInProgress"), "error");
         return;
@@ -1145,11 +1150,12 @@ export function MangaChapterDetailPanel({
   };
 
   const handleBindDiscoveredReference = async (
-    sourceImage: GeneratedImage,
+    sourceImage: GeneratedImage | File,
     target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
   ) => {
     if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
     if (!canEditManga || !selectedChapter) throw new Error(t("comic.noEditPermission"));
+    if (selectedChapterGenerating || pipelineRunning) throw new Error(t("comic.chapter.generatingBind"));
     if (referenceUploadBusyRef.current || actionBusyRef.current) throw new Error(t("comic.prompt.operationInProgress"));
     const pagePrompt = pagePromptsRef.current.find((prompt) => prompt.page_number === selectedPageNumber);
     if (!pagePrompt) {
@@ -1172,7 +1178,9 @@ export function MangaChapterDetailPanel({
       if (targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET) {
         throw new Error(t("comic.prompt.referenceTargetLimitReached"));
       }
-      const imported = await importReferenceImage(sourceImage);
+      const imported = sourceImage instanceof File
+        ? await uploadLocalReferenceImage(sourceImage, target)
+        : await importReferenceImage(sourceImage);
       if (!isCurrentScope(requestScope)) throw new Error(t("comic.pipelineStages.cancelled"));
       const requirement = discovery.requirements.find(
         (item) => item.target_kind === target.targetKind && item.target_name === target.targetName,

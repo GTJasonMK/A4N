@@ -85,7 +85,7 @@ interface MangaPagePromptListProps {
     sourceImage?: GeneratedImage,
   ) => void | Promise<void>;
   onBindDiscoveredReference?: (
-    sourceImage: GeneratedImage,
+    sourceImage: GeneratedImage | File,
     target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
   ) => void | Promise<void>;
   onUnbindDiscoveredReference?: (
