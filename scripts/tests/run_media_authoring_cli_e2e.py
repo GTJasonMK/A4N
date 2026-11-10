@@ -799,7 +799,7 @@ def main():
             imported_root = next(project for project in imported if project["project_kind"] == "text")
             report["ui_root_id"] = imported_root["id"]
             report["ui_mutation_project_ids"] = {}
-            for purpose in ("draft", "image"):
+            for purpose in ("draft", "image", "reference"):
                 current = call("create_derived_project", {
                     "root_project_id": imported_root["id"], "derived_kind": "comic",
                     "title": f"浏览器{purpose}操作验收", "description": "current browser mutation fixture",
@@ -811,6 +811,147 @@ def main():
                 adopt(generate(current_id))
                 if purpose == "image":
                     manga_run(current_id)
+                if purpose == "reference":
+                    manga_run(current_id, stop_after="reference_discovery")
+                    reference_chapter = workspace(current_id)["chapters"][0]["source"]["source_chapter_id"]
+
+                    def reference_page():
+                        return next(page for page in call("list_manga_page_prompts", {
+                            "project_id": current_id, "chapter_id": reference_chapter,
+                        }) if page["page_number"] == 1)
+
+                    reference = reference_page()
+                    discovery = copy.deepcopy(reference["reference_discovery"])
+                    discovery["references"] = []
+                    discovery["requirements"] = [{
+                        "target_kind": "object", "target_name": "断裂树根",
+                        "description": "断裂的树根位于近景，雨水与泥浆覆盖表面，遮挡后方藏身位置。",
+                        "usage": "保持人物伏在树根后方的空间关系；不添加追兵或新剧情。",
+                    }]
+                    call("save_manga_pipeline_artifact", {"project_id": current_id, "chapter_id": reference_chapter,
+                        "stage": "reference_discovery", "page_number": 1, "payload": discovery,
+                        "expected_prompt_updated_at": reference["updated_at"]})
+
+                    def reference_input(page, **overrides):
+                        return {"project_id": current_id, "meta": {"start_request_id": str(uuid.uuid4())},
+                            "operation": {"kind": "manga_reference", "options": {
+                                "prompt_id": page["id"], "target_kind": "object", "target_name": "断裂树根",
+                                "expected_updated_at": page["updated_at"], "width": 1024, "height": 1024,
+                                **overrides,
+                            }}}
+
+                    reference = reference_page()
+                    before = len(provider_log_entries(args.provider_log))
+                    call("start_image_generation", reference_input(reference, target_name="未发现的道具"), reject="未找到该参考图需求")
+                    forged = reference_input(reference)
+                    forged["project_id"] = report["ui_mutation_project_ids"]["draft"]
+                    call("start_image_generation", forged, reject="不属于当前项目")
+                    call("start_image_generation", reference_input(reference, expected_updated_at="2020-01-01 00:00:00"), reject="已被其他操作修改")
+                    assert len(provider_log_entries(args.provider_log)) == before
+                    passed("发现需求生图在 Provider 请求前拒绝未知目标、跨项目页面及过期版本")
+
+                    def reference_image_model(model):
+                        snapshot = copy.deepcopy(mock_runtime)
+                        snapshot["image"]["model"] = model
+                        secure_json(work / "runtime.json", snapshot)
+                        checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "reference image model")
+
+                    def reference_terminal(handle):
+                        deadline = time.monotonic() + 60
+                        while True:
+                            task = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "reference terminal")[0]["data"]
+                            if task["handle"]["status"] in {"completed", "failed", "cancelled", "interrupted"}:
+                                return task
+                            assert time.monotonic() < deadline
+                            time.sleep(0.05)
+
+                    reference_image_model("a4n-reference-image-fail")
+                    images_before = call("list_images_by_project", {"project_id": current_id})
+                    handle = call("start_image_generation", reference_input(reference))
+                    failed = reference_terminal(handle)
+                    assert failed["handle"]["status"] == "failed" and "reference image fixture failure" in json.dumps(failed), failed
+                    assert reference_page()["reference_discovery"] == discovery
+                    assert call("list_images_by_project", {"project_id": current_id}) == images_before
+                    passed("参考图 Provider 失败后任务明确失败，不保存图片、不产生绑定，页面仍可重试")
+
+                    reference_image_model("a4n-reference-image-slow")
+                    offset = len(provider_log_entries(args.provider_log))
+                    handle = call("start_image_generation", reference_input(reference))
+                    deadline = time.monotonic() + 15
+                    while len(provider_log_entries(args.provider_log)) == offset:
+                        assert time.monotonic() < deadline
+                        time.sleep(0.02)
+                    call("save_manga_pipeline_artifact", {"project_id": current_id, "chapter_id": reference_chapter,
+                        "stage": "reference_discovery", "page_number": 1, "payload": discovery,
+                        "expected_prompt_updated_at": reference["updated_at"]})
+                    conflicted = reference_terminal(handle)
+                    assert conflicted["handle"]["status"] == "failed" and "自动绑定失败" in json.dumps(conflicted, ensure_ascii=False), conflicted
+                    assert reference_page()["reference_discovery"] == discovery
+                    assert len(call("list_images_by_project", {"project_id": current_id})) == len(images_before) + 1
+                    passed("参考图生成期间页面版本变化不会覆盖新页面，已生成素材保留，任务明确提示自动绑定失败")
+                    reference_image_model("a4n-virtual-image")
+                    reference = reference_page()
+                    initial_reference = reference
+                    for count in (1, 2):
+                        offset = len(provider_log_entries(args.provider_log))
+                        handle = call("start_image_generation", reference_input(reference))
+                        checked(cli, ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])], "reference image task")
+                        rows = provider_log_entries(args.provider_log)[offset:]
+                        assert len(rows) == 1 and "/images/generations" in rows[0]["path"], rows
+                        assert discovery["requirements"][0]["description"] in rows[0]["body"]["prompt"]
+                        assert discovery["requirements"][0]["usage"] in rows[0]["body"]["prompt"]
+                        reference = reference_page()
+                        assert len(reference["reference_discovery"]["references"]) == count
+                        assert reference["generated_image_id"] is None
+                        bound = reference["reference_discovery"]["references"][-1]
+                        assert bound["target_name"] == "断裂树根" and bound["asset"]["asset_kind"] == "generated_image"
+                        images = call("list_images_by_project", {"project_id": current_id})
+                        image = next(row for row in images if row["id"] == bound["asset"]["asset_id"])
+                        assert image["image_type"] == "chapter_reference" and image["file_path"] == bound["asset"]["image_path"]
+                        assert image["metadata_json"]["requirement"] == discovery["requirements"][0]
+                    passed("发现需求分别生成两张参考图：各仅一次图片调用、不调用文本模型，持久化素材和正确绑定，保留漫画页成图状态")
+                    before = len(provider_log_entries(args.provider_log))
+                    call("start_image_generation", reference_input(initial_reference), reject="已被其他操作修改")
+                    call("start_image_generation", reference_input(reference), reject="最多绑定两张")
+                    assert len(provider_log_entries(args.provider_log)) == before
+                    passed("已更新页面的旧请求和每个需求第三张参考图在请求 Provider 前被拒绝")
+                    for target_kind, target_name in (("character", "林岚"), ("scene", "雨中的旧车站"), ("style", "黑白漫画光影")):
+                        payload = copy.deepcopy(reference["reference_discovery"])
+                        payload["requirements"].append({"target_kind": target_kind, "target_name": target_name,
+                            "description": f"保持{target_name}的可见外观、空间关系与光影，不添加新事实。",
+                            "usage": "作为后续页面绘制的独立视觉参考。"})
+                        call("save_manga_pipeline_artifact", {"project_id": current_id, "chapter_id": reference_chapter,
+                            "stage": "reference_discovery", "page_number": 1, "payload": payload,
+                            "expected_prompt_updated_at": reference["updated_at"]})
+                        reference = reference_page()
+                        offset = len(provider_log_entries(args.provider_log))
+                        handle = call("start_image_generation", reference_input(reference, target_kind=target_kind, target_name=target_name))
+                        checked(cli, ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])], "typed reference image task")
+                        rows = provider_log_entries(args.provider_log)[offset:]
+                        assert len(rows) == 1 and "/images/" in rows[0]["path"], rows
+                        if target_kind == "character":
+                            assert rows[0]["path"].endswith("/images/edits") and rows[0]["body"]["has_reference_image"], rows
+                        reference = reference_page()
+                        bound = reference["reference_discovery"]["references"][-1]
+                        assert bound["target_kind"] == target_kind and bound["target_name"] == target_name
+                    passed("角色、场景和风格需求均可生成并绑定；角色请求实际携带已有立绘进入 image edit 协议")
+                    discovery["references"] = []
+                    current = call("create_derived_project", {
+                        "root_project_id": imported_root["id"], "derived_kind": "comic",
+                        "title": "浏览器无素材参考图生成", "description": "empty image library fixture",
+                        "start_chapter": 1, "end_chapter": 1,
+                    })
+                    current_id = current["id"]
+                    report["projects"].append(current_id)
+                    manga_run(current_id, run_stage="preprocessing")
+                    adopt(generate(current_id))
+                    manga_run(current_id, stop_after="reference_discovery")
+                    reference = next(page for page in call("list_manga_page_prompts", {
+                        "project_id": current_id, "chapter_id": reference_chapter,
+                    }) if page["page_number"] == 1)
+                    call("save_manga_pipeline_artifact", {"project_id": current_id, "chapter_id": reference_chapter,
+                        "stage": "reference_discovery", "page_number": 1, "payload": discovery,
+                        "expected_prompt_updated_at": reference["updated_at"]})
                 report["ui_mutation_project_ids"][purpose] = current_id
             passed("浏览器写入验收使用当前有效预处理与改编计划，不复用刻意过期的导入样本")
             report["success"] = True

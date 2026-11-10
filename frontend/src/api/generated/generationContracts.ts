@@ -90,6 +90,10 @@ export type InspirationControlKind = "single_choice" | "text_input" | "info_disp
 export type ShootingScriptGenerationMode = "full" | "next_scene";
 export type ImageGenerationOperation =
   | {
+      kind: "manga_reference";
+      options: MangaReferenceImageOptions;
+    }
+  | {
       kind: "visual_plan_point";
       options: VisualPlanPointGenerationOptions;
     }
@@ -141,6 +145,7 @@ export type ImageGenerationOperation =
       style_template_version?: string | null;
       width: number;
     };
+export type MangaPageReferenceTargetKind = "character" | "scene" | "object" | "style";
 export type OutlineGenerationOperation =
   | {
       chapters_per_part?: number | null;
@@ -631,6 +636,14 @@ export interface StartImageGenerationInput {
   meta: GenerationStartRequestMeta;
   operation: ImageGenerationOperation;
   project_id: number;
+}
+export interface MangaReferenceImageOptions {
+  expected_updated_at: string;
+  height: number;
+  prompt_id: number;
+  target_kind: MangaPageReferenceTargetKind;
+  target_name: string;
+  width: number;
 }
 export interface VisualPlanPointGenerationOptions {
   config_id?: number | null;

@@ -1,5 +1,5 @@
 import React, { useId, useMemo, useState } from "react";
-import { Image, Link2, LoaderCircle, Upload, X } from "lucide-react";
+import { Image, ImagePlus, Link2, LoaderCircle, Upload, X } from "lucide-react";
 import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
 import type {
@@ -8,6 +8,7 @@ import type {
   MangaPageReferenceTargetKind,
 } from "../../../api/manga";
 import type { Portrait } from "../../../api/portrait";
+import { MANGA_PAGE_REFERENCE_IMAGE_LIMIT, MANGA_REFERENCE_IMAGES_PER_TARGET } from "../../../api/generated/config";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { ZoomableImage } from "../../../components/ui/ImageLightbox";
@@ -58,6 +59,10 @@ export const ReferenceBindingsPanel: React.FC<{
       targetName: string;
     },
   ) => void | Promise<void>;
+  onGenerateDiscoveredReference?: (
+    promptId: number,
+    target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
+  ) => Promise<void>;
   onUnbindDiscoveredReference?: (
     assetKind: MangaReferenceAssetKind,
     assetId: number,
@@ -79,6 +84,7 @@ export const ReferenceBindingsPanel: React.FC<{
   onSelectCandidate,
   onBindReferenceImage,
   onBindDiscoveredReference,
+  onGenerateDiscoveredReference,
   onUnbindDiscoveredReference,
   onUploadReferenceImage,
   uploadingReferenceBindingKey,
@@ -90,6 +96,7 @@ export const ReferenceBindingsPanel: React.FC<{
   const [visibleImageCounts, setVisibleImageCounts] = useState<Record<string, number>>({});
   const [showAllImagesByTarget, setShowAllImagesByTarget] = useState<Record<string, boolean>>({});
   const [addingReferenceTargetKey, setAddingReferenceTargetKey] = useState<string | null>(null);
+  const [generatingReferenceTargetKey, setGeneratingReferenceTargetKey] = useState<string | null>(null);
   const referenceRequirements = page.referenceDiscovery?.requirements ?? [];
   const discoveredReferences = page.referenceDiscovery?.references.length
     ? page.referenceDiscovery.references
@@ -270,6 +277,18 @@ export const ReferenceBindingsPanel: React.FC<{
       setAddingReferenceTargetKey(null);
     }
   };
+  const generateDiscoveredReference = async (target: ReferenceTarget, targetKey: string) => {
+    if (!onGenerateDiscoveredReference || generatingReferenceTargetKey != null) return;
+    setGeneratingReferenceTargetKey(targetKey);
+    setReferenceActionError(null);
+    try {
+      await onGenerateDiscoveredReference(page.prompt.id, target);
+    } catch (error) {
+      setReferenceActionError(error instanceof Error ? error.message : t("comic.prompt.referenceGenerationFailed"));
+    } finally {
+      setGeneratingReferenceTargetKey(null);
+    }
+  };
   if (
     referenceTargets.length === 0 &&
     page.referenceBindings.length === 0 &&
@@ -363,6 +382,26 @@ export const ReferenceBindingsPanel: React.FC<{
                       </p>
                     ) : null}
                   </div>
+                  {onGenerateDiscoveredReference && referenceRequirements.some((requirement) =>
+                    requirement.target_kind === target.targetKind && requirement.target_name === target.targetName,
+                  ) ? (
+                    <BookButton
+                      size="sm"
+                      variant="secondary"
+                      className="inline-flex shrink-0 items-center justify-center gap-1.5"
+                      aria-label={t("comic.prompt.generateReferenceFor", { target: referenceTargetName(target.targetName) })}
+                      title={targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET
+                        ? t("comic.prompt.referenceTargetLimitReached")
+                        : t("comic.prompt.generateReferenceHint")}
+                      disabled={chapterLocked || assetsLoading || addingReferenceTargetKey != null || generatingReferenceTargetKey != null || targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET || discoveredReferences.length >= MANGA_PAGE_REFERENCE_IMAGE_LIMIT}
+                      onClick={() => void generateDiscoveredReference(target, targetKey)}
+                    >
+                      {generatingReferenceTargetKey === targetKey
+                        ? <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                        : <ImagePlus size={14} aria-hidden="true" />}
+                      {generatingReferenceTargetKey === targetKey ? t("comic.prompt.generatingReference") : t("comic.prompt.generateReference")}
+                    </BookButton>
+                  ) : null}
                 </div>
                 {systemPortrait ? (
                   <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2">
@@ -499,7 +538,7 @@ export const ReferenceBindingsPanel: React.FC<{
                                   addingReferenceTargetKey != null ||
                                   (boundToThisTarget
                                     ? !onUnbindDiscoveredReference
-                                    : alreadyBound || targetReferences.length >= 2 || !onBindDiscoveredReference)
+                                    : alreadyBound || targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET || !onBindDiscoveredReference)
                                 }
                                 onClick={() => {
                                   if (boundToThisTarget && existingBinding) {

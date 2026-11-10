@@ -1163,6 +1163,23 @@
           "additionalProperties": false,
           "properties": {
             "kind": {
+              "const": "manga_reference",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/MangaReferenceImageOptions"
+            }
+          },
+          "required": [
+            "kind",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
               "const": "visual_plan_point",
               "type": "string"
             },
@@ -1619,6 +1636,56 @@
         "destructive_drain_timeout"
       ],
       "type": "string"
+    },
+    "MangaPageReferenceTargetKind": {
+      "enum": [
+        "character",
+        "scene",
+        "object",
+        "style"
+      ],
+      "type": "string"
+    },
+    "MangaReferenceImageOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_updated_at": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "height": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "prompt_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target_kind": {
+          "$ref": "#/$defs/MangaPageReferenceTargetKind"
+        },
+        "target_name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "width": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prompt_id",
+        "target_kind",
+        "target_name",
+        "expected_updated_at",
+        "width",
+        "height"
+      ],
+      "type": "object"
     },
     "OptimizationAgentPermissions": {
       "additionalProperties": false,

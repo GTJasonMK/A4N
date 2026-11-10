@@ -1054,6 +1054,16 @@ class MockOpenAIProviderTest(unittest.TestCase):
                         "manga_preprocessing_visuals", "manga_preprocessing_" + step)}]
                     self.assertEqual(response_for({"model": model, "messages": other}), response_for({"messages": other}))
 
+    def test_reference_image_failure_is_scoped_to_the_requested_fixture_model(self) -> None:
+        body = {"prompt": "断裂树根", "model": "a4n-reference-image-fail", "size": "1024x1024"}
+        with self.assertRaises(HTTPError) as caught:
+            self.request_json("/v1/images/generations", body)
+        self.assertEqual(caught.exception.code, 400)
+        self.assertEqual(json.load(caught.exception)["error"]["message"], "reference image fixture failure")
+        status, result = self.request_json("/v1/images/generations", {**body, "model": "a4n-virtual-image"})
+        self.assertEqual(status, 200)
+        self.assertEqual(result["data"][0]["b64_json"], PNG_1X1_BASE64)
+
     def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
         def request(page_number: int | None, assets: list[dict[str, object]] | None) -> str:
             stable_input: dict[str, object] = {}

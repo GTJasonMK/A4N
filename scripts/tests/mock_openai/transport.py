@@ -270,6 +270,11 @@ class ProviderHandler(BaseHTTPRequestHandler):
             )
             return
         if normalized_path in {"/images/generations", "/v1/images/generations"}:
+            if body.get("model") == "a4n-reference-image-fail":
+                self._json(400, {"error": {"message": "reference image fixture failure"}})
+                return
+            if body.get("model") == "a4n-reference-image-slow":
+                time.sleep(2)
             self._json(200, {"created": 0, "data": [{"b64_json": self.server.image_base64}]})
             return
         if normalized_path in {

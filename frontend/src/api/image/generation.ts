@@ -129,6 +129,8 @@ function normalizeGenerationOperation(
   operation: ImageGenerationOperation,
 ): ImageGenerationOperation {
   switch (operation.kind) {
+    case "manga_reference":
+      return { ...operation, options: { ...operation.options, prompt_id: idNum(operation.options.prompt_id, "漫画页面 ID") } };
     case "visual_plan_point":
       return { ...operation, options: { ...operation.options, config_id: normalizeImageConfigId(operation.options.config_id) } };
     case "scene":

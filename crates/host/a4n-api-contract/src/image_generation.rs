@@ -79,6 +79,9 @@ pub struct StartImageGenerationInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ImageGenerationOperation {
+    MangaReference {
+        options: MangaReferenceImageOptions,
+    },
     VisualPlanPoint {
         options: crate::chapter_visual_plan::VisualPlanPointGenerationOptions,
     },
@@ -152,6 +155,22 @@ pub enum ImageGenerationOperation {
         #[schemars(range(min = 1))]
         height: i32,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MangaReferenceImageOptions {
+    #[schemars(range(min = 1))]
+    pub prompt_id: i64,
+    pub target_kind: crate::manga::MangaPageReferenceTargetKind,
+    #[schemars(length(min = 1, max = 100))]
+    pub target_name: String,
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -239,5 +258,27 @@ mod tests {
             }))
             .is_err()
         );
+    }
+
+    #[test]
+    fn manga_reference_input_uses_saved_requirement_identity_without_client_prompt() {
+        use super::ImageGenerationOperation;
+        let raw = json!({"kind":"manga_reference", "options":{
+            "prompt_id":43,"target_kind":"object","target_name":"断裂树根",
+            "expected_updated_at":"2026-11-10 00:00:00","width":1024,"height":1024
+        }});
+        assert!(serde_json::from_value::<ImageGenerationOperation>(raw.clone()).is_ok());
+        let mut forged = raw.clone();
+        forged["options"]["prompt"] = json!("overwrite saved requirement");
+        assert!(serde_json::from_value::<ImageGenerationOperation>(forged).is_err());
+        let mut missing = raw.clone();
+        missing["options"]
+            .as_object_mut()
+            .unwrap()
+            .remove("expected_updated_at");
+        assert!(serde_json::from_value::<ImageGenerationOperation>(missing).is_err());
+        let mut wrong_kind = raw;
+        wrong_kind["options"]["target_kind"] = json!("unknown");
+        assert!(serde_json::from_value::<ImageGenerationOperation>(wrong_kind).is_err());
     }
 }

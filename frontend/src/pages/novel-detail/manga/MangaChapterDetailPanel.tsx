@@ -53,7 +53,7 @@ import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
+import { MAX_UPLOAD_IMAGE_BYTES, MANGA_REFERENCE_IMAGES_PER_TARGET } from "../../../api/generated/config";
 import { isSupportedImageMime } from "../../../utils/imageUpload";
 import {
   chapterHeading,
@@ -602,6 +602,58 @@ export function MangaChapterDetailPanel({
     }
   };
 
+  const handleGenerateDiscoveredReference = async (
+    promptId: number,
+    target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
+  ) => {
+    if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
+    if (!canEditManga) throw new Error(t("comic.noEditPermission"));
+    if (!selectedChapterReady || selectedChapterGenerating || pipelineRunning || referenceUploadBusyRef.current) {
+      throw new Error(t("comic.prompt.operationInProgress"));
+    }
+    const prompt = pagePromptsRef.current.find((page) => page.id === promptId);
+    if (!prompt) throw new Error(t("comic.prompt.notFound"));
+    if (!imageSize) throw new Error(t("settingsForm.imageSizeUnavailable"));
+    const requestScope = scopeKey;
+    const actionSeq = beginAction(requestScope);
+    if (actionSeq == null) throw new Error(t("comic.prompt.operationInProgress"));
+    try {
+      const handle = await startImageGeneration({
+        project_id: projectId,
+        operation: { kind: "manga_reference", options: {
+          prompt_id: promptId, target_kind: target.targetKind, target_name: target.targetName,
+          expected_updated_at: prompt.updated_at, width: imageSize.width, height: imageSize.height,
+        } },
+      });
+      await runGenerationProgressTaskThen(runPageImageProgressTask, handle, {
+        title: t("comic.prompt.generateReference"),
+        startMessage: t("comic.prompt.generateReferenceFor", { target: target.targetName }),
+        successMessage: t("comic.prompt.referenceGenerated"),
+        errorMessage: t("comic.prompt.referenceGenerationFailed"),
+        cancelLabel: t("comic.stopGeneration"),
+        runningHint: t("comic.prompt.generateReferenceHint"),
+      }, async (task) => {
+        ensureCurrentAction(requestScope, actionSeq);
+        const [image] = await verifyImageGenerationResult(task, projectId);
+        ensureCurrentAction(requestScope, actionSeq);
+        onProjectImageImported(image);
+      });
+      ensureCurrentAction(requestScope, actionSeq);
+      if (!await onPagePromptsChanged()) throw new Error(t("comic.prompt.referenceReadbackFailed"));
+      if (isCurrentAction(requestScope, actionSeq)) addToast(t("comic.prompt.referenceGenerated"), "success");
+    } catch (error) {
+      if (!isCurrentAction(requestScope, actionSeq)) return;
+      const message = extractErrorMessage(error, t("comic.prompt.referenceGenerationFailed"));
+      addToast(message, isCancelledOperation(message) ? "info" : "error");
+      if (message.includes("自动绑定失败") || message.includes("已被其他操作修改")) {
+        await onPagePromptsChanged();
+      }
+      throw error;
+    } finally {
+      finishAction(actionSeq);
+    }
+  };
+
   const handlePreviewPageImage = async (pageNumber: number) => {
     if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga) {
@@ -1115,7 +1167,7 @@ export function MangaChapterDetailPanel({
           reference.target_kind === target.targetKind &&
           reference.target_name === target.targetName,
       );
-      if (targetReferences.length >= 2) {
+      if (targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET) {
         throw new Error(t("comic.prompt.referenceTargetLimitReached"));
       }
       const imported = await importReferenceImage(sourceImage);
@@ -1418,7 +1470,7 @@ export function MangaChapterDetailPanel({
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                {mangaImageStatusMatchesWorkspaceStage(stageMode) && <div className={`max-w-full ${stageMode === "image_creation" ? "w-36 sm:w-44" : "w-44"}`}>
+                {(mangaImageStatusMatchesWorkspaceStage(stageMode) || mangaStageAllowsReferenceBinding(stageMode)) && <div className={`max-w-full ${stageMode === "image_creation" ? "w-36 sm:w-44" : "w-44"}`}>
                   <ImageSizeSelect
                     label={t("settingsForm.selectImageSize")}
                     value={imageSize}
@@ -1603,6 +1655,7 @@ export function MangaChapterDetailPanel({
                     : undefined
                 }
                 onBindReferenceImage={mangaStageAllowsReferenceBinding(stageMode) ? handleBindReferenceImage : undefined}
+                onGenerateDiscoveredReference={mangaStageAllowsReferenceBinding(stageMode) ? handleGenerateDiscoveredReference : undefined}
                 onBindDiscoveredReference={
                   mangaStageAllowsReferenceBinding(stageMode)
                     ? handleBindDiscoveredReference

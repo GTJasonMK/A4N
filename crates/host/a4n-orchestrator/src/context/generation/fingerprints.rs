@@ -222,6 +222,7 @@ pub(super) fn image_generation_operation_kind(
     operation: &ImageGenerationOperation,
 ) -> &'static str {
     match operation {
+        ImageGenerationOperation::MangaReference { .. } => "manga_reference",
         ImageGenerationOperation::VisualPlanPoint { .. } => "visual_plan_point",
         ImageGenerationOperation::Scene { .. } => "scene",
         ImageGenerationOperation::Page { .. } => "page",
@@ -236,6 +237,10 @@ pub(super) fn image_generation_target_id(
     operation: &ImageGenerationOperation,
 ) -> String {
     match operation {
+        ImageGenerationOperation::MangaReference { options } => format!(
+            "{project_id}:manga_reference:{}:{:?}:{}",
+            options.prompt_id, options.target_kind, options.target_name
+        ),
         ImageGenerationOperation::VisualPlanPoint { options } => format!(
             "{project_id}:visual_plan:chapter:{}:{}:{}",
             options.source_chapter_id, options.record_id, options.point_id

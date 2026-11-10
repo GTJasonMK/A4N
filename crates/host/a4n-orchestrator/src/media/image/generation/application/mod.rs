@@ -128,3 +128,4 @@ struct PreparedBatchImageJob {
 include!("generation.rs");
 include!("plans.rs");
 include!("metadata.rs");
+include!("manga_reference.rs");

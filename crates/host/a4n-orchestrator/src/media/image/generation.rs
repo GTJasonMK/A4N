@@ -69,6 +69,12 @@ impl OrchestratorContext {
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         match &input.operation {
+            ImageGenerationOperation::MangaReference { options } => {
+                require_positive_dimension(options.width, "width")?;
+                require_positive_dimension(options.height, "height")?;
+                self.manga_reference_image_material(user_id, input.project_id, options)
+                    .await?;
+            }
             ImageGenerationOperation::VisualPlanPoint { options } => {
                 self.preview_visual_plan_point_generation(user_id, input.project_id, options)
                     .await?;
@@ -325,6 +331,14 @@ impl OrchestratorContext {
     ) -> Result<ImageGenerationResult, AppError> {
         let project_id = input.project_id;
         match input.operation {
+            ImageGenerationOperation::MangaReference { options } => {
+                let summary = self
+                    .generate_manga_reference_image_validated(
+                        host_port, user_id, project_id, options, progress,
+                    )
+                    .await?;
+                single_image_result(host_port, summary, "漫画参考图已生成并绑定")
+            }
             ImageGenerationOperation::Scene {
                 prompt,
                 config_id,
@@ -601,6 +615,7 @@ fn image_artifact_event(
 
 fn image_operation_key(operation: &ImageGenerationOperation) -> &'static str {
     match operation {
+        ImageGenerationOperation::MangaReference { .. } => "image_manga_reference",
         ImageGenerationOperation::VisualPlanPoint { .. } => "image_visual_plan_point",
         ImageGenerationOperation::Scene { .. } => "image_scene",
         ImageGenerationOperation::Page { .. } => "image_page",

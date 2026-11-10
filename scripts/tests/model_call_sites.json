@@ -1273,6 +1273,14 @@
       "receiver": "self"
     },
     {
+      "callee": "execute_prepared_direct_image",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation/application/manga_reference.rs",
+      "function": "generate_manga_reference_image_validated",
+      "ordinal": 1,
+      "receiver": "self"
+    },
+    {
       "callee": "execute_prepared_enhanced_rag_search_in_store",
       "crate": "a4n-orchestrator",
       "file": "crates/host/a4n-orchestrator/src/context/rag/store.rs",
@@ -2023,6 +2031,14 @@
       "function": "execute_video_prompt_task",
       "ordinal": 1,
       "receiver": null
+    },
+    {
+      "callee": "generate_manga_reference_image_validated",
+      "crate": "a4n-orchestrator",
+      "file": "crates/host/a4n-orchestrator/src/media/image/generation.rs",
+      "function": "execute_image_generation_operation",
+      "ordinal": 1,
+      "receiver": "self"
     },
     {
       "callee": "generate_media_adaptation_plan",

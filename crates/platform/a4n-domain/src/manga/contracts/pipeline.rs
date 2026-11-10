@@ -17,6 +17,7 @@ pub const MANGA_PAGE_PIPELINE_STATE_V1: &str = "manga_page_pipeline_state_v1";
 pub const MANGA_PAGE_SLOT_LIMIT: usize = 100;
 pub const MANGA_PAGE_REFERENCE_DISCOVERY_V1: &str = "manga_page_reference_discovery_v1";
 pub const MANGA_PAGE_REFERENCE_IMAGE_LIMIT: usize = 12;
+pub const MANGA_REFERENCE_IMAGES_PER_TARGET: usize = 2;
 pub const MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT: usize = 24;
 pub const MANGA_REFERENCE_TARGET_NAME_MAX_CHARS: usize = 100;
 pub const MANGA_REFERENCE_DESCRIPTION_MAX_CHARS: usize = 600;
@@ -551,6 +552,30 @@ pub struct MangaPageReferenceDiscoveryV1 {
 }
 
 impl MangaPageReferenceDiscoveryV1 {
+    pub fn ensure_reference_capacity(
+        &self,
+        target_kind: MangaPageReferenceTargetKind,
+        target_name: &str,
+    ) -> Result<(), String> {
+        if self.references.len() >= MANGA_PAGE_REFERENCE_IMAGE_LIMIT {
+            return Err(format!(
+                "references 不能超过 {MANGA_PAGE_REFERENCE_IMAGE_LIMIT} 项"
+            ));
+        }
+        if self
+            .references
+            .iter()
+            .filter(|reference| {
+                reference.target_kind == target_kind && reference.target_name == target_name
+            })
+            .count()
+            >= MANGA_REFERENCE_IMAGES_PER_TARGET
+        {
+            return Err("每个参考图需求最多绑定两张图片，请先移除已有绑定".into());
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.schema_version != MANGA_PAGE_REFERENCE_DISCOVERY_V1 {
             return Err(format!(

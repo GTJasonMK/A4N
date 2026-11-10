@@ -482,8 +482,10 @@ fn typescript_image_constants() -> String {
     let max_profile_material_image_upload_bytes =
         a4n_api_contract::profile::MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES;
     let max_theme_resource_bytes = a4n_api_contract::theme::MAX_THEME_RESOURCE_BYTES;
+    let reference_image_limit = a4n_domain::manga::MANGA_PAGE_REFERENCE_IMAGE_LIMIT;
+    let reference_target_limit = a4n_domain::manga::MANGA_REFERENCE_IMAGES_PER_TARGET;
     format!(
-        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\nexport const MAX_UPLOAD_IMAGE_BYTES = {max_upload_image_bytes};\nexport const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = {max_profile_material_image_upload_bytes};\nexport const MAX_THEME_RESOURCE_BYTES = {max_theme_resource_bytes};\n\n"
+        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\nexport const MAX_UPLOAD_IMAGE_BYTES = {max_upload_image_bytes};\nexport const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = {max_profile_material_image_upload_bytes};\nexport const MAX_THEME_RESOURCE_BYTES = {max_theme_resource_bytes};\nexport const MANGA_PAGE_REFERENCE_IMAGE_LIMIT = {reference_image_limit};\nexport const MANGA_REFERENCE_IMAGES_PER_TARGET = {reference_target_limit};\n\n"
     )
 }
 

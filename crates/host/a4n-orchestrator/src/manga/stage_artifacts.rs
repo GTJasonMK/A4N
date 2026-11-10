@@ -767,7 +767,7 @@ impl OrchestratorContext {
         Ok(artifact.payload)
     }
 
-    async fn validate_page_artifact_chain_to_storyboard(
+    pub(crate) async fn validate_page_artifact_chain_to_storyboard(
         &self,
         project_id: i64,
         chapter_id: i64,

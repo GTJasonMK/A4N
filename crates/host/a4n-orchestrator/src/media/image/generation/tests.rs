@@ -1704,6 +1704,16 @@ fn generated_image_summary_contract_remains_json_compatible() {
 #[test]
 fn image_operation_keys_are_stable_and_unique() {
     let operations = [
+        ImageGenerationOperation::MangaReference {
+            options: a4n_api_contract::image_generation::MangaReferenceImageOptions {
+                prompt_id: 1,
+                target_kind: a4n_domain::manga::MangaPageReferenceTargetKind::Object,
+                target_name: "怀表".into(),
+                expected_updated_at: "2026-11-10 00:00:00".into(),
+                width: 1024,
+                height: 1024,
+            },
+        },
         ImageGenerationOperation::Scene {
             prompt: "draw".to_string(),
             config_id: None,

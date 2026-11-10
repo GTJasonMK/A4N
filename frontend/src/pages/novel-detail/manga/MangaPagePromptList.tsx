@@ -92,6 +92,10 @@ interface MangaPagePromptListProps {
     assetKind: MangaReferenceAssetKind,
     assetId: number,
   ) => void | Promise<void>;
+  onGenerateDiscoveredReference?: (
+    promptId: number,
+    target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
+  ) => Promise<void>;
   onUploadReferenceImage?: (
     promptId: number,
     characterName: string,
@@ -233,6 +237,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onGeneratePageImage,
   onBindReferenceImage,
   onBindDiscoveredReference,
+  onGenerateDiscoveredReference,
   onUnbindDiscoveredReference,
   onUploadReferenceImage,
   uploadingReferenceBindingKey,
@@ -1011,6 +1016,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           }
                           onBindReferenceImage={onBindReferenceImage}
                           onBindDiscoveredReference={onBindDiscoveredReference}
+                          onGenerateDiscoveredReference={onGenerateDiscoveredReference}
                           onUnbindDiscoveredReference={onUnbindDiscoveredReference}
                           onUploadReferenceImage={onUploadReferenceImage}
                           uploadingReferenceBindingKey={uploadingReferenceBindingKey}
@@ -1125,6 +1131,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           }
                           onBindReferenceImage={onBindReferenceImage}
                           onBindDiscoveredReference={onBindDiscoveredReference}
+                          onGenerateDiscoveredReference={onGenerateDiscoveredReference}
                           onUnbindDiscoveredReference={onUnbindDiscoveredReference}
                           onUploadReferenceImage={onUploadReferenceImage}
                           uploadingReferenceBindingKey={uploadingReferenceBindingKey}
