@@ -9,7 +9,6 @@ import type {
   MangaPagePipelineStage,
   MangaPagePipelineStatus,
   MangaPageRoleV2,
-  MangaPageReferenceImageV1,
   MangaPageReferenceDiscoveryV1,
   MangaPipelineStatusSummary,
   MangaPagePromptSummary,
@@ -70,7 +69,6 @@ export type MangaPagePrompt = {
   characterNames: string[];
   dialogueText: string | null;
   layoutItems: LayoutSummaryItem[];
-  systemReferenceImages: MangaPageReferenceImageV1[];
   referenceBindings: ReferenceBinding[];
 };
 
@@ -227,7 +225,6 @@ export const buildPagePrompts = (
         characterNames: pageCharacterNames(prompt),
         dialogueText: prompt.dialogue_text,
         layoutItems: buildLayoutItems(prompt, labels),
-        systemReferenceImages: prompt.system_reference_images,
         referenceBindings: prompt.reference_bindings.map(referenceBinding),
       };
     });

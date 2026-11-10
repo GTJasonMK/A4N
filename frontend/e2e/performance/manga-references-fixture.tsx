@@ -69,7 +69,7 @@ const page = {
     systemAsset: null,
     userAddedAssets: [],
   })),
-  systemReferenceImages: [],
+  referenceDiscovery: null,
 } as unknown as MangaPagePrompt;
 
 function hashText(value: string): string {

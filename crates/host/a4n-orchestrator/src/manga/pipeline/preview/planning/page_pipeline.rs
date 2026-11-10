@@ -9,7 +9,7 @@ use serde_json::Value;
 use super::super::super::super::adaptation_projection::manga_page_beats_source;
 use super::super::super::super::reference_assets::{
     manga_page_reference_discovery_candidates, page_reference_bindings,
-    parse_manga_page_reference_discovery,
+    parse_manga_page_reference_discovery, validate_saved_manga_page_reference_discovery,
 };
 use super::super::super::json::{
     page_drawing_prompt_from_response, parse_manga_page_adaptation, parse_manga_page_slots,
@@ -164,15 +164,12 @@ pub(super) async fn preview_single_page_stage(
         MangaPipelineArtifactStage::ReferenceDiscovery,
         Some(page_number),
     )?;
-    let (_, candidates) = manga_page_reference_discovery_candidates(
+    let discovery: MangaPageReferenceDiscoveryV1 =
+        serde_json::from_value(discovery_artifact.payload.clone())?;
+    validate_saved_manga_page_reference_discovery(
+        &discovery,
         &context.available_reference_images,
         current_page_image_id,
-        &reference_bindings,
-    );
-    let discovery = parse_manga_page_reference_discovery(
-        &discovery_artifact.payload,
-        page_number,
-        &candidates,
     )?;
     if stage == MangaPipelineArtifactStage::DrawingPrompt {
         preview_page_drawing_prompt(

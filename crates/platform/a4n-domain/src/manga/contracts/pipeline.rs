@@ -566,7 +566,8 @@ impl MangaPageReferenceDiscoveryV1 {
             .references
             .iter()
             .filter(|reference| {
-                reference.target_kind == target_kind && reference.target_name == target_name
+                reference.target_kind == target_kind
+                    && reference.target_name.trim() == target_name.trim()
             })
             .count()
             >= MANGA_REFERENCE_IMAGES_PER_TARGET
@@ -632,6 +633,50 @@ impl MangaPageReferenceDiscoveryV1 {
                     "references 包含重复素材: {:?}#{}",
                     reference.asset.asset_kind, reference.asset.asset_id
                 ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Enforce current authoring rules without preventing older records from being read and edited.
+    pub fn validate_for_write(&self) -> Result<(), String> {
+        self.validate()?;
+        for (index, requirement) in self.requirements.iter().enumerate() {
+            if self.requirements[..index].iter().any(|previous| {
+                previous.target_kind == requirement.target_kind
+                    && previous.target_name.trim() == requirement.target_name.trim()
+            }) {
+                return Err(format!("requirements[{index}] 的参考图需求目标不唯一"));
+            }
+        }
+        for (index, reference) in self.references.iter().enumerate() {
+            for (field, value, limit) in [
+                (
+                    "target_name",
+                    &reference.target_name,
+                    MANGA_REFERENCE_TARGET_NAME_MAX_CHARS,
+                ),
+                (
+                    "description",
+                    &reference.description,
+                    MANGA_REFERENCE_DESCRIPTION_MAX_CHARS,
+                ),
+                ("usage", &reference.usage, MANGA_REFERENCE_USAGE_MAX_CHARS),
+            ] {
+                if value.trim().chars().count() > limit {
+                    return Err(format!("references[{index}].{field} 无效"));
+                }
+            }
+            if self.references[..index]
+                .iter()
+                .filter(|previous| {
+                    previous.target_kind == reference.target_kind
+                        && previous.target_name.trim() == reference.target_name.trim()
+                })
+                .count()
+                >= MANGA_REFERENCE_IMAGES_PER_TARGET
+            {
+                return Err("每个参考图需求最多绑定两张图片，请先移除已有绑定".into());
             }
         }
         Ok(())

@@ -39,6 +39,7 @@ name: manga_page_reference_discovery
 - 不得从空泛的身份或题材推断人物长相、服饰、颜色或场景细节；无来源依据时只描述需要保持的构图/状态关系。
 - `references` 是另一项可选的素材匹配结果，只从 `available_assets` 选择真实图片；无匹配图片时仍可返回空数组，但不能因此省略已有的 `requirements`。
 - `requirements` 的 `target_kind` 只能使用 `character`、`scene`、`object`、`style`；每个对象包含 `target_name`、`description` 和 `usage`。
+- 同类型、同名称的需求只能出现一次，将该目标的视觉描述和连续性用途合并到同一项。
 - `target_kind` 只能使用 `character`、`scene`、`object`、`style`。
 - `asset_kind` 必须原样使用候选素材的类型，`asset_id` 必须原样使用候选 ID；不得猜测或改写。
 - 每个素材最多选择一次，每个目标最多选择两张图；总数不能超过 12。

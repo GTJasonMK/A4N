@@ -12,7 +12,7 @@ use a4n_domain::{
         MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPagePromptRecord,
         MangaPagePromptSourceSummary, MangaPageReferenceDiscoveryV1, MangaPageSlotsV1, MangaPageV4,
         MangaPipelineArtifactDraft, MangaPipelineArtifactRecord, MangaPipelineArtifactStage,
-        MangaPreprocessingV3, MangaReferenceBindingSummary,
+        MangaPreprocessingV3,
     },
     source_spans::source_spans_for_content,
     source_text_hash,
@@ -25,7 +25,7 @@ use super::pipeline::json::{
     parse_manga_page_adaptation, parse_manga_page_slots, parse_manga_page_storyboard,
     validate_manga_page_slots,
 };
-use super::reference_assets::validate_manga_page_reference_discovery_candidates;
+use super::reference_assets::validate_saved_manga_page_reference_discovery;
 use super::{
     OrchestratorContext, ensure_manga_source_can_write, layout_rules::manga_page_pipeline_layout,
 };
@@ -246,8 +246,8 @@ impl OrchestratorContext {
             update_page_projection_layout(
                 &mut layout,
                 input.stage,
-                Some(input.payload.clone()),
-                Some(&input_fingerprint),
+                input.payload.clone(),
+                &input_fingerprint,
             )?;
             Some(MangaPipelineArtifactProjectionUpdate {
                 page_prompt,
@@ -613,19 +613,17 @@ impl OrchestratorContext {
         payload: &Value,
     ) -> Result<(), AppError> {
         let discovery: MangaPageReferenceDiscoveryV1 = serde_json::from_value(payload.clone())?;
-        let layout = manga_page_pipeline_layout(page_prompt).map_err(AppError::InvalidArgument)?;
         let asset_project_ids = self
             .manga_reference_asset_project_ids(page_prompt.project_id)
             .await?;
         let available_images = self
             .video_reference_candidate_images(&asset_project_ids, page_prompt.chapter_id)
             .await?;
-        let (_, candidates) = super::reference_assets::manga_page_reference_discovery_candidates(
+        validate_saved_manga_page_reference_discovery(
+            &discovery,
             &available_images,
             page_prompt.generated_image_id,
-            &layout.reference_bindings,
-        );
-        validate_manga_page_reference_discovery_candidates(&discovery, &candidates)
+        )
     }
 
     pub(in crate::manga) async fn current_manga_adaptation_and_source_spans(
@@ -815,62 +813,31 @@ impl OrchestratorContext {
 fn update_page_projection_layout(
     layout: &mut MangaPageGenerationLayoutV4,
     stage: MangaPipelineArtifactStage,
-    payload: Option<Value>,
-    input_fingerprint: Option<&str>,
+    payload: Value,
+    input_fingerprint: &str,
 ) -> Result<(), AppError> {
     match stage {
         MangaPipelineArtifactStage::PageContent => {
-            layout.pipeline.page_content = payload
-                .map(serde_json::from_value::<MangaPageContentV1>)
-                .transpose()?;
+            layout.pipeline.page_content = Some(serde_json::from_value(payload)?);
         }
         MangaPipelineArtifactStage::PageAdaptation => {
-            layout.pipeline.page_adaptation = payload
-                .map(serde_json::from_value::<MangaPageAdaptationV1>)
-                .transpose()?;
+            layout.pipeline.page_adaptation = Some(serde_json::from_value(payload)?);
         }
         MangaPipelineArtifactStage::Storyboard => {
-            layout.pipeline.storyboard = payload
-                .map(serde_json::from_value::<MangaPageV4>)
-                .transpose()?;
+            layout.pipeline.storyboard = Some(serde_json::from_value(payload)?);
         }
         MangaPipelineArtifactStage::ReferenceDiscovery => {
-            layout.pipeline.reference_discovery = payload
-                .map(serde_json::from_value::<MangaPageReferenceDiscoveryV1>)
-                .transpose()?;
-        }
-        MangaPipelineArtifactStage::ReferenceBindings => {
-            layout.reference_bindings = payload
-                .map(serde_json::from_value::<Vec<MangaReferenceBindingSummary>>)
-                .transpose()?
-                .unwrap_or_default();
+            layout.pipeline.reference_discovery = Some(serde_json::from_value(payload)?);
         }
         MangaPipelineArtifactStage::DrawingPrompt => {
-            layout.pipeline.drawing_prompt = payload
-                .map(serde_json::from_value::<MangaPageDrawingPromptV2>)
-                .transpose()?;
-        }
-        MangaPipelineArtifactStage::Image => {
-            return Err(AppError::InvalidArgument(
-                "成图阶段只能通过独立成图操作更新".into(),
-            ));
+            layout.pipeline.drawing_prompt = Some(serde_json::from_value(payload)?);
         }
         _ => return Err(AppError::InvalidArgument("当前阶段没有页面布局投影".into())),
     }
-    match input_fingerprint {
-        Some(fingerprint) => {
-            layout
-                .pipeline
-                .stage_fingerprints
-                .insert(stage.fingerprint_key().into(), fingerprint.to_string());
-        }
-        None => {
-            layout
-                .pipeline
-                .stage_fingerprints
-                .remove(stage.fingerprint_key());
-        }
-    }
+    layout.pipeline.stage_fingerprints.insert(
+        stage.fingerprint_key().into(),
+        input_fingerprint.to_string(),
+    );
     Ok(())
 }
 
@@ -910,7 +877,9 @@ fn validate_payload(
         }
         MangaPipelineArtifactStage::ReferenceDiscovery => {
             let discovery: MangaPageReferenceDiscoveryV1 = serde_json::from_value(payload.clone())?;
-            discovery.validate().map_err(AppError::InvalidArgument)
+            discovery
+                .validate_for_write()
+                .map_err(AppError::InvalidArgument)
         }
         MangaPipelineArtifactStage::DrawingPrompt => {
             let prompt: MangaPageDrawingPromptV2 = serde_json::from_value(payload.clone())?;

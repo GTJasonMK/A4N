@@ -82,7 +82,6 @@ describe("buildPagePrompts", () => {
     drawing_prompt: null,
     stale_stages: [],
     orphaned: false,
-    system_reference_images: [],
     reference_bindings: [],
     source: {
       adaptation_plan_id: 4,

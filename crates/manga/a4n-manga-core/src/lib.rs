@@ -290,14 +290,10 @@ pub fn manga_page_prompt_summary(
                 page_content: layout.pipeline.page_content,
                 page_adaptation: layout.pipeline.page_adaptation,
                 page_plan: layout.pipeline.storyboard,
-                reference_discovery: layout.pipeline.reference_discovery.clone(),
+                reference_discovery: layout.pipeline.reference_discovery,
                 drawing_prompt: layout.pipeline.drawing_prompt,
                 stale_stages: Vec::new(),
                 orphaned: false,
-                system_reference_images: layout
-                    .pipeline
-                    .reference_discovery
-                    .map_or_else(Vec::new, |discovery| discovery.references),
                 reference_bindings: layout.reference_bindings,
                 source: layout.source,
                 generated_image_id: prompt.generated_image_id,
@@ -330,7 +326,6 @@ pub fn manga_page_prompt_summary(
                 drawing_prompt: Some(layout.drawing_prompt),
                 stale_stages: Vec::new(),
                 orphaned: false,
-                system_reference_images: Vec::new(),
                 reference_bindings: layout.reference_bindings,
                 source: layout.source,
                 generated_image_id: prompt.generated_image_id,

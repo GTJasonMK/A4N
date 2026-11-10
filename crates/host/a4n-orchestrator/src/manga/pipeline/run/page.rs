@@ -27,6 +27,7 @@ use crate::manga::{is_manga_visual_design_range, layout_rules::manga_page_pipeli
 use super::super::super::adaptation_projection::manga_page_beats_source;
 use super::super::super::reference_assets::{
     manga_page_reference_discovery_candidates, parse_manga_page_reference_discovery,
+    validate_saved_manga_page_reference_discovery,
 };
 use super::super::{
     json::{parse_manga_page_adaptation, parse_manga_page_storyboard},
@@ -1012,6 +1013,12 @@ async fn process_manga_page_stages(
         progress
             .llm_usage(context, MangaPagePipelineStage::ReferenceDiscovery, &trace)
             .await?;
+    } else if let Some(discovery) = &work.pipeline.reference_discovery {
+        validate_saved_manga_page_reference_discovery(
+            discovery,
+            &context.available_reference_images,
+            work.row.generated_image_id,
+        )?;
     }
     let reference_count = work
         .pipeline

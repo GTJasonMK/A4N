@@ -80,26 +80,6 @@ fn mutate_reference_asset_in_bindings(
     Err(format!("整页漫画提示词不存在角色参考图: {character_name}"))
 }
 
-/// 将参考素材绑定进整页漫画 layout 的指定角色。
-pub(crate) fn mutate_reference_asset_in_layout(
-    mut layout: MangaPageGenerationLayoutV3,
-    character_name: &str,
-    asset_kind: MangaReferenceAssetKind,
-    asset_id: i64,
-    action: MangaReferenceBindingAction,
-    asset: Option<MangaBoundReferenceAsset>,
-) -> Result<MangaPageGenerationLayoutV3, String> {
-    mutate_reference_asset_in_bindings(
-        &mut layout.reference_bindings,
-        character_name,
-        asset_kind,
-        asset_id,
-        action,
-        asset,
-    )?;
-    Ok(layout)
-}
-
 /// 将参考素材绑定进新流水线 layout，同时保留页面 checkpoint。
 pub(crate) fn mutate_reference_asset_in_pipeline_layout(
     mut layout: MangaPageGenerationLayoutV4,
@@ -141,7 +121,7 @@ mod tests {
             asset_id: 7,
             image_path: "hero.png".to_string(),
         };
-        let updated = mutate_reference_asset_in_layout(
+        let updated = mutate_reference_asset_in_pipeline_layout(
             layout,
             "hero",
             MangaReferenceAssetKind::GeneratedImage,
@@ -164,7 +144,7 @@ mod tests {
             asset_id: 7,
             image_path: "hero.png".to_string(),
         };
-        let err = mutate_reference_asset_in_layout(
+        let err = mutate_reference_asset_in_pipeline_layout(
             layout_fixture(vec![MangaReferenceBindingSummary {
                 character_name: "".to_string(),
                 bound_asset: None,
@@ -178,7 +158,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("character_name 必须是非空字符串"));
-        let err = mutate_reference_asset_in_layout(
+        let err = mutate_reference_asset_in_pipeline_layout(
             layout_fixture(vec![MangaReferenceBindingSummary {
                 character_name: "other".to_string(),
                 bound_asset: None,
@@ -196,7 +176,7 @@ mod tests {
 
     #[test]
     fn system_portrait_cannot_be_removed_as_user_reference() {
-        let err = mutate_reference_asset_in_layout(
+        let err = mutate_reference_asset_in_pipeline_layout(
             layout_fixture(vec![MangaReferenceBindingSummary {
                 character_name: "hero".to_string(),
                 bound_asset: Some(MangaBoundReferenceAsset {
@@ -281,56 +261,61 @@ mod tests {
 
     fn layout_fixture(
         reference_bindings: Vec<MangaReferenceBindingSummary>,
-    ) -> MangaPageGenerationLayoutV3 {
-        serde_json::from_value(json!({
-            "schema_version": "manga_page_generation_v3",
-            "page_plan": {
-                    "page_number": 1,
-                    "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
-                    "role": "setup",
-                    "pacing": "medium",
-                    "importance": "normal",
-                    "reading_flow": "top_to_bottom_left_to_right",
-                    "page_goal": "推进场景",
-                    "visual_thesis": "角色对峙",
-                    "entry_state": "平静",
-                    "exit_state": "紧张",
-                    "dominant_panel_number": 1,
-                    "panels": [{
-                        "panel_number": 1,
+    ) -> MangaPageGenerationLayoutV4 {
+        let mut layout = a4n_manga_core::manga_page_pipeline_layout_from_value(
+            1,
+            &json!({
+                "schema_version": "manga_page_generation_v3",
+                "page_plan": {
+                        "page_number": 1,
                         "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
-                        "function": "dialogue",
-                        "size": "dominant",
-                        "shot_scale": "medium",
-                        "camera_angle": "eye_level",
-                        "participants": ["hero"],
-                        "composition": "单人构图",
-                        "observable_action": "抬头",
-                        "reaction": null,
-                        "spatial_relationship": "中央",
-                        "continuity_from_previous": null,
-                        "text_layers": []
-                    }]
-            },
-            "drawing_prompt": {
-                "schema_version": "manga_page_drawing_prompt_v2",
-                "page_number": 1,
-                "image_prompt": "整页"
-            },
-            "reference_bindings": reference_bindings,
-            "prompt_fingerprint": {"hash": "sha256"},
-            "source": {
-                "root_project_id": 33,
-                "source_chapter_id": 22,
-                "source_snapshot_id": null,
-                "source_snapshot_chapter_id": null,
-                "source_revision_key": "chapter:22:revision:1",
-                "content_sha256": "content-sha256",
-                "adaptation_plan_id": 71,
-                "adaptation_plan_revision": 2,
-                "adaptation_plan_sha256": "plan-sha256"
-            }
-        }))
-        .expect("valid layout fixture")
+                        "role": "setup",
+                        "pacing": "medium",
+                        "importance": "normal",
+                        "reading_flow": "top_to_bottom_left_to_right",
+                        "page_goal": "推进场景",
+                        "visual_thesis": "角色对峙",
+                        "entry_state": "平静",
+                        "exit_state": "紧张",
+                        "dominant_panel_number": 1,
+                        "panels": [{
+                            "panel_number": 1,
+                            "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
+                            "function": "dialogue",
+                            "size": "dominant",
+                            "shot_scale": "medium",
+                            "camera_angle": "eye_level",
+                            "participants": ["hero"],
+                            "composition": "单人构图",
+                            "observable_action": "抬头",
+                            "reaction": null,
+                            "spatial_relationship": "中央",
+                            "continuity_from_previous": null,
+                            "text_layers": []
+                        }]
+                },
+                "drawing_prompt": {
+                    "schema_version": "manga_page_drawing_prompt_v2",
+                    "page_number": 1,
+                    "image_prompt": "整页"
+                },
+                "reference_bindings": [],
+                "prompt_fingerprint": {"hash": "sha256"},
+                "source": {
+                    "root_project_id": 33,
+                    "source_chapter_id": 22,
+                    "source_snapshot_id": null,
+                    "source_snapshot_chapter_id": null,
+                    "source_revision_key": "chapter:22:revision:1",
+                    "content_sha256": "content-sha256",
+                    "adaptation_plan_id": 71,
+                    "adaptation_plan_revision": 2,
+                    "adaptation_plan_sha256": "plan-sha256"
+                }
+            }),
+        )
+        .expect("valid layout fixture");
+        layout.reference_bindings = reference_bindings;
+        layout
     }
 }

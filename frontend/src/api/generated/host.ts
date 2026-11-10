@@ -3202,7 +3202,6 @@ export interface MangaPagePromptSummary {
   source: MangaPagePromptSourceSummary;
   stale_stages: MangaPipelineArtifactStage[];
   status: string;
-  system_reference_images: MangaPageReferenceImageV1[];
   updated_at: string;
 }
 

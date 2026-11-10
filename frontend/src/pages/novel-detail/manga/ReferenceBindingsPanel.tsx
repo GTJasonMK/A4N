@@ -98,18 +98,13 @@ export const ReferenceBindingsPanel: React.FC<{
   const [addingReferenceTargetKey, setAddingReferenceTargetKey] = useState<string | null>(null);
   const [generatingReferenceTargetKey, setGeneratingReferenceTargetKey] = useState<string | null>(null);
   const referenceRequirements = page.referenceDiscovery?.requirements ?? [];
-  const discoveredReferences = page.referenceDiscovery?.references.length
-    ? page.referenceDiscovery.references
-    : page.systemReferenceImages;
+  const discoveredReferences = page.referenceDiscovery?.references ?? [];
   const referenceTargetKindLabel = (targetKind: MangaPageReferenceTargetKind): string => ({
     character: t("comic.prompt.referenceTarget.character"),
     scene: t("comic.prompt.referenceTarget.scene"),
     object: t("comic.prompt.referenceTarget.object"),
     style: t("comic.prompt.referenceTarget.style"),
   })[targetKind];
-  const visibleReferenceText = (value: string | null | undefined): string =>
-    (value ?? "").split("叙述者").join(t("comic.prompt.unnamedProtagonist"));
-  const referenceTargetName = (name: string): string => visibleReferenceText(name);
   const systemPortraitBindings = useMemo(
     () => page.referenceBindings.filter((binding) => binding.systemAsset != null),
     [page.referenceBindings],
@@ -145,7 +140,7 @@ export const ReferenceBindingsPanel: React.FC<{
     return targets;
   }, [discoveredReferences, referenceRequirements, systemPortraitBindings]);
   const canEditReferenceDiscovery =
-    referenceTargets.length > 0 &&
+    page.referenceDiscovery != null && referenceTargets.length > 0 &&
     onBindDiscoveredReference != null;
   const referenceImages = projectImages;
   const visibleReferenceImages = useMemo(() => {
@@ -197,7 +192,7 @@ export const ReferenceBindingsPanel: React.FC<{
   );
   const unavailableSystemReferences = assetsLoading
     ? []
-    : page.systemReferenceImages.filter(
+    : discoveredReferences.filter(
         (reference) =>
           reference.asset.asset_kind !== "generated_image" ||
           !referenceImageById.has(reference.asset.asset_id),
@@ -342,6 +337,11 @@ export const ReferenceBindingsPanel: React.FC<{
                 reference.target_kind === target.targetKind &&
                 reference.target_name === target.targetName,
             );
+            const referenceLimitMessage = targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET
+              ? t("comic.prompt.referenceTargetLimitReached")
+              : discoveredReferences.length >= MANGA_PAGE_REFERENCE_IMAGE_LIMIT
+                ? t("comic.prompt.referencePageLimitReached", { limit: MANGA_PAGE_REFERENCE_IMAGE_LIMIT })
+                : null;
             const systemPortrait = target.targetKind === "character"
               ? systemPortraitBindings.find((binding) =>
                   binding.characterName === target.targetName,
@@ -369,16 +369,16 @@ export const ReferenceBindingsPanel: React.FC<{
                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <h5 className="truncate text-xs font-semibold text-book-text-main">
-                      {referenceTargetKindLabel(target.targetKind)} · {referenceTargetName(target.targetName)}
+                      {referenceTargetKindLabel(target.targetKind)} · {target.targetName}
                     </h5>
                     {target.description ? (
                       <p className="mt-1 text-caption text-book-text-sub">
-                        {visibleReferenceText(target.description)}
+                        {target.description}
                       </p>
                     ) : null}
                     {target.usage ? (
                       <p className="text-caption text-book-text-muted">
-                        {visibleReferenceText(target.usage)}
+                        {target.usage}
                       </p>
                     ) : null}
                   </div>
@@ -389,11 +389,9 @@ export const ReferenceBindingsPanel: React.FC<{
                       size="sm"
                       variant="secondary"
                       className="inline-flex shrink-0 items-center justify-center gap-1.5"
-                      aria-label={t("comic.prompt.generateReferenceFor", { target: referenceTargetName(target.targetName) })}
-                      title={targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET
-                        ? t("comic.prompt.referenceTargetLimitReached")
-                        : t("comic.prompt.generateReferenceHint")}
-                      disabled={chapterLocked || assetsLoading || addingReferenceTargetKey != null || generatingReferenceTargetKey != null || targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET || discoveredReferences.length >= MANGA_PAGE_REFERENCE_IMAGE_LIMIT}
+                      aria-label={t("comic.prompt.generateReferenceFor", { target: target.targetName })}
+                      title={referenceLimitMessage ?? t("comic.prompt.generateReferenceHint")}
+                      disabled={chapterLocked || assetsLoading || addingReferenceTargetKey != null || generatingReferenceTargetKey != null || referenceLimitMessage != null}
                       onClick={() => void generateDiscoveredReference(target, targetKey)}
                     >
                       {generatingReferenceTargetKey === targetKey
@@ -408,7 +406,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-book-border/50 bg-book-bg-tertiary text-caption text-book-text-muted">
                       <ZoomableImage
                         src={toMediaSrc(systemPortrait.image_path) ?? systemPortrait.image_path}
-                        alt={referenceTargetName(target.targetName)}
+                        alt={target.targetName}
                         className="h-full w-full object-cover"
                       />
                     </div>
@@ -476,13 +474,13 @@ export const ReferenceBindingsPanel: React.FC<{
                               asset.asset_kind === "generated_image" && asset.asset_id === image.id,
                             ),
                           );
-                        const systemReferenceIndex = page.systemReferenceImages.findIndex(
+                        const systemReferenceIndex = discoveredReferences.findIndex(
                           (reference) =>
                             reference.asset.asset_kind === "generated_image" &&
                             reference.asset.asset_id === image.id,
                         );
                         const imageLabel =
-                          visibleReferenceText(image.prompt.trim()) ||
+                          image.prompt.trim() ||
                           t("comic.prompt.projectImage");
                         return (
                           <div
@@ -511,7 +509,7 @@ export const ReferenceBindingsPanel: React.FC<{
                               {alsoBoundAsUserReference ? (
                                 <p className="text-caption text-book-text-muted">
                                   {t("comic.prompt.alsoBoundAsUserReference", {
-                                    character: referenceTargetName(target.targetName),
+                                    character: target.targetName,
                                   })}
                                 </p>
                               ) : null}
@@ -527,10 +525,10 @@ export const ReferenceBindingsPanel: React.FC<{
                                 variant={boundToThisTarget ? "ghost" : alreadyBound ? "primary" : "secondary"}
                                 className="w-full"
                                 aria-label={boundToThisTarget
-                                  ? t("comic.prompt.removeReferenceFromTarget", { target: referenceTargetName(target.targetName) })
+                                  ? t("comic.prompt.removeReferenceFromTarget", { target: target.targetName })
                                   : t("comic.prompt.bindReferenceImageTo", {
                                       image: imageLabel,
-                                      target: referenceTargetName(target.targetName),
+                                      target: target.targetName,
                                     })}
                                 disabled={
                                   chapterLocked ||
@@ -538,7 +536,7 @@ export const ReferenceBindingsPanel: React.FC<{
                                   addingReferenceTargetKey != null ||
                                   (boundToThisTarget
                                     ? !onUnbindDiscoveredReference
-                                    : alreadyBound || targetReferences.length >= MANGA_REFERENCE_IMAGES_PER_TARGET || !onBindDiscoveredReference)
+                                    : alreadyBound || referenceLimitMessage != null || !canEditReferenceDiscovery)
                                 }
                                 onClick={() => {
                                   if (boundToThisTarget && existingBinding) {
@@ -563,9 +561,7 @@ export const ReferenceBindingsPanel: React.FC<{
                                   ? t("comic.prompt.removeReference")
                                   : alreadyBound
                                     ? t("comic.prompt.referenceAlreadyBoundTo", { target: boundTarget ?? "" })
-                                    : targetReferences.length >= 2
-                                      ? t("comic.prompt.referenceTargetLimitReached")
-                                      : t("comic.prompt.bindDiscoveredReference")}
+                                    : referenceLimitMessage ?? t("comic.prompt.bindDiscoveredReference")}
                               </BookButton>
                             </div>
                           </div>
@@ -640,7 +636,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     {imageSrc ? (
                       <ZoomableImage
                         src={imageSrc}
-                        alt={referenceTargetName(reference.target_name)}
+                        alt={reference.target_name}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -649,14 +645,14 @@ export const ReferenceBindingsPanel: React.FC<{
                   </div>
                   <div className="min-w-0">
                     <div className="truncate text-xs font-medium text-book-text-main">
-                      {targetKind} · {referenceTargetName(reference.target_name)}
+                      {targetKind} · {reference.target_name}
                     </div>
                     <p className="line-clamp-2 text-caption text-book-text-sub">
-                      {visibleReferenceText(reference.usage || reference.description)}
+                      {reference.usage}
                     </p>
                     <span className="text-caption text-book-text-muted">
                       {t("comic.prompt.referenceNumber", {
-                        number: portraitReferenceCount + page.systemReferenceImages.indexOf(reference) + 1,
+                        number: portraitReferenceCount + discoveredReferences.indexOf(reference) + 1,
                       })}
                     </span>
                   </div>
@@ -664,7 +660,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     size="sm"
                     variant="ghost"
                     aria-label={t("comic.prompt.removeReferenceFromTarget", {
-                      target: referenceTargetName(reference.target_name),
+                      target: reference.target_name,
                     })}
                     disabled={chapterLocked || addingReferenceTargetKey != null || !onUnbindDiscoveredReference}
                     onClick={() => void unbindDiscoveredReference(
@@ -718,7 +714,7 @@ export const ReferenceBindingsPanel: React.FC<{
           <article key={binding.characterName} className="space-y-3 py-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-xs font-semibold text-book-text-main">
-                {referenceTargetName(binding.characterName)}
+                {binding.characterName}
               </span>
               {binding.userAddedAssets.length > 0 ? (
                 <span className="text-caption text-warning">
@@ -754,7 +750,7 @@ export const ReferenceBindingsPanel: React.FC<{
                       candidate?.imagePath ?? asset.image_path,
                     );
                     const assetLabel =
-                      visibleReferenceText(projectImage?.prompt.trim()) ||
+                      projectImage?.prompt.trim() ||
                       `${candidate?.label ?? t("comic.prompt.projectImage")} · ${asset.asset_id}`;
                     return (
                       <div
@@ -765,7 +761,7 @@ export const ReferenceBindingsPanel: React.FC<{
                           {imageSrc ? (
                             <ZoomableImage
                               src={imageSrc}
-                              alt={`${referenceTargetName(binding.characterName)} ${t("comic.prompt.userReferences")} ${index + 1}`}
+                              alt={`${binding.characterName} ${t("comic.prompt.userReferences")} ${index + 1}`}
                               className="h-full w-full object-cover"
                             />
                           ) : (
@@ -783,7 +779,7 @@ export const ReferenceBindingsPanel: React.FC<{
                           variant="ghost"
                           className="!h-8 !w-8 !min-w-8 !p-0"
                           aria-label={t("comic.prompt.removeUserReference", {
-                            character: referenceTargetName(binding.characterName),
+                            character: binding.characterName,
                             index: index + 1,
                           })}
                           disabled={mutationDisabled || !onBindReferenceImage}
@@ -846,7 +842,7 @@ export const ReferenceBindingsPanel: React.FC<{
               <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                 <div className="grid min-w-0 gap-1.5">
                   <ThemedSelect
-                    aria-label={`${referenceTargetName(binding.characterName)} · ${t("comic.prompt.addExistingUserReference")}`}
+                    aria-label={`${binding.characterName} · ${t("comic.prompt.addExistingUserReference")}`}
                     value={visibleSelectedUserKey}
                     onChange={(value) => onSelectCandidate(userSelectionKey, value)}
                     className="pyqt-input h-8 min-w-0 !px-2 !py-1 text-xs"
@@ -864,10 +860,10 @@ export const ReferenceBindingsPanel: React.FC<{
                     {userCandidates.map((candidate) => (
                       <option key={candidate.key} value={candidate.key}>
                         {[
-                          visibleReferenceText(candidate.label),
-                          visibleReferenceText(candidate.subLabel),
+                          candidate.label,
+                          candidate.subLabel,
                           useSearchPicker ? candidateIdentityLabel(candidate) : null,
-                          useSearchPicker ? visibleReferenceText(candidate.searchPreview) : null,
+                          useSearchPicker ? candidate.searchPreview : null,
                         ].filter(Boolean).join(" · ")}
                       </option>
                     ))}
@@ -878,7 +874,7 @@ export const ReferenceBindingsPanel: React.FC<{
                         {selectedUserImageSrc ? (
                           <ZoomableImage
                             src={selectedUserImageSrc}
-                            alt={`${referenceTargetName(selectedUser.label)} · ${candidateIdentityLabel(selectedUser)}`}
+                            alt={`${selectedUser.label} · ${candidateIdentityLabel(selectedUser)}`}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -888,12 +884,12 @@ export const ReferenceBindingsPanel: React.FC<{
                       <div className="min-w-0">
                         <div className="truncate text-xs font-medium text-book-text-main">
                           {[
-                            referenceTargetName(selectedUser.label),
+                            selectedUser.label,
                             candidateIdentityLabel(selectedUser),
                           ].filter(Boolean).join(" · ")}
                         </div>
                         <p className="line-clamp-2 text-caption text-book-text-muted">
-                          {visibleReferenceText(selectedUser.searchPreview)}
+                          {selectedUser.searchPreview}
                         </p>
                       </div>
                     </div>
@@ -951,7 +947,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     <input
                       type="file"
                       accept={supportedImageAccept()}
-                      aria-label={`${referenceTargetName(binding.characterName)} · ${t("comic.prompt.uploadReference")}`}
+                      aria-label={`${binding.characterName} · ${t("comic.prompt.uploadReference")}`}
                       disabled={mutationDisabled}
                       className="sr-only"
                       onChange={(event) => {

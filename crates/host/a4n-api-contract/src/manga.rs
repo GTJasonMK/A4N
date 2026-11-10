@@ -452,7 +452,6 @@ pub struct MangaPagePromptSummary {
     pub drawing_prompt: Option<MangaPageDrawingPromptV2>,
     pub stale_stages: Vec<MangaPipelineArtifactStage>,
     pub orphaned: bool,
-    pub system_reference_images: Vec<MangaPageReferenceImageV1>,
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,
     pub source: MangaPagePromptSourceSummary,
     pub generated_image_id: Option<i64>,

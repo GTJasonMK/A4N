@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
-import { login, clickButton, waitForNoDialog } from "../full-project/user-flow.mjs";
+import { login, clickButton, waitForNoDialog, captureBrowserDiagnostics } from "../full-project/user-flow.mjs";
 import { callBrowserApiCommand } from "../full-project/webApi.mjs";
 
 const fixture = JSON.parse(readFileSync(process.env.A4N_MEDIA_AUTHORING_CLI_REPORT, "utf8"));
@@ -77,9 +77,12 @@ describe("Generate and bind discovered manga references against the real Host", 
   it("generates a discovered requirement, preserves binding on refresh and enforces the limit", async () => {
     for (const width of [1440, 1024, 390]) {
       await openReferences(width);
+      assert.ok((await $("body").getText()).includes("叙述者的回忆"));
+      assert.ok(!(await $("body").getText()).includes("未具名主角的回忆"));
       assert.equal(await generate().isEnabled(), true);
       await capture("empty", width);
     }
+    checks.push("Saved reference names are displayed literally without the former narrator alias replacement");
     await browser.setWindowSize(1440, 1000);
     await generate().execute((element) => element.focus());
     assert.equal(await generate().isFocused(), true);
@@ -103,6 +106,54 @@ describe("Generate and bind discovered manga references against the real Host", 
       await capture("bound", width);
     }
     checks.push("Bound reference and thumbnail survive page reload at all three widths");
+
+    await openReferences(1024);
+    const referenceWorkspace = await callBrowserApiCommand("get_media_authoring_workspace", {
+      input: { project_id: projectId, chapter_id: null },
+    });
+    const pagesBeforeReadback = await callBrowserApiCommand("list_manga_page_prompts", {
+      input: { project_id: projectId, chapter_id: referenceWorkspace.chapters[0].source.source_chapter_id },
+    });
+    const pageBeforeReadback = pagesBeforeReadback.find((page) => page.page_number === 1);
+    assert.ok(pageBeforeReadback);
+    assert.deepEqual(await captureBrowserDiagnostics(`${artifacts}/before-reference-readback`), []);
+    await browser.execute(() => {
+      const original = window.fetch;
+      window.__referenceRestoreFetch = () => { window.fetch = original; };
+      let rejectReadback = true;
+      window.fetch = async (input, init) => {
+        const url = typeof input === "string" ? input : input.url ?? String(input);
+        if (rejectReadback && url.includes("/commands/list_manga_page_prompts")) {
+          rejectReadback = false;
+          throw new Error("reference readback failure fixture");
+        }
+        return original.call(window, input, init);
+      };
+    });
+    try {
+      const remove = await $('button[aria-label="从断裂树根移除参考图"]');
+      await remove.scrollIntoView({ block: "center" });
+      await remove.click();
+      await browser.waitUntil(async () => (await $("body").getText()).includes("产物已保存，但读取最新状态失败"));
+      await capture("readback-error", 1024);
+      const expected = await captureBrowserDiagnostics(`${artifacts}/expected-reference-readback`);
+      assert.equal(expected.length, 1, JSON.stringify(expected));
+      assert.equal(expected[0].source, "console-api");
+      assert.ok(expected[0].message.includes("后端调用失败: list_manga_page_prompts"), JSON.stringify(expected));
+    } finally {
+      await browser.execute(() => { window.__referenceRestoreFetch?.(); delete window.__referenceRestoreFetch; });
+    }
+    const pagesAfterReadback = await callBrowserApiCommand("list_manga_page_prompts", {
+      input: { project_id: projectId, chapter_id: pageBeforeReadback.chapter_id },
+    });
+    const pageAfterReadback = pagesAfterReadback.find((page) => page.id === pageBeforeReadback.id);
+    assert.equal(pageAfterReadback.reference_discovery.references.length, 0);
+    await callBrowserApiCommand("save_manga_pipeline_artifact", { input: {
+      project_id: projectId, chapter_id: pageAfterReadback.chapter_id, page_number: 1,
+      stage: "reference_discovery", payload: pageBeforeReadback.reference_discovery,
+      expected_prompt_updated_at: pageAfterReadback.updated_at,
+    } });
+    checks.push("A real unbind with failed state readback reports that changes were saved instead of claiming successful refresh");
 
     await configureImage("a4n-reference-image-fail");
     await openReferences(1024);

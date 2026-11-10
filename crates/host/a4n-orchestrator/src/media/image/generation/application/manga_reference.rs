@@ -152,7 +152,9 @@ impl OrchestratorContext {
                     image_path: image.file_path.clone(),
                 },
             });
-            discovery.validate().map_err(AppError::InvalidArgument)?;
+            discovery
+                .validate_for_write()
+                .map_err(AppError::InvalidArgument)?;
             self.save_manga_pipeline_artifact_validated(
                 user_id,
                 SaveMangaPipelineArtifactInput {
@@ -189,18 +191,16 @@ fn reference_requirement<'a>(
     discovery: &'a MangaPageReferenceDiscoveryV1,
     options: &MangaReferenceImageOptions,
 ) -> Result<&'a MangaPageReferenceNeedV1, AppError> {
-    discovery.validate().map_err(AppError::InvalidArgument)?;
-    let mut matching = discovery.requirements.iter().filter(|need| {
-        need.target_kind == options.target_kind && need.target_name == options.target_name
-    });
-    let requirement = matching
-        .next()
+    discovery
+        .validate_for_write()
+        .map_err(AppError::InvalidArgument)?;
+    let requirement = discovery
+        .requirements
+        .iter()
+        .find(|need| {
+            need.target_kind == options.target_kind && need.target_name == options.target_name
+        })
         .ok_or_else(|| AppError::InvalidArgument("未找到该参考图需求，请刷新后重试".into()))?;
-    if matching.next().is_some() {
-        return Err(AppError::InvalidArgument(
-            "参考图需求目标不唯一，请先合并重复需求".into(),
-        ));
-    }
     discovery
         .ensure_reference_capacity(options.target_kind, &options.target_name)
         .map_err(AppError::InvalidArgument)?;

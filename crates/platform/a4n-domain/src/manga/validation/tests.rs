@@ -134,3 +134,68 @@ fn page_generation_layout_keeps_adaptation_identity_only_in_source() {
         .expect_err("invalid source adaptation identity must fail");
     assert_eq!(error.path, "source.adaptation_plan_id");
 }
+
+#[test]
+fn reference_discovery_rejects_ambiguous_targets_and_excess_target_images() {
+    let mut discovery: MangaPageReferenceDiscoveryV1 = serde_json::from_value(json!({
+        "schema_version": MANGA_PAGE_REFERENCE_DISCOVERY_V1,
+        "requirements": [{"target_kind":"object", "target_name":"旧怀表", "description":"黄铜表壳", "usage":"保持道具外观"}],
+        "references": []
+    })).unwrap();
+    discovery.validate_for_write().unwrap();
+    discovery
+        .requirements
+        .push(discovery.requirements[0].clone());
+    discovery.requirements[1].target_name = " 旧怀表 ".into();
+    discovery
+        .validate()
+        .expect("older records remain readable for editing");
+    assert!(
+        discovery
+            .validate_for_write()
+            .unwrap_err()
+            .contains("不唯一")
+    );
+    discovery.requirements[1].target_kind = MangaPageReferenceTargetKind::Scene;
+    discovery.validate_for_write().unwrap();
+    for id in 1..=MANGA_REFERENCE_IMAGES_PER_TARGET + 1 {
+        discovery.references.push(serde_json::from_value(json!({
+            "target_kind":"object", "target_name":"旧怀表", "description":"黄铜表壳", "usage":"保持道具外观",
+            "asset":{"asset_kind":"generated_image", "asset_id":id, "image_path":format!("images/watch-{id}.png")}
+        })).unwrap());
+        if id <= MANGA_REFERENCE_IMAGES_PER_TARGET {
+            discovery.validate_for_write().unwrap();
+        } else {
+            discovery
+                .validate()
+                .expect("older excess bindings remain readable for removal");
+            assert!(
+                discovery
+                    .validate_for_write()
+                    .unwrap_err()
+                    .contains("最多绑定两张")
+            );
+        }
+    }
+    discovery.references.pop();
+    assert!(
+        discovery
+            .ensure_reference_capacity(MangaPageReferenceTargetKind::Object, " 旧怀表 ")
+            .is_err()
+    );
+    assert!(
+        discovery
+            .ensure_reference_capacity(MangaPageReferenceTargetKind::Scene, "旧怀表")
+            .is_ok()
+    );
+    for (field, limit) in [
+        ("target_name", MANGA_REFERENCE_TARGET_NAME_MAX_CHARS),
+        ("description", MANGA_REFERENCE_DESCRIPTION_MAX_CHARS),
+        ("usage", MANGA_REFERENCE_USAGE_MAX_CHARS),
+    ] {
+        let mut value = serde_json::to_value(&discovery).unwrap();
+        value["references"][0][field] = json!("长".repeat(limit + 1));
+        let invalid: MangaPageReferenceDiscoveryV1 = serde_json::from_value(value).unwrap();
+        assert!(invalid.validate_for_write().unwrap_err().contains(field));
+    }
+}

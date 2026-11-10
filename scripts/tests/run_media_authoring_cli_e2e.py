@@ -841,6 +841,14 @@ def main():
                             }}}
 
                     reference = reference_page()
+                    assert "system_reference_images" not in reference
+                    duplicated = copy.deepcopy(discovery)
+                    duplicated["requirements"].append(copy.deepcopy(duplicated["requirements"][0]))
+                    call("save_manga_pipeline_artifact", {"project_id":current_id, "chapter_id":reference_chapter,
+                        "stage":"reference_discovery", "page_number":1, "payload":duplicated,
+                        "expected_prompt_updated_at":reference["updated_at"]}, reject="目标不唯一")
+                    assert reference_page()["updated_at"] == reference["updated_at"]
+                    passed("参考发现只有一个权威返回字段；重复目标保存被拒绝，页面及版本保持不变")
                     before = len(provider_log_entries(args.provider_log))
                     call("start_image_generation", reference_input(reference, target_name="未发现的道具"), reject="未找到该参考图需求")
                     forged = reference_input(reference)
@@ -915,6 +923,17 @@ def main():
                     call("start_image_generation", reference_input(reference), reject="最多绑定两张")
                     assert len(provider_log_entries(args.provider_log)) == before
                     passed("已更新页面的旧请求和每个需求第三张参考图在请求 Provider 前被拒绝")
+                    invalid_discovery = copy.deepcopy(reference["reference_discovery"])
+                    used_ids = {item["asset"]["asset_id"] for item in invalid_discovery["references"]}
+                    spare_image = next(image for image in images if image["id"] not in used_ids)
+                    extra = copy.deepcopy(invalid_discovery["references"][0])
+                    extra["asset"] = {"asset_kind":"generated_image", "asset_id":spare_image["id"], "image_path":spare_image["file_path"]}
+                    invalid_discovery["references"].append(extra)
+                    call("save_manga_pipeline_artifact", {"project_id":current_id, "chapter_id":reference_chapter,
+                        "stage":"reference_discovery", "page_number":1, "payload":invalid_discovery,
+                        "expected_prompt_updated_at":reference["updated_at"]}, reject="最多绑定两张")
+                    assert reference_page()["updated_at"] == reference["updated_at"]
+                    passed("手工阶段保存与生成入口遵守同一个每目标两张上限，拒绝时不改写页面")
                     for target_kind, target_name in (("character", "林岚"), ("scene", "雨中的旧车站"), ("style", "黑白漫画光影")):
                         payload = copy.deepcopy(reference["reference_discovery"])
                         payload["requirements"].append({"target_kind": target_kind, "target_name": target_name,
@@ -935,7 +954,38 @@ def main():
                         bound = reference["reference_discovery"]["references"][-1]
                         assert bound["target_kind"] == target_kind and bound["target_name"] == target_name
                     passed("角色、场景和风格需求均可生成并绑定；角色请求实际携带已有立绘进入 image edit 协议")
+                    before = len(provider_log_entries(args.provider_log))
+                    drawing_preview = call("preview_start_manga_pipeline_request", {"project_id":current_id,
+                        "chapter_number":1, "page_number":1, "run_stage":"drawing_prompt", "stop_after":"drawing_prompt"})
+                    assert len(provider_log_entries(args.provider_log)) == before
+                    assert "manga_page_drawing_prompt" in json.dumps(drawing_preview)
+                    manga_run(current_id, run_stage="drawing_prompt", stop_after="drawing_prompt", page_number=1)
+                    drawing_calls = provider_log_entries(args.provider_log)[before:]
+                    assert len(drawing_calls) == 1
+                    assert reference_page()["drawing_prompt"] is not None
+                    passed("已保存及新生成参考图可直接预览并继续绘图提示词，只调用绘图模型，不重跑发现")
+                    binding = reference["reference_bindings"][0]
+                    asset_id = reference["reference_discovery"]["references"][0]["asset"]["asset_id"]
+                    binding_input = {"prompt_id":reference["id"], "character_name":binding["character_name"],
+                        "asset_kind":"generated_image", "asset_id":asset_id}
+                    before = len(provider_log_entries(args.provider_log))
+                    for action in ("add_user_image", "remove_user_image"):
+                        updated = call("bind_manga_reference_image", {**binding_input,"action":action})
+                        saved_binding = next(item for item in updated["reference_bindings"] if item["character_name"] == binding["character_name"])
+                        assert any(item["asset_id"] == asset_id and item["asset_kind"] == "generated_image" for item in saved_binding["user_added_assets"]) == (action == "add_user_image")
+                        artifacts = call("list_manga_pipeline_artifacts", {"project_id":current_id, "chapter_id":reference_chapter})
+                        saved = next(item for item in artifacts if item["stage"] == "reference_bindings" and item["page_number"] == 1)
+                        assert saved["payload"] == updated["reference_bindings"] == reference_page()["reference_bindings"]
+                        assert next(item for item in artifacts if item["stage"] == "reference_discovery" and item["page_number"] == 1)["stale"]
+                        if action == "add_user_image":
+                            call("save_manga_pipeline_artifact", {"project_id":current_id, "chapter_id":reference_chapter,
+                                "stage":"reference_discovery", "page_number":1, "payload":updated["reference_discovery"],
+                                "expected_prompt_updated_at":updated["updated_at"]})
+                    assert len(provider_log_entries(args.provider_log)) == before
+                    passed("用户参考图增删同步保存页面与阶段产物，使下游过期，不调用模型")
                     discovery["references"] = []
+                    discovery["requirements"].append({"target_kind":"style", "target_name":"叙述者的回忆",
+                        "description":"参考图名称应按保存值原样显示。", "usage":"保留原作题名，不进行人物别名替换。"})
                     current = call("create_derived_project", {
                         "root_project_id": imported_root["id"], "derived_kind": "comic",
                         "title": "浏览器无素材参考图生成", "description": "empty image library fixture",

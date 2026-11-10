@@ -21,7 +21,6 @@ const normalizeMangaPagePrompts = (pages = []) => {
     page.pipeline_stage ??= null;
     page.pipeline_status ??= null;
     page.stale_stages ??= [];
-    page.system_reference_images ??= [];
     for (const binding of page.reference_bindings ?? []) {
       binding.user_added_assets ??= [];
     }

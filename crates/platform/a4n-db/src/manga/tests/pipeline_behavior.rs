@@ -713,41 +713,70 @@ async fn stale_page_projection_rolls_back_the_stage_artifact_save() {
     .await
     .unwrap();
 
-    let result = save_manga_pipeline_artifact_with_projection(
+    upsert_manga_pipeline_artifact(
         &db,
         MangaPipelineArtifactDraft {
             project_id,
             chapter_id,
-            stage: MangaPipelineArtifactStage::PageContent,
+            stage: MangaPipelineArtifactStage::DrawingPrompt,
             page_number: Some(1),
-            input_fingerprint: "manual-page-content-v1".to_string(),
-            payload: json!({"summary": "手工修改"}),
+            input_fingerprint: "unchanged-drawing".into(),
+            payload: json!({"prompt":"保留原有提示词"}),
             stale: false,
         },
-        Some(MangaPipelineArtifactProjectionUpdate {
-            page_prompt: prompt.clone(),
-            layout,
-            expected_updated_at: prompt.updated_at.to_string(),
-        }),
-        fixed_time(3),
+        fixed_time(2),
     )
-    .await;
-
-    assert!(
-        matches!(result, Err(MangaPromptRecordError::InvalidArgument(message)) if message.contains("已被其他操作修改"))
-    );
-    assert!(
-        manga_pipeline_artifact(
-            &db,
-            project_id,
-            chapter_id,
+    .await
+    .unwrap();
+    for (stage, payload) in [
+        (
             MangaPipelineArtifactStage::PageContent,
-            Some(1),
+            json!({"summary":"手工修改"}),
+        ),
+        (MangaPipelineArtifactStage::ReferenceBindings, json!([])),
+    ] {
+        let result = save_manga_pipeline_artifact_with_projection(
+            &db,
+            MangaPipelineArtifactDraft {
+                project_id,
+                chapter_id,
+                stage,
+                page_number: Some(1),
+                input_fingerprint: "manual-change".into(),
+                payload,
+                stale: false,
+            },
+            Some(MangaPipelineArtifactProjectionUpdate {
+                page_prompt: prompt.clone(),
+                layout: layout.clone(),
+                expected_updated_at: prompt.updated_at.to_string(),
+            }),
+            fixed_time(3),
         )
-        .await
-        .unwrap()
-        .is_none()
-    );
+        .await;
+        assert!(
+            matches!(result, Err(MangaPromptRecordError::InvalidArgument(message)) if message.contains("已被其他操作修改"))
+        );
+        assert!(
+            manga_pipeline_artifact(&db, project_id, chapter_id, stage, Some(1))
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            !manga_pipeline_artifact(
+                &db,
+                project_id,
+                chapter_id,
+                MangaPipelineArtifactStage::DrawingPrompt,
+                Some(1)
+            )
+            .await
+            .unwrap()
+            .unwrap()
+            .stale
+        );
+    }
 }
 
 #[tokio::test]

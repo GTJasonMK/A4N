@@ -22,10 +22,7 @@ use a4n_service_protocol::ProgressEvent;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use super::layout_rules::{
-    manga_page_generation_layout, manga_page_pipeline_layout, mutate_reference_asset_in_layout,
-    mutate_reference_asset_in_pipeline_layout,
-};
+use super::layout_rules::{manga_page_pipeline_layout, mutate_reference_asset_in_pipeline_layout};
 use super::pipeline::prompt::manga_pipeline_prompt_assembly_call_key;
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
@@ -442,83 +439,54 @@ impl OrchestratorContext {
                 .await?,
             ),
         };
-        let layout_value = page_prompt.layout.as_ref().ok_or_else(|| {
-            AppError::InvalidArgument(format!("漫画页面提示词 #{} 缺少 layout", page_prompt.id))
-        })?;
-        let layout = match layout_value
-            .get("schema_version")
-            .and_then(serde_json::Value::as_str)
-        {
-            Some("manga_page_generation_v4") => {
-                let layout =
-                    manga_page_pipeline_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
-                serde_json::to_value(
-                    mutate_reference_asset_in_pipeline_layout(
-                        layout,
-                        character_name,
-                        input.asset_kind,
-                        input.asset_id,
-                        input.action,
-                        asset,
-                    )
-                    .map_err(AppError::InvalidArgument)?,
-                )?
-            }
-            _ => {
-                let layout = manga_page_generation_layout(&page_prompt)
-                    .map_err(AppError::InvalidArgument)?;
-                serde_json::to_value(
-                    mutate_reference_asset_in_layout(
-                        layout,
-                        character_name,
-                        input.asset_kind,
-                        input.asset_id,
-                        input.action,
-                        asset,
-                    )
-                    .map_err(AppError::InvalidArgument)?,
-                )?
-            }
-        };
-        let updated = self
-            .update_manga_page_prompt_layout(page_prompt, layout)
-            .await?;
-        let pipeline_layout =
-            manga_page_pipeline_layout(&updated).map_err(AppError::InvalidArgument)?;
+        let layout = manga_page_pipeline_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+        let layout = mutate_reference_asset_in_pipeline_layout(
+            layout,
+            character_name,
+            input.asset_kind,
+            input.asset_id,
+            input.action,
+            asset,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let page_number = u32::try_from(page_prompt.page_number)
+            .map_err(|_| AppError::InvalidArgument("漫画页码无效".into()))?;
         let existing = self
             .manga_pipeline_artifact(
-                updated.project_id,
-                updated.chapter_id,
+                page_prompt.project_id,
+                page_prompt.chapter_id,
                 MangaPipelineArtifactStage::ReferenceBindings,
-                Some(
-                    u32::try_from(updated.page_number)
-                        .map_err(|_| AppError::InvalidArgument("漫画页码无效".into()))?,
-                ),
+                Some(page_number),
             )
             .await?;
-        self.upsert_manga_pipeline_artifact(MangaPipelineArtifactDraft {
-            project_id: updated.project_id,
-            chapter_id: updated.chapter_id,
-            stage: MangaPipelineArtifactStage::ReferenceBindings,
-            page_number: Some(
-                u32::try_from(updated.page_number)
-                    .map_err(|_| AppError::InvalidArgument("漫画页码无效".into()))?,
-            ),
-            input_fingerprint: existing.as_ref().map_or_else(
-                || {
-                    source_text_hash(&format!(
-                        "manual:reference_bindings:{}:{}",
-                        source_text_hash(&source.content),
-                        updated.page_number
-                    ))
-                },
-                |artifact| artifact.input_fingerprint.clone(),
-            ),
-            payload: serde_json::to_value(pipeline_layout.reference_bindings)?,
-            stale: existing.as_ref().is_some_and(|artifact| artifact.stale),
-        })
+        let prompt_id = page_prompt.id;
+        let expected_updated_at = page_prompt.updated_at.to_string();
+        self.save_manga_pipeline_artifact_with_projection(
+            MangaPipelineArtifactDraft {
+                project_id: page_prompt.project_id,
+                chapter_id: page_prompt.chapter_id,
+                stage: MangaPipelineArtifactStage::ReferenceBindings,
+                page_number: Some(page_number),
+                input_fingerprint: existing.as_ref().map_or_else(
+                    || {
+                        source_text_hash(&format!(
+                            "manual:reference_bindings:{}:{page_number}",
+                            source_text_hash(&source.content),
+                        ))
+                    },
+                    |artifact| artifact.input_fingerprint.clone(),
+                ),
+                payload: serde_json::to_value(&layout.reference_bindings)?,
+                stale: existing.as_ref().is_some_and(|artifact| artifact.stale),
+            },
+            Some(a4n_db::manga::MangaPipelineArtifactProjectionUpdate {
+                page_prompt,
+                layout: serde_json::to_value(layout)?,
+                expected_updated_at,
+            }),
+        )
         .await?;
-        Ok(updated)
+        self.required_manga_page_prompt(prompt_id).await
     }
 
     pub async fn update_manga_prompt_validated(

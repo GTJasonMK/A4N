@@ -53,7 +53,7 @@ import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import { MAX_UPLOAD_IMAGE_BYTES, MANGA_REFERENCE_IMAGES_PER_TARGET } from "../../../api/generated/config";
+import { MAX_UPLOAD_IMAGE_BYTES, MANGA_PAGE_REFERENCE_IMAGE_LIMIT, MANGA_REFERENCE_IMAGES_PER_TARGET } from "../../../api/generated/config";
 import { isSupportedImageMime } from "../../../utils/imageUpload";
 import {
   chapterHeading,
@@ -767,14 +767,12 @@ export function MangaChapterDetailPanel({
       const updatedPrompt = await bindMangaReferenceImage(bindingInput);
       if (!isCurrentAction(requestScope, actionSeq)) return;
       onPagePromptChanged(updatedPrompt);
-      void onPagePromptsChanged();
+      if (!await onPagePromptsChanged()) throw new Error(t("comic.prompt.savedReadbackFailed"));
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(
         input.action === "remove_user_image"
           ? t("comic.prompt.removedUserReference")
-          : input.action === "add_user_image"
-            ? t("comic.prompt.addedUserReference")
-            : t("comic.prompt.savedReference"),
+          : t("comic.prompt.addedUserReference"),
         "success",
       );
     } catch (err) {
@@ -1031,24 +1029,27 @@ export function MangaChapterDetailPanel({
     pageNumber: number,
     payload: unknown,
   ) => {
-    if (!ensurePagePromptsCurrent()) return;
+    if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
     if (!canEditManga || !selectedChapter) {
       addToast(t("comic.noEditPermission"), "error");
-      return;
+      throw new Error(t("comic.noEditPermission"));
     }
     if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingUpdate"), "error");
-      return;
+      throw new Error(t("comic.chapter.generatingUpdate"));
     }
     const pagePrompt = pagePromptsRef.current.find(
       (prompt) => prompt.page_number === pageNumber,
     );
     if (!pagePrompt) {
       addToast(t("comic.prompt.notFound"), "error");
-      return;
+      throw new Error(t("comic.prompt.notFound"));
     }
     const actionSeq = beginAction(scopeKey);
-    if (actionSeq == null) return;
+    if (actionSeq == null) {
+      addToast(t("comic.prompt.operationInProgress"), "error");
+      throw new Error(t("comic.prompt.operationInProgress"));
+    }
     try {
       const savedArtifact = await saveMangaPipelineArtifact({
         project_id: projectId,
@@ -1058,9 +1059,10 @@ export function MangaChapterDetailPanel({
         expected_prompt_updated_at: pagePrompt.updated_at,
         payload,
       });
-      if (!isCurrentAction(scopeKey, actionSeq)) return;
+      ensureCurrentAction(scopeKey, actionSeq);
       onPageArtifactChanged(savedArtifact);
-      void onPagePromptsChanged();
+      if (!await onPagePromptsChanged()) throw new Error(t("comic.prompt.savedReadbackFailed"));
+      ensureCurrentAction(scopeKey, actionSeq);
       addToast(t("comic.prompt.saved"), "success");
     } catch (err) {
       if (isCurrentAction(scopeKey, actionSeq)) {
@@ -1146,22 +1148,22 @@ export function MangaChapterDetailPanel({
     sourceImage: GeneratedImage,
     target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
   ) => {
-    if (!ensurePagePromptsCurrent() || !canEditManga || !selectedChapter) return;
-    if (referenceUploadBusyRef.current || actionBusyRef.current) return;
+    if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
+    if (!canEditManga || !selectedChapter) throw new Error(t("comic.noEditPermission"));
+    if (referenceUploadBusyRef.current || actionBusyRef.current) throw new Error(t("comic.prompt.operationInProgress"));
     const pagePrompt = pagePromptsRef.current.find((prompt) => prompt.page_number === selectedPageNumber);
     if (!pagePrompt) {
-      addToast(t("comic.prompt.notFound"), "error");
-      return;
+      throw new Error(t("comic.prompt.notFound"));
     }
     const requestScope = scopeKey;
     referenceUploadBusyRef.current = true;
     setUploadingReferenceBindingKey(`${pagePrompt.id}:manual-reference`);
     try {
-      const discovery = pagePrompt.reference_discovery ?? {
-        schema_version: "manga_page_reference_discovery_v1",
-        requirements: [],
-        references: [],
-      };
+      const discovery = pagePrompt.reference_discovery;
+      if (!discovery) throw new Error(t("comic.prompt.referenceDiscoveryPending"));
+      if (discovery.references.length >= MANGA_PAGE_REFERENCE_IMAGE_LIMIT) {
+        throw new Error(t("comic.prompt.referencePageLimitReached", { limit: MANGA_PAGE_REFERENCE_IMAGE_LIMIT }));
+      }
       const targetReferences = discovery.references.filter(
         (reference) =>
           reference.target_kind === target.targetKind &&
@@ -1171,13 +1173,12 @@ export function MangaChapterDetailPanel({
         throw new Error(t("comic.prompt.referenceTargetLimitReached"));
       }
       const imported = await importReferenceImage(sourceImage);
-      if (!isCurrentScope(requestScope)) return;
+      if (!isCurrentScope(requestScope)) throw new Error(t("comic.pipelineStages.cancelled"));
       const requirement = discovery.requirements.find(
         (item) => item.target_kind === target.targetKind && item.target_name === target.targetName,
       );
       const payload = {
         ...discovery,
-        requirements: discovery.requirements,
         references: [
           ...discovery.references.filter(
             (reference) => reference.asset.asset_kind !== "generated_image" || reference.asset.asset_id !== imported.id,
@@ -1192,9 +1193,6 @@ export function MangaChapterDetailPanel({
         ],
       };
       await handleSaveStageArtifact("reference_discovery", pagePrompt.page_number, payload);
-    } catch (error) {
-      if (!isCurrentScope(requestScope)) return;
-      throw error;
     } finally {
       referenceUploadBusyRef.current = false;
       if (isCurrentScope(requestScope)) setUploadingReferenceBindingKey(null);
@@ -1205,13 +1203,13 @@ export function MangaChapterDetailPanel({
     assetKind: MangaReferenceAssetKind,
     assetId: number,
   ) => {
-    if (!ensurePagePromptsCurrent() || !canEditManga || !selectedChapter) return;
+    if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
+    if (!canEditManga || !selectedChapter) throw new Error(t("comic.noEditPermission"));
     const pagePrompt = pagePromptsRef.current.find(
       (prompt) => prompt.page_number === selectedPageNumber,
     );
     if (!pagePrompt) {
-      addToast(t("comic.prompt.notFound"), "error");
-      return;
+      throw new Error(t("comic.prompt.notFound"));
     }
     const discovery = pagePrompt.reference_discovery;
     if (!discovery?.references.some(
