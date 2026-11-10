@@ -22,6 +22,12 @@ pub(super) struct HttpLlmProvider {
 }
 
 impl HttpLlmProvider {
+    #[cfg(test)]
+    pub(crate) fn with_test_client(mut self, client: Client) -> Self {
+        self.client = client;
+        self
+    }
+
     pub(super) fn with_reasoning_replay(mut self, enabled: bool) -> Self {
         self.replay_reasoning = enabled;
         self

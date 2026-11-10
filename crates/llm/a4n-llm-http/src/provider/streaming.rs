@@ -21,7 +21,7 @@ pub(super) async fn execute_chat_stream(
     } else {
         provider.build_native_request(&request)?
     };
-    let response = builder.send().await.map_err(|error| {
+    let response = crate::transport::send(builder).await.map_err(|error| {
         request_error(
             "LLM API 流式",
             error,

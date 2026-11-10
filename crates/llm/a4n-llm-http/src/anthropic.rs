@@ -26,6 +26,12 @@ pub(super) struct AnthropicLlmProvider {
 }
 
 impl AnthropicLlmProvider {
+    #[cfg(test)]
+    pub(crate) fn with_test_client(mut self, client: reqwest::Client) -> Self {
+        self.client = client;
+        self
+    }
+
     pub(super) fn new(
         base_url: impl Into<String>,
         model: impl Into<String>,
@@ -137,7 +143,7 @@ impl AnthropicLlmProvider {
         if let Some(key) = self.api_key.as_deref().filter(|key| !key.trim().is_empty()) {
             builder = builder.header("x-api-key", key);
         }
-        let response = builder.send().await.map_err(|error| {
+        let response = crate::transport::send(builder).await.map_err(|error| {
             request_error(
                 "Anthropic Messages 流式",
                 error,

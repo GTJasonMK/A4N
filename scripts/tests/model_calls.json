@@ -42,7 +42,7 @@
   ],
   "shared_scenarios": {
     "search":["valid","auth","rate-limit","server","malformed-json","duplicate-keys","missing-results","invalid-source","oversize","timeout","missing-finish","truncated","invalid-input","error-envelope"],
-    "text":["actual-protocol-contract-budget","auth","rate-limit","server","malformed-sse","missing-finish","truncated","refusal","empty","disconnect","bounded-timeout"],
+    "text":["actual-protocol-contract-budget","auth","rate-limit","server","malformed-sse","missing-finish","truncated","refusal","empty","disconnect","bounded-timeout","connect-recovery","connect-exhausted","connect-cancellation","accepted-request-eof"],
     "tools":["valid","malformed-arguments","duplicate-keys","missing-name","missing-finish","truncated"],
     "image":["actual-request-parameters","decodable-artifact","unsupported-before-request","auth","rate-limit","server","malformed-envelope","empty","fake-image","truncated-image","empty-prompt","bad-width","empty-model","reference-base64","reference-corrupt","reference-mime"],
     "video":["actual-request-parameters","real-artifact","unsupported-before-request","auth","rate-limit","server","malformed-envelope","disconnect","missing-job","download-failure","completed-no-artifact","corrupt-artifact","no-video-stream","empty-artifact","unknown-status","pending","failed","prompt","model","width","fps","duration","delete-capability","empty-job-before-request"],

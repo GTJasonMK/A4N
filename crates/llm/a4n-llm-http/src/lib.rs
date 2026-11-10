@@ -15,6 +15,7 @@ mod sse;
 mod stream;
 #[cfg(test)]
 mod tests;
+mod transport;
 
 use anthropic::AnthropicLlmProvider;
 use provider::HttpLlmProvider;

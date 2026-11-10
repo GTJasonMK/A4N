@@ -6,6 +6,7 @@ use a4n_test_support::{
 };
 use serde_json::{Value, json};
 
+mod connection;
 mod tools;
 
 fn schema() -> Value {
